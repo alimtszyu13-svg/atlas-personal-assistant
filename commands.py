@@ -1,7 +1,9 @@
 from system_control import open_app, close_app
 from info_services import get_weather, get_news
+from ai_brain import ask_ai
 
 def route_command(text: str) -> str:
+    original_text = text
     text = text.lower()
 
     if "открой" in text:
@@ -13,9 +15,9 @@ def route_command(text: str) -> str:
         return close_app(app_name)
 
     if "погода" in text:
-        return get_weather()  # по умолчанию Бишкек, можно расширить парсинг города позже
+        return get_weather()
 
     if "новости" in text:
         return get_news()
 
-    return "Не понял команду."
+    return ask_ai(original_text)
