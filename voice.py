@@ -4,30 +4,79 @@ import speech_recognition as sr
 import asyncio
 import edge_tts
 import os
-from playsound import playsound
+import threading
+import pygame
 
-# Список голосов на русском можно посмотреть командой:
-# edge-tts --list-voices | findstr ru-RU
-VOICE = "ru-RU-DmitryNeural"  # мужской, звучит уверенно — можно заменить на ru-RU-SvetlanaNeural (женский)
+pygame.mixer.init()
+
+VOICE = "ru-RU-DmitryNeural"
 
 async def _generate_speech(text: str, filename: str) -> None:
-    """Генерирует mp3-файл с озвучкой текста через Edge-TTS."""
     communicate = edge_tts.Communicate(text, VOICE)
     await communicate.save(filename)
-
-def speak(text: str) -> None:
-    print(f"[Atlas]: {text}")
-    filename = "temp_speech.mp3"
-    # edge_tts асинхронный, а наш код синхронный —
-    # asyncio.run() запускает асинхронную функцию и ждёт её завершения,
-    # "мостик" между двумя мирами
-    asyncio.run(_generate_speech(text, filename))
-    playsound(filename)
-    os.remove(filename)  # чистим за собой, чтобы файлы не копились
 
 
 recognizer = sr.Recognizer()
 SAMPLE_RATE = 16000
+INTERRUPT_WORDS = ("стоп", "хватит", "замолчи")
+
+
+def _watch_for_interrupt(stop_event: threading.Event) -> None:
+    print("[DEBUG] Поток-слушатель стартовал")
+    while pygame.mixer.music.get_busy() and not stop_event.is_set():
+        chunk = sd.rec(int(1.5 * SAMPLE_RATE), samplerate=SAMPLE_RATE,
+                        channels=1, dtype='int16')
+        sd.wait()
+
+        if stop_event.is_set():
+            print("[DEBUG] stop_event сработал, выхожу")
+            break
+
+        volume = np.sqrt(np.mean(chunk.astype(np.float32) ** 2))
+        print(f"[DEBUG] Громкость: {volume:.0f}")
+        if volume < 250:
+            continue
+
+        audio = sr.AudioData(chunk.tobytes(), SAMPLE_RATE, 2)
+        try:
+            text = recognizer.recognize_google(audio, language="ru-RU").lower()
+            print(f"[DEBUG] Распознал: '{text}'")
+            if any(word in text for word in INTERRUPT_WORDS):
+                print("[Atlas]: (прерван)")
+                pygame.mixer.music.stop()
+        except sr.UnknownValueError:
+            print("[DEBUG] Не расслышал этот кусок")
+        except sr.RequestError as e:
+            print(f"[DEBUG] Ошибка сети: {e}")
+    print("[DEBUG] Цикл слушателя завершён")
+
+def speak(text: str, interruptible: bool = True) -> None:
+    print(f"[Atlas]: {text}")
+    filename = "temp_speech.mp3"
+    asyncio.run(_generate_speech(text, filename))
+
+    pygame.mixer.music.load(filename)
+    pygame.mixer.music.play()
+
+    stop_event = threading.Event()
+    listener = None
+    if interruptible:
+        listener = threading.Thread(target=_watch_for_interrupt, args=(stop_event,), daemon=True)
+        listener.start()
+
+    while pygame.mixer.music.get_busy():
+        pygame.time.wait(100)
+
+    stop_event.set()
+
+    # ждём, пока поток-слушатель реально закончится (максимум 2 сек на это),
+    # иначе он может ещё держать микрофон, когда мы уже начнём listen()
+    if listener is not None:
+        listener.join(timeout=2)
+
+    pygame.mixer.music.unload()
+    os.remove(filename)
+
 
 def listen(max_duration: int = 8, silence_limit: float = 1.2) -> str:
     print("Слушаю...")
