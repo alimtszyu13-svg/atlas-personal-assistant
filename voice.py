@@ -20,35 +20,49 @@ recognizer = sr.Recognizer()
 SAMPLE_RATE = 16000
 INTERRUPT_WORDS = ("стоп", "хватит", "замолчи")
 
+WAKE_WORD = "атлас"
+
+def wait_for_wake_word() -> None:
+    print("(жду команду 'Атлас'...)")
+    while True:
+        recording = sd.rec(int(2.5 * SAMPLE_RATE), samplerate=SAMPLE_RATE,
+                            channels=1, dtype='int16')
+        sd.wait()
+
+        volume = np.sqrt(np.mean(recording.astype(np.float32) ** 2))
+        if volume < 250:
+            continue
+
+        audio = sr.AudioData(recording.tobytes(), SAMPLE_RATE, 2)
+        try:
+            text = recognizer.recognize_google(audio, language="ru-RU").lower()
+            if WAKE_WORD in text:
+                return
+        except (sr.UnknownValueError, sr.RequestError):
+            continue
+
 
 def _watch_for_interrupt(stop_event: threading.Event) -> None:
-    print("[DEBUG] Поток-слушатель стартовал")
     while pygame.mixer.music.get_busy() and not stop_event.is_set():
         chunk = sd.rec(int(1.5 * SAMPLE_RATE), samplerate=SAMPLE_RATE,
                         channels=1, dtype='int16')
         sd.wait()
 
         if stop_event.is_set():
-            print("[DEBUG] stop_event сработал, выхожу")
             break
 
         volume = np.sqrt(np.mean(chunk.astype(np.float32) ** 2))
-        print(f"[DEBUG] Громкость: {volume:.0f}")
         if volume < 250:
             continue
 
         audio = sr.AudioData(chunk.tobytes(), SAMPLE_RATE, 2)
         try:
             text = recognizer.recognize_google(audio, language="ru-RU").lower()
-            print(f"[DEBUG] Распознал: '{text}'")
             if any(word in text for word in INTERRUPT_WORDS):
                 print("[Atlas]: (прерван)")
                 pygame.mixer.music.stop()
-        except sr.UnknownValueError:
-            print("[DEBUG] Не расслышал этот кусок")
-        except sr.RequestError as e:
-            print(f"[DEBUG] Ошибка сети: {e}")
-    print("[DEBUG] Цикл слушателя завершён")
+        except (sr.UnknownValueError, sr.RequestError):
+            pass
 
 def speak(text: str, interruptible: bool = True) -> None:
     print(f"[Atlas]: {text}")
@@ -121,3 +135,4 @@ def listen(max_duration: int = 8, silence_limit: float = 1.2) -> str:
     except sr.RequestError:
         print("Нет связи с сервисом распознавания.")
         return ""
+    
