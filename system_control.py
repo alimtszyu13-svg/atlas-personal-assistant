@@ -17,6 +17,8 @@ APP_MAP = {
     "телеграм":    ("start telegram", "Telegram.exe"),
     "диспетчер задач": ("taskmgr.exe", "Taskmgr.exe"),
     "командная строка": ("cmd.exe", "cmd.exe"),
+    "дискорд": ("start \"\" \"%LocalAppData%\\Discord\\Update.exe\" --processStart Discord.exe", "Discord.exe"),
+    "discord": ("start \"\" \"%LocalAppData%\\Discord\\Update.exe\" --processStart Discord.exe", "Discord.exe"),
 }
 
 def open_app(app_name: str) -> str:

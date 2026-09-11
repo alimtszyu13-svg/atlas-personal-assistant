@@ -1,15 +1,15 @@
 from voice import speak, listen
-from commands import route_command
+from ai_brain import ask_ai
 
-speak("Атлас на связи.")
+speak("Atlas online.")
 
 while True:
     command = listen()
     if command == "":
         continue
-    if "стоп" in command.lower():
-        speak("Выключаюсь.")
+    if "stop" in command.lower():
+        speak("Shutting down.")
         break
 
-    response = route_command(command)
+    response = ask_ai(command)
     speak(response)

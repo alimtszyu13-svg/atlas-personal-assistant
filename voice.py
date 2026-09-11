@@ -1,29 +1,69 @@
 import sounddevice as sd
 import numpy as np
-import speech_recognition as sr
-import asyncio
-import edge_tts
 import os
 import threading
+import wave
 import pygame
+from groq import Groq
+from dotenv import load_dotenv
+
+load_dotenv()
 
 pygame.mixer.init()
 
-VOICE = "ru-RU-DmitryNeural"
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-async def _generate_speech(text: str, filename: str) -> None:
-    communicate = edge_tts.Communicate(text, VOICE)
-    await communicate.save(filename)
+TTS_MODEL = "canopylabs/orpheus-v1-english"
+TTS_VOICE = "troy"
+STT_MODEL = "whisper-large-v3"
 
-
-recognizer = sr.Recognizer()
 SAMPLE_RATE = 16000
-INTERRUPT_WORDS = ("стоп", "хватит", "замолчи")
+INTERRUPT_WORDS = ("stop", "enough", "quiet")
+WAKE_WORD = "atlas"
 
-WAKE_WORD = "атлас"
+
+def _generate_speech(text: str, filename: str) -> None:
+    """Генерирует аудио через Groq TTS (Orpheus)."""
+    response = groq_client.audio.speech.create(
+        model=TTS_MODEL,
+        voice=TTS_VOICE,
+        input=text,
+        response_format="wav"
+    )
+    response.write_to_file(filename)
+
+
+def _transcribe_audio(recording: np.ndarray) -> str:
+    """
+    Сохраняет numpy-запись во временный wav-файл и отправляет
+    в Groq Whisper Translation — распознаёт речь на ЛЮБОМ языке
+    и переводит результат в английский текст. Официальный механизм
+    (endpoint /audio/translations), а не побочный эффект несовпадения language.
+    """
+    temp_path = "temp_stt.wav"
+
+    with wave.open(temp_path, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(SAMPLE_RATE)
+        wf.writeframes(recording.tobytes())
+
+    try:
+        with open(temp_path, "rb") as f:
+            translation = groq_client.audio.translations.create(
+                file=(temp_path, f.read()),
+                model=STT_MODEL
+            )
+        return translation.text.strip()
+    except Exception as e:
+        print(f"[STT error]: {e}")
+        return ""
+    finally:
+        os.remove(temp_path)
+
 
 def wait_for_wake_word() -> None:
-    print("(жду команду 'Атлас'...)")
+    print("(waiting for wake word 'Atlas'...)")
     while True:
         recording = sd.rec(int(2.5 * SAMPLE_RATE), samplerate=SAMPLE_RATE,
                             channels=1, dtype='int16')
@@ -33,13 +73,9 @@ def wait_for_wake_word() -> None:
         if volume < 250:
             continue
 
-        audio = sr.AudioData(recording.tobytes(), SAMPLE_RATE, 2)
-        try:
-            text = recognizer.recognize_google(audio, language="ru-RU").lower()
-            if WAKE_WORD in text:
-                return
-        except (sr.UnknownValueError, sr.RequestError):
-            continue
+        text = _transcribe_audio(recording).lower()
+        if WAKE_WORD in text:
+            return
 
 
 def _watch_for_interrupt(stop_event: threading.Event) -> None:
@@ -55,19 +91,16 @@ def _watch_for_interrupt(stop_event: threading.Event) -> None:
         if volume < 250:
             continue
 
-        audio = sr.AudioData(chunk.tobytes(), SAMPLE_RATE, 2)
-        try:
-            text = recognizer.recognize_google(audio, language="ru-RU").lower()
-            if any(word in text for word in INTERRUPT_WORDS):
-                print("[Atlas]: (прерван)")
-                pygame.mixer.music.stop()
-        except (sr.UnknownValueError, sr.RequestError):
-            pass
+        text = _transcribe_audio(chunk).lower()
+        if any(word in text for word in INTERRUPT_WORDS):
+            print("[Atlas]: (interrupted)")
+            pygame.mixer.music.stop()
+
 
 def speak(text: str, interruptible: bool = True) -> None:
     print(f"[Atlas]: {text}")
-    filename = "temp_speech.mp3"
-    asyncio.run(_generate_speech(text, filename))
+    filename = "temp_speech.wav"
+    _generate_speech(text, filename)
 
     pygame.mixer.music.load(filename)
     pygame.mixer.music.play()
@@ -82,9 +115,6 @@ def speak(text: str, interruptible: bool = True) -> None:
         pygame.time.wait(100)
 
     stop_event.set()
-
-    # ждём, пока поток-слушатель реально закончится (максимум 2 сек на это),
-    # иначе он может ещё держать микрофон, когда мы уже начнём listen()
     if listener is not None:
         listener.join(timeout=2)
 
@@ -93,7 +123,7 @@ def speak(text: str, interruptible: bool = True) -> None:
 
 
 def listen(max_duration: int = 8, silence_limit: float = 1.2) -> str:
-    print("Слушаю...")
+    print("Listening...")
     chunk_duration = 0.1
     chunk_size = int(SAMPLE_RATE * chunk_duration)
     silence_threshold = 300
@@ -123,16 +153,11 @@ def listen(max_duration: int = 8, silence_limit: float = 1.2) -> str:
     stream.close()
 
     recording = np.concatenate(frames)
-    audio = sr.AudioData(recording.tobytes(), SAMPLE_RATE, 2)
+    text = _transcribe_audio(recording)
 
-    try:
-        text = recognizer.recognize_google(audio, language="ru-RU")
-        print(f"[Ты]: {text}")
-        return text
-    except sr.UnknownValueError:
-        print("Не расслышал, повтори.")
+    if text == "":
+        print("Didn't catch that, try again.")
         return ""
-    except sr.RequestError:
-        print("Нет связи с сервисом распознавания.")
-        return ""
-    
+
+    print(f"[You]: {text}")
+    return text
