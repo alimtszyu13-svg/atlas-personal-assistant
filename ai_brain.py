@@ -5,7 +5,10 @@ from openai import OpenAI
 
 from system_control import open_app, close_app
 from info_services import get_weather, get_news
-from file_control import open_file, create_folder, delete_file, locate_file
+from file_control import (
+    open_file, create_folder, delete_file, locate_file,
+    rename_file, copy_file, move_file
+)
 
 load_dotenv()
 
@@ -26,7 +29,6 @@ SYSTEM_PROMPT = (
     "weather and news — use them when asked, don't pretend you can't."
 )
 
-# Реальные Python-функции — по имени будем их находить и вызывать
 AVAILABLE_FUNCTIONS = {
     "open_app": open_app,
     "close_app": close_app,
@@ -34,13 +36,13 @@ AVAILABLE_FUNCTIONS = {
     "create_folder": create_folder,
     "delete_file": delete_file,
     "locate_file": locate_file,
+    "rename_file": rename_file,
+    "copy_file": copy_file,
+    "move_file": move_file,
     "get_weather": get_weather,
     "get_news": get_news,
 }
 
-# JSON Schema — описание функций для модели. В отличие от Gemini,
-# где SDK сам читал docstring, здесь схему нужно писать руками:
-# type, описание, и какие параметры функция принимает.
 TOOLS_SCHEMA = [
     {
         "type": "function",
@@ -143,10 +145,54 @@ TOOLS_SCHEMA = [
             "parameters": {"type": "object", "properties": {}}
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "rename_file",
+            "description": "Renames a file or folder found by its current name",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "old_name": {"type": "string", "description": "Current name of the file or folder"},
+                    "new_name": {"type": "string", "description": "New name to give it"}
+                },
+                "required": ["old_name", "new_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "copy_file",
+            "description": "Copies a file or folder to a destination, leaving the original in place",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the file or folder to copy"},
+                    "destination": {"type": "string", "description": "Where to copy it: 'Desktop', 'Documents', 'Downloads', a drive letter like 'D:', or a full path. Defaults to Desktop"}
+                },
+                "required": ["name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "move_file",
+            "description": "Moves a file or folder to a destination, removing it from its original location",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the file or folder to move"},
+                    "destination": {"type": "string", "description": "Where to move it: 'Desktop', 'Documents', 'Downloads', a drive letter like 'D:', or a full path. Defaults to Desktop"}
+                },
+                "required": ["name"]
+            }
+        }
+    },
 ]
 
-# История диалога — как и в ручной версии для Gemini, ведём сами.
-# Начинается с системного промпта.
+# История диалога — ведём сами, начинается с системного промпта.
 conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
 
 
@@ -156,57 +202,37 @@ def ask_ai(question: str) -> str:
     conversation_history.append({"role": "user", "content": question})
 
     try:
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=conversation_history,
-            tools=TOOLS_SCHEMA,
-        )
-
-        message = response.choices[0].message
-
-        # Если модель решила вызвать функцию(и) — tool_calls будет непустым
-        if message.tool_calls:
-            # Добавляем в историю саму "просьбу" модели вызвать функции
+        # Цикл вместо одного фиксированного "второго запроса" — модель может
+        # захотеть вызвать несколько функций подряд, прежде чем дать финальный ответ
+        for _ in range(5):
+            response = client.chat.completions.create(
+                model=MODEL,
+                messages=conversation_history,
+                tools=TOOLS_SCHEMA,
+            )
+            message = response.choices[0].message
             conversation_history.append(message)
+
+            if not message.tool_calls:
+                return message.content or "Done."
 
             for tool_call in message.tool_calls:
                 func_name = tool_call.function.name
                 func_args = json.loads(tool_call.function.arguments)
+                func_args = {k: v for k, v in func_args.items() if k}
 
                 print(f"[DEBUG tool_call] {func_name}({func_args})")
 
-                                # Иногда модель присылает мусорный пустой аргумент вроде {'': ''}
-                # для функций без параметров — отфильтровываем такие ключи
-                func_args = {k: v for k, v in func_args.items() if k}
-
                 func = AVAILABLE_FUNCTIONS.get(func_name)
-                if func:
-                    result = func(**func_args)
-                else:
-                    result = f"Функция {func_name} не найдена."
+                result = func(**func_args) if func else f"Функция {func_name} не найдена."
 
-                # Отправляем результат выполнения обратно в историю —
-                # с ролью "tool" и привязкой к id конкретного вызова
                 conversation_history.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
                     "content": str(result)
                 })
 
-            # Второй запрос — теперь модель видит результат функции
-            # и формулирует финальный голосовой ответ на его основе
-            second_response = client.chat.completions.create(
-                model=MODEL,
-                messages=conversation_history,
-                tools=TOOLS_SCHEMA,
-            )
-            final_message = second_response.choices[0].message
-            conversation_history.append(final_message)
-            return final_message.content
-
-        # Модель ответила сразу текстом, без вызова функций
-        conversation_history.append(message)
-        return message.content
+        return "Sorry, that took too many steps — let's try something simpler."
 
     except Exception as e:
         print(f"[Ошибка ask_ai]: {e}")
