@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from system_info import get_cpu_usage, get_memory_usage, get_battery_status, get_disk_usage
 from reminders import set_timer, list_timers
+from web_search_tool import search_web
 
 from system_control import open_app, close_app
 from info_services import get_weather, get_news
@@ -28,7 +29,9 @@ SYSTEM_PROMPT = (
     "1-3 sentences, in a conversational tone, no markdown formatting "
     "(no asterisks, no lists) — your reply will be read aloud. "
     "You have tools for controlling apps, files, "
-    "weather and news — use them when asked, don't pretend you can't. "
+    "weather, news, timers, system info, and web search — use them when asked, "
+    "don't pretend you can't. Use search_web for questions about current events, "
+    "recent facts, or anything that might have changed recently. "
     "When a tool returns a result, report it accurately — don't invent "
     "reasons or retry with a different tool if the result says the action "
     "was cancelled or not found; just relay that back to the user."
@@ -51,7 +54,8 @@ AVAILABLE_FUNCTIONS = {
     "get_battery_status": get_battery_status,
     "get_disk_usage": get_disk_usage,
     "set_timer": set_timer,
-    "list_timers": list_timers
+    "list_timers": list_timers,
+    "search_web": search_web,
 }
 
 TOOLS_SCHEMA = [
@@ -259,6 +263,20 @@ TOOLS_SCHEMA = [
             "name": "list_timers",
             "description": "Lists all currently active timers and how much time remains on each",
             "parameters": {"type": "object", "properties": {}}
+        }
+    },
+        {
+        "type": "function",
+        "function": {
+            "name": "search_web",
+            "description": "Searches the web for current information not covered by other tools — general knowledge, facts, current events, etc.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "What to search for"}
+                },
+                "required": ["query"]
+            }
         }
     },
 ]
