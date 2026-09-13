@@ -5,6 +5,7 @@ from openai import OpenAI
 from system_info import get_cpu_usage, get_memory_usage, get_battery_status, get_disk_usage
 from reminders import set_timer, list_timers
 from web_search_tool import search_web
+from email_reader import get_recent_emails, get_unread_count
 
 from system_control import open_app, close_app
 from info_services import get_weather, get_news
@@ -56,6 +57,8 @@ AVAILABLE_FUNCTIONS = {
     "set_timer": set_timer,
     "list_timers": list_timers,
     "search_web": search_web,
+    "get_recent_emails": get_recent_emails,
+    "get_unread_count": get_unread_count,
 }
 
 TOOLS_SCHEMA = [
@@ -277,6 +280,27 @@ TOOLS_SCHEMA = [
                 },
                 "required": ["query"]
             }
+        }
+    },
+        {
+        "type": "function",
+        "function": {
+            "name": "get_recent_emails",
+            "description": "Reads and summarizes the most recent emails from the inbox",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "How many recent emails to summarize. Defaults to 5"}
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_unread_count",
+            "description": "Gets the number of unread emails in the inbox",
+            "parameters": {"type": "object", "properties": {}}
         }
     },
 ]
