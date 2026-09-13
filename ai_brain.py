@@ -2,6 +2,7 @@ import os
 import json
 from dotenv import load_dotenv
 from openai import OpenAI
+from system_info import get_cpu_usage, get_memory_usage, get_battery_status, get_disk_usage
 
 from system_control import open_app, close_app
 from info_services import get_weather, get_news
@@ -26,7 +27,10 @@ SYSTEM_PROMPT = (
     "1-3 sentences, in a conversational tone, no markdown formatting "
     "(no asterisks, no lists) — your reply will be read aloud. "
     "You have tools for controlling apps, files, "
-    "weather and news — use them when asked, don't pretend you can't."
+    "weather and news — use them when asked, don't pretend you can't. "
+    "When a tool returns a result, report it accurately — don't invent "
+    "reasons or retry with a different tool if the result says the action "
+    "was cancelled or not found; just relay that back to the user."
 )
 
 AVAILABLE_FUNCTIONS = {
@@ -41,6 +45,10 @@ AVAILABLE_FUNCTIONS = {
     "move_file": move_file,
     "get_weather": get_weather,
     "get_news": get_news,
+    "get_cpu_usage": get_cpu_usage,
+    "get_memory_usage": get_memory_usage,
+    "get_battery_status": get_battery_status,
+    "get_disk_usage": get_disk_usage,
 }
 
 TOOLS_SCHEMA = [
@@ -187,6 +195,43 @@ TOOLS_SCHEMA = [
                     "destination": {"type": "string", "description": "Where to move it: 'Desktop', 'Documents', 'Downloads', a drive letter like 'D:', or a full path. Defaults to Desktop"}
                 },
                 "required": ["name"]
+            }
+        }
+    },
+        {
+        "type": "function",
+        "function": {
+            "name": "get_cpu_usage",
+            "description": "Gets the current CPU usage percentage",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_memory_usage",
+            "description": "Gets current RAM usage",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_battery_status",
+            "description": "Gets battery charge level and charging status, if the device has a battery",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_disk_usage",
+            "description": "Gets free and used disk space for a specific drive",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "drive": {"type": "string", "description": "Drive letter, e.g. 'C:' or 'D:'. Defaults to C:"}
+                }
             }
         }
     },

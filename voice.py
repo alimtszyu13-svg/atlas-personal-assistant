@@ -100,7 +100,12 @@ def _watch_for_interrupt(stop_event: threading.Event) -> None:
 def speak(text: str, interruptible: bool = True) -> None:
     print(f"[Atlas]: {text}")
     filename = "temp_speech.wav"
-    _generate_speech(text, filename)
+
+    try:
+        _generate_speech(text, filename)
+    except Exception as e:
+        print(f"[TTS error, speaking skipped]: {e}")
+        return  # не можем озвучить — просто продолжаем работу без голоса в этот раз
 
     pygame.mixer.music.load(filename)
     pygame.mixer.music.play()

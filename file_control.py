@@ -82,15 +82,28 @@ def _describe_location(path: str) -> str:
     return name if name else folder
 
 
+AFFIRM_WORDS = (
+    "yes", "yeah", "yep", "yup", "confirm", "confirmed", "sure",
+    "correct", "go ahead", "do it", "absolutely", "definitely",
+    "of course", "please do", "go for it", "sounds good", "да", "da"
+)
+DENY_WORDS = (
+    "no", "nope", "don't", "dont", "cancel", "stop", "nah", "negative"
+)
+
+
 def _confirm(prompt: str) -> bool:
     """
     Озвучивает вопрос-подтверждение и слушает ответ.
-    Возвращает True, если пользователь согласился, иначе False.
+    Сначала проверяем явный отказ (приоритет — если человек сказал
+    "no, do X instead", это отказ, даже если где-то рядом есть похожие слова).
     """
     speak(prompt, interruptible=False)
     response = listen(max_duration=5, silence_limit=1.0).lower()
-    return any(word in response for word in
-               ("yes", "yeah", "yep", "confirm", "sure", "correct", "go ahead", "do it"))
+
+    if any(word in response for word in DENY_WORDS):
+        return False
+    return any(word in response for word in AFFIRM_WORDS)
 
 
 def open_file(name: str) -> str:
