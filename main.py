@@ -1,5 +1,8 @@
 from voice import speak, listen
 from ai_brain import ask_ai
+from reminders import start_reminder_thread
+
+start_reminder_thread(speak)
 
 speak("Atlas online.")
 

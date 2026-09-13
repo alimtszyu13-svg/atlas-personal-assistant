@@ -3,6 +3,7 @@ import json
 from dotenv import load_dotenv
 from openai import OpenAI
 from system_info import get_cpu_usage, get_memory_usage, get_battery_status, get_disk_usage
+from reminders import set_timer, list_timers
 
 from system_control import open_app, close_app
 from info_services import get_weather, get_news
@@ -49,6 +50,8 @@ AVAILABLE_FUNCTIONS = {
     "get_memory_usage": get_memory_usage,
     "get_battery_status": get_battery_status,
     "get_disk_usage": get_disk_usage,
+    "set_timer": set_timer,
+    "list_timers": list_timers
 }
 
 TOOLS_SCHEMA = [
@@ -233,6 +236,29 @@ TOOLS_SCHEMA = [
                     "drive": {"type": "string", "description": "Drive letter, e.g. 'C:' or 'D:'. Defaults to C:"}
                 }
             }
+        }
+    },
+        {
+        "type": "function",
+        "function": {
+            "name": "set_timer",
+            "description": "Sets a timer for a number of minutes, optionally with a custom message to say when it goes off",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "minutes": {"type": "number", "description": "How many minutes from now the timer should go off"},
+                    "message": {"type": "string", "description": "What to say when the timer finishes. Defaults to \"Timer's up!\""}
+                },
+                "required": ["minutes"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_timers",
+            "description": "Lists all currently active timers and how much time remains on each",
+            "parameters": {"type": "object", "properties": {}}
         }
     },
 ]
