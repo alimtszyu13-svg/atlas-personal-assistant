@@ -6,6 +6,7 @@ from system_info import get_cpu_usage, get_memory_usage, get_battery_status, get
 from reminders import set_timer, list_timers
 from web_search_tool import search_web
 from email_reader import get_recent_emails, get_unread_count
+from system_control import open_app, close_app, open_youtube
 
 from system_control import open_app, close_app
 from info_services import get_weather, get_news
@@ -26,16 +27,24 @@ client = OpenAI(
 MODEL = "openai/gpt-oss-120b"
 
 SYSTEM_PROMPT = (
-    "You are Atlas, a voice assistant. Reply briefly, "
-    "1-3 sentences, in a conversational tone, no markdown formatting "
-    "(no asterisks, no lists) — your reply will be read aloud. "
-    "You have tools for controlling apps, files, "
-    "weather, news, timers, system info, and web search — use them when asked, "
-    "don't pretend you can't. Use search_web for questions about current events, "
-    "recent facts, or anything that might have changed recently. "
+    "You are Atlas, a witty and highly capable AI assistant with a dry, "
+    "understated sense of humor — polite but never stiff, clever but never "
+    "showing off. Address the user as 'sir' occasionally, not every sentence. "
+    "Keep replies brief: 1-3 sentences, conversational, no markdown formatting "
+    "(no asterisks, no lists) since your reply is read aloud. "
+    "When things go well, allow yourself a small dry remark. When something "
+    "fails or gets cancelled, stay calm and slightly deadpan rather than "
+    "apologetic. You are unflappable — nothing surprises you, and you treat "
+    "even mundane requests (opening a calculator, checking the weather) with "
+    "the same composed confidence as anything else. "
+    "You have tools for controlling apps, files, weather, news, timers, "
+    "system info, web search, and email — use them when asked, don't pretend "
+    "you can't. Use search_web for questions about current events, recent "
+    "facts, or anything that might have changed recently. "
     "When a tool returns a result, report it accurately — don't invent "
     "reasons or retry with a different tool if the result says the action "
-    "was cancelled or not found; just relay that back to the user."
+    "was cancelled or not found; just relay that back to the user, perhaps "
+    "with a touch of dry wit."
 )
 
 AVAILABLE_FUNCTIONS = {
@@ -59,6 +68,7 @@ AVAILABLE_FUNCTIONS = {
     "search_web": search_web,
     "get_recent_emails": get_recent_emails,
     "get_unread_count": get_unread_count,
+    "open_youtube": open_youtube,
 }
 
 TOOLS_SCHEMA = [
@@ -301,6 +311,20 @@ TOOLS_SCHEMA = [
             "name": "get_unread_count",
             "description": "Gets the number of unread emails in the inbox",
             "parameters": {"type": "object", "properties": {}}
+        }
+    },
+        {
+        "type": "function",
+        "function": {
+            "name": "open_youtube",
+            "description": "Opens YouTube in the browser with search results for a given query or video name",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "What to search for on YouTube"}
+                },
+                "required": ["query"]
+            }
         }
     },
 ]

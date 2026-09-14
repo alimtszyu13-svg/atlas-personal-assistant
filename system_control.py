@@ -20,7 +20,21 @@ APP_MAP = {
     "дискорд": ("start \"\" \"%LocalAppData%\\Discord\\Update.exe\" --processStart Discord.exe", "Discord.exe"),
     "discord": ("start \"\" \"%LocalAppData%\\Discord\\Update.exe\" --processStart Discord.exe", "Discord.exe"),
 }
+import webbrowser
+import urllib.parse
 
+
+def open_youtube(query: str) -> str:
+    """Открывает YouTube в браузере с результатами поиска по запросу."""
+    encoded_query = urllib.parse.quote(query)
+    url = f"https://www.youtube.com/results?search_query={encoded_query}"
+    try:
+        webbrowser.open(url)
+        return f"Opening YouTube search for '{query}'."
+    except Exception as e:
+        print(f"[Ошибка open_youtube]: {e}")
+        return f"Couldn't open YouTube for '{query}'."
+    
 def open_app(app_name: str) -> str:
     app_name = app_name.lower().strip()
 

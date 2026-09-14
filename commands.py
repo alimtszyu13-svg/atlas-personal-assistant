@@ -35,19 +35,4 @@ def route_command(text: str) -> str:
     if "новости" in text:
         return get_news()
 
-    if "переименуй" in text:
-        old_name = text.split("переименуй", 1)[1].strip()
-        new_name = text.split("в", 1)[1].strip()
-        return rename_file(old_name, new_name)
-
-    if "копируй" in text:
-        name = text.split("копируй", 1)[1].strip()
-        destination = text.split("в", 1)[1].strip()
-        return copy_file(name, destination)
-
-    if "перемести" in text:
-        name = text.split("перемести", 1)[1].strip()
-        destination = text.split("в", 1)[1].strip()
-        return move_file(name, destination)
-
     return ask_ai(original_text)
