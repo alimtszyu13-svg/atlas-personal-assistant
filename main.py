@@ -8,6 +8,7 @@ from web_gui import WebGUI
 from ui_state import shared_state
 import random
 from selection_hotkey import start_selection_hotkeys
+from hotkeys import start_push_to_talk_hotkey
 
 WAKE_RESPONSES = [
     "Yes, sir?",
@@ -82,6 +83,8 @@ def _voice_loop():
             break
 
         _process_command(command)
+        
+start_push_to_talk_hotkey("ctrl+space")
 
 voice_thread = threading.Thread(target=_voice_loop, daemon=True)
 voice_thread.start()

@@ -67,9 +67,17 @@ def _transcribe_audio(recording: np.ndarray) -> str:
 def wait_for_wake_word() -> None:
     print("(waiting for wake word 'Atlas'...)")
     while True:
+        if _push_to_talk_event.is_set():
+            _push_to_talk_event.clear()
+            return
+
         recording = sd.rec(int(2.5 * SAMPLE_RATE), samplerate=SAMPLE_RATE,
                             channels=1, dtype='int16')
         sd.wait()
+
+        if _push_to_talk_event.is_set():
+            _push_to_talk_event.clear()
+            return
 
         volume = np.sqrt(np.mean(recording.astype(np.float32) ** 2))
         if volume < 250:
@@ -78,6 +86,14 @@ def wait_for_wake_word() -> None:
         text = _transcribe_audio(recording).lower()
         if WAKE_WORD in text:
             return
+
+_push_to_talk_event = threading.Event()
+
+
+def trigger_push_to_talk() -> None:
+    """Вызывается извне (горячая клавиша или кнопка интерфейса) —
+    мгновенно 'будит' Атласа, минуя произнесение имени вслух."""
+    _push_to_talk_event.set()
 
 
 def _watch_for_interrupt(stop_event: threading.Event) -> None:

@@ -4,6 +4,10 @@ from ui_state import shared_state
 
 
 class Api:
+    def push_to_talk(self) -> None:
+        from voice import trigger_push_to_talk
+        trigger_push_to_talk()
+        
     def send_text_command(self, text: str) -> None:
         text = text.strip()
         if text:
@@ -27,7 +31,7 @@ class Api:
         """
         import os
         os._exit(0)
-        
+
     def get_state(self) -> dict:
         return {
             "state": shared_state.get("state", "idle"),
@@ -61,4 +65,4 @@ class WebGUI:
         self.shared_state["should_quit"] = True
         if self.window:
             self.window.destroy()
-    
+
