@@ -7,6 +7,7 @@ from reminders import set_timer, list_timers
 from web_search_tool import search_web
 from email_reader import get_recent_emails, get_unread_count
 from system_control import open_app, close_app, open_youtube
+from theme_control import set_theme
 
 from system_control import open_app, close_app
 from info_services import get_weather, get_news
@@ -69,6 +70,7 @@ AVAILABLE_FUNCTIONS = {
     "get_recent_emails": get_recent_emails,
     "get_unread_count": get_unread_count,
     "open_youtube": open_youtube,
+    "set_theme": set_theme,
 }
 
 TOOLS_SCHEMA = [
@@ -324,6 +326,20 @@ TOOLS_SCHEMA = [
                     "query": {"type": "string", "description": "What to search for on YouTube"}
                 },
                 "required": ["query"]
+            }
+        }
+    },
+        {
+        "type": "function",
+        "function": {
+            "name": "set_theme",
+            "description": "Switches the interface theme between dark and light mode",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "theme": {"type": "string", "description": "Either 'dark' or 'light'"}
+                },
+                "required": ["theme"]
             }
         }
     },
