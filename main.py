@@ -4,10 +4,8 @@ from voice import speak, listen
 from ai_brain import ask_ai
 from reminders import start_reminder_thread
 from gui import AtlasHUD
+from tray import AtlasTray
 
-# Общее состояние между потоком голоса и потоком интерфейса.
-# Простые типы (строки, bool) в Python безопасно читать/писать
-# из разных потоков благодаря GIL — не нужен отдельный lock.
 shared_state = {"state": "idle", "text": "", "should_quit": False}
 
 
@@ -24,7 +22,6 @@ def _time_greeting() -> str:
 
 
 def _speak_and_update(text: str, interruptible: bool = True) -> None:
-    """Обёртка вокруг speak() — заодно обновляет статус для интерфейса."""
     shared_state["state"] = "speaking"
     shared_state["text"] = text
     speak(text, interruptible=interruptible)
@@ -59,4 +56,7 @@ voice_thread = threading.Thread(target=_voice_loop, daemon=True)
 voice_thread.start()
 
 hud = AtlasHUD(shared_state)
+tray = AtlasTray(on_show=hud.show_window, on_quit=hud.quit_app)
+tray.run()
+
 hud.run()

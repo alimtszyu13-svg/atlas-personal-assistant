@@ -8,6 +8,7 @@ class AtlasHUD:
 
         self.root = tk.Tk()
         self.root.title("ATLAS")
+        self.root.protocol("WM_DELETE_WINDOW", self._minimize_to_tray)
         self.root.configure(bg="#05080d")
         self.root.geometry("500x560")
         self.root.resizable(False, False)
@@ -90,3 +91,17 @@ class AtlasHUD:
 
     def run(self):
         self.root.mainloop()
+
+    def _minimize_to_tray(self):
+        """Вместо закрытия окна — прячем его. Программа продолжает работать в трее."""
+        self.root.withdraw()
+
+    def show_window(self):
+        """Возвращает окно из трея на экран."""
+        self.root.deiconify()
+        self.root.lift()
+
+    def quit_app(self):
+        """Полное закрытие — вызывается только из меню трея 'Quit'."""
+        self.shared_state["should_quit"] = True
+        self.root.destroy()
