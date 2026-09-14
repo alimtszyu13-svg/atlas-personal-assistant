@@ -131,3 +131,21 @@ def kill_process(name: str) -> str:
     except Exception as e:
         print(f"[Ошибка kill_process]: {e}")
         return f"Couldn't close {name}."
+
+def empty_recycle_bin() -> str:
+    """Empties the Windows Recycle Bin."""
+    try:
+        import winshell
+        winshell.recycle_bin().empty(confirm=False, show_progress=False, sound=False)
+        return "Recycle Bin emptied."
+    except Exception as e:
+        return f"Couldn't empty the Recycle Bin: {e}"
+
+
+def get_uptime() -> str:
+    """Reports how long the PC has been running since last restart."""
+    boot_time = psutil.boot_time()
+    uptime_seconds = datetime.now().timestamp() - boot_time
+    hours = int(uptime_seconds // 3600)
+    minutes = int((uptime_seconds % 3600) // 60)
+    return f"System has been running for {hours} hours and {minutes} minutes."

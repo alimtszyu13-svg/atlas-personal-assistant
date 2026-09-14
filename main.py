@@ -1,12 +1,25 @@
 import threading
 import time
 from datetime import datetime
-from voice import speak, listen
+from voice import speak, listen, wait_for_wake_word
 from ai_brain import ask_ai
 from reminders import start_reminder_thread
 from web_gui import WebGUI
 from ui_state import shared_state
+import random
+from selection_hotkey import start_selection_hotkeys
 
+WAKE_RESPONSES = [
+    "Yes, sir?",
+    "Always ready, sir.",
+    "What do you want, sir?",
+    "At your service.",
+    "Waiting for your command.",
+    "I'm here, sir.",
+    "I thought you are sleeping, sir.",
+    "Ready when you are.",
+    "Something happened, sir?",
+]
 
 def _time_greeting() -> str:
     hour = datetime.now().hour
@@ -44,24 +57,31 @@ def _manual_queue_watcher():
         time.sleep(0.2)
 
 
+MIN_COMMAND_LENGTH = 3  # отсекаем случайный шум/мусор вроде "." или "uh"
+
 def _voice_loop():
     start_reminder_thread(_speak_and_update)
     _speak_and_update(f"{_time_greeting()} Atlas is online and ready.", interruptible=False)
 
     while True:
-        shared_state["state"] = "listening"
+        shared_state["state"] = "idle"
         shared_state["text"] = ""
+        wait_for_wake_word()
+
+        _speak_and_update(random.choice(WAKE_RESPONSES), interruptible=False)
+
+        shared_state["state"] = "listening"
         command = listen()
 
-        if command == "":
-            continue
+        if len(command.strip()) < MIN_COMMAND_LENGTH:
+            continue  # мусорное/пустое распознавание — не тратим вызов ask_ai
+
         if "stop" in command.lower():
             _speak_and_update("Shutting down.")
             shared_state["should_quit"] = True
             break
 
         _process_command(command)
-
 
 voice_thread = threading.Thread(target=_voice_loop, daemon=True)
 voice_thread.start()
@@ -71,3 +91,5 @@ manual_thread.start()
 
 gui = WebGUI(shared_state)
 gui.run()
+
+start_selection_hotkeys()

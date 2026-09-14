@@ -25,7 +25,7 @@ import urllib.parse
 
 
 def open_youtube(query: str) -> str:
-    """Открывает YouTube в браузере с результатами поиска по запросу."""
+    """Открывает YouTube в браузере с результатами поиска поp запросу."""
     encoded_query = urllib.parse.quote(query)
     url = f"https://www.youtube.com/results?search_query={encoded_query}"
     try:
@@ -34,7 +34,22 @@ def open_youtube(query: str) -> str:
     except Exception as e:
         print(f"[Ошибка open_youtube]: {e}")
         return f"Couldn't open YouTube for '{query}'."
-    
+
+def open_url(url: str) -> str:
+    """Opens any URL in the default browser."""
+    if not url.startswith("http"):
+        url = "https://" + url
+    webbrowser.open(url)
+    return f"Opening {url}."
+
+
+def search_google(query: str) -> str:
+    """Opens Google search results for a query."""
+    encoded = urllib.parse.quote(query)
+    webbrowser.open(f"https://www.google.com/search?q={encoded}")
+    return f"Searching Google for '{query}'."
+
+
 def open_app(app_name: str) -> str:
     app_name = app_name.lower().strip()
 

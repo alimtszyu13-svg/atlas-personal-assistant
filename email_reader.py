@@ -12,32 +12,13 @@ SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 _gmail_service = None  # кэшируем подключение, чтобы не логиниться на каждый запрос
 
 
+from google_auth import get_credentials
+
 def _get_gmail_service():
-    """
-    Авторизуется через OAuth и возвращает объект для работы с Gmail API.
-    При первом запуске откроет браузер для входа в аккаунт Google —
-    дальше токен сохранится в token.json, и повторный вход не понадобится,
-    пока токен не истечёт.
-    """
     global _gmail_service
     if _gmail_service is not None:
         return _gmail_service
-
-    creds = None
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0)
-
-        with open("token.json", "w") as token_file:
-            token_file.write(creds.to_json())
-
-    _gmail_service = build("gmail", "v1", credentials=creds)
+    _gmail_service = build("gmail", "v1", credentials=get_credentials())
     return _gmail_service
 
 

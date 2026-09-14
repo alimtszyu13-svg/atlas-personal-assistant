@@ -6,6 +6,8 @@ import wave
 import pygame
 from groq import Groq
 from dotenv import load_dotenv
+import asyncio
+import edge_tts
 
 load_dotenv()
 
@@ -97,6 +99,18 @@ def _watch_for_interrupt(stop_event: threading.Event) -> None:
             pygame.mixer.music.stop()
 
 
+FALLBACK_VOICE = "en-US-GuyNeural"
+
+
+def _generate_speech_fallback(text: str, filename: str) -> None:
+    """Резервный TTS через Edge-TTS — бесплатный, без дневного лимита токенов,
+    подхватывает, если у Groq/Orpheus исчерпан суточный лимит."""
+    async def _gen():
+        communicate = edge_tts.Communicate(text, FALLBACK_VOICE)
+        await communicate.save(filename)
+    asyncio.run(_gen())
+
+
 def speak(text: str, interruptible: bool = True) -> None:
     print(f"[Atlas]: {text}")
     filename = "temp_speech.wav"
@@ -104,8 +118,13 @@ def speak(text: str, interruptible: bool = True) -> None:
     try:
         _generate_speech(text, filename)
     except Exception as e:
-        print(f"[TTS error, speaking skipped]: {e}")
-        return  # не можем озвучить — просто продолжаем работу без голоса в этот раз
+        print(f"[TTS] Groq unavailable ({e}), falling back to Edge-TTS")
+        try:
+            filename = "temp_speech.mp3"
+            _generate_speech_fallback(text, filename)
+        except Exception as e2:
+            print(f"[TTS error, speaking skipped]: {e2}")
+            return
 
     pygame.mixer.music.load(filename)
     pygame.mixer.music.play()
@@ -125,7 +144,6 @@ def speak(text: str, interruptible: bool = True) -> None:
 
     pygame.mixer.music.unload()
     os.remove(filename)
-
 
 def listen(max_duration: int = 8, silence_limit: float = 1.2) -> str:
     print("Listening...")

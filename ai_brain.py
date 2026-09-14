@@ -3,6 +3,12 @@ import json
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from calendar_control import list_today_events, list_upcoming_events, create_event, delete_event
+from network_utils import ping_host, get_my_ip, get_local_ip, is_website_up, check_internet_speed
+from text_utils import translate_text, generate_qr_code, word_count
+from system_control import open_url, search_google
+from system_advanced import empty_recycle_bin, get_uptime
+
 from system_control import open_app, close_app, open_youtube
 from info_services import get_weather, get_news
 from file_control import (
@@ -108,6 +114,22 @@ AVAILABLE_FUNCTIONS = {
     "list_todos": list_todos,
     "complete_todo": complete_todo,
     "delete_todo": delete_todo,
+    "list_today_events": list_today_events,
+    "list_upcoming_events": list_upcoming_events,
+    "create_event": create_event,
+    "delete_event": delete_event,
+    "ping_host": ping_host,
+    "get_my_ip": get_my_ip,
+    "get_local_ip": get_local_ip,
+    "is_website_up": is_website_up,
+    "check_internet_speed": check_internet_speed,
+    "translate_text": translate_text,
+    "generate_qr_code": generate_qr_code,
+    "word_count": word_count,
+    "open_url": open_url,
+    "search_google": search_google,
+    "empty_recycle_bin": empty_recycle_bin,
+    "get_uptime": get_uptime,
 }
 
 TOOLS_SCHEMA = [
@@ -163,6 +185,22 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "list_todos", "description": "Lists all to-do items", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "complete_todo", "description": "Marks a to-do item as done by its number", "parameters": {"type": "object", "properties": {"index": {"type": "integer"}}, "required": ["index"]}}},
     {"type": "function", "function": {"name": "delete_todo", "description": "Deletes a to-do item by its number", "parameters": {"type": "object", "properties": {"index": {"type": "integer"}}, "required": ["index"]}}},
+    {"type": "function", "function": {"name": "list_today_events", "description": "Lists today's calendar events", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "list_upcoming_events", "description": "Lists upcoming calendar events", "parameters": {"type": "object", "properties": {"days": {"type": "integer"}}}}},
+    {"type": "function", "function": {"name": "create_event", "description": "Creates a calendar event", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "date": {"type": "string", "description": "YYYY-MM-DD"}, "time": {"type": "string", "description": "HH:MM 24h"}, "duration_minutes": {"type": "integer"}}, "required": ["title", "date"]}}},
+    {"type": "function", "function": {"name": "delete_event", "description": "Deletes an upcoming calendar event by title", "parameters": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}},
+    {"type": "function", "function": {"name": "ping_host", "description": "Pings a host to check reachability", "parameters": {"type": "object", "properties": {"host": {"type": "string"}}, "required": ["host"]}}},
+    {"type": "function", "function": {"name": "get_my_ip", "description": "Gets the public IP address", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "get_local_ip", "description": "Gets the local network IP address", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "is_website_up", "description": "Checks if a website is reachable", "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}},
+    {"type": "function", "function": {"name": "check_internet_speed", "description": "Runs an internet speed test", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "translate_text", "description": "Translates text to a target language", "parameters": {"type": "object", "properties": {"text": {"type": "string"}, "target_language": {"type": "string"}}, "required": ["text"]}}},
+    {"type": "function", "function": {"name": "generate_qr_code", "description": "Generates a QR code image for text or a URL, saved to Desktop", "parameters": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}}},
+    {"type": "function", "function": {"name": "word_count", "description": "Counts words and characters in text", "parameters": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}}},
+    {"type": "function", "function": {"name": "open_url", "description": "Opens a URL in the default browser", "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}},
+    {"type": "function", "function": {"name": "search_google", "description": "Opens Google search results for a query", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
+    {"type": "function", "function": {"name": "empty_recycle_bin", "description": "Empties the Recycle Bin", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "get_uptime", "description": "Reports system uptime since last restart", "parameters": {"type": "object", "properties": {}}}},
 ]
 
 conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
