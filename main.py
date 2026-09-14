@@ -4,8 +4,7 @@ from datetime import datetime
 from voice import speak, listen
 from ai_brain import ask_ai
 from reminders import start_reminder_thread
-from gui import AtlasHUD
-from tray import AtlasTray
+from web_gui import WebGUI
 from ui_state import shared_state
 
 
@@ -38,11 +37,6 @@ def _process_command(command: str) -> None:
 
 
 def _manual_queue_watcher():
-    """
-    Отдельный поток — проверяет текстовые команды из интерфейса
-    независимо от голосового цикла (который может секундами ждать
-    микрофон и не заметит команду вовремя).
-    """
     while True:
         if shared_state["manual_queue"]:
             command = shared_state["manual_queue"].pop(0)
@@ -61,7 +55,6 @@ def _voice_loop():
 
         if command == "":
             continue
-
         if "stop" in command.lower():
             _speak_and_update("Shutting down.")
             shared_state["should_quit"] = True
@@ -76,8 +69,5 @@ voice_thread.start()
 manual_thread = threading.Thread(target=_manual_queue_watcher, daemon=True)
 manual_thread.start()
 
-hud = AtlasHUD(shared_state)
-tray = AtlasTray(on_show=hud.show_window, on_quit=hud.quit_app)
-tray.run()
-
-hud.run()
+gui = WebGUI(shared_state)
+gui.run()

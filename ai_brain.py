@@ -2,24 +2,30 @@ import os
 import json
 from dotenv import load_dotenv
 from openai import OpenAI
-from system_info import get_cpu_usage, get_memory_usage, get_battery_status, get_disk_usage
-from reminders import set_timer, list_timers
-from web_search_tool import search_web
-from email_reader import get_recent_emails, get_unread_count
-from system_control import open_app, close_app, open_youtube
-from theme_control import set_theme
 
-from system_control import open_app, close_app
+from system_control import open_app, close_app, open_youtube
 from info_services import get_weather, get_news
 from file_control import (
     open_file, create_folder, delete_file, locate_file,
     rename_file, copy_file, move_file
 )
+from system_info import get_cpu_usage, get_memory_usage, get_battery_status, get_disk_usage
+from reminders import set_timer, list_timers
+from web_search_tool import search_web
+from email_reader import get_recent_emails, get_unread_count
+from theme_control import set_theme
+from system_advanced import (
+    set_volume, get_volume, volume_up, volume_down, mute_volume, unmute_volume,
+    set_brightness, get_brightness, lock_screen, take_screenshot,
+    list_top_processes, kill_process
+)
+from media_control import play_pause_media, next_track, previous_track
+from dev_tools import run_git_command, open_vscode_project, calculate, convert_units
+from fun import tell_joke, random_fact, start_number_game, guess_number
+from notes import add_note, list_notes, delete_note, add_todo, list_todos, complete_todo, delete_todo
 
 load_dotenv()
 
-# Groq работает по тому же протоколу, что OpenAI — берём их библиотеку,
-# просто указываем адрес сервера Groq вместо адреса OpenAI
 client = OpenAI(
     api_key=os.getenv("GROQ_API_KEY"),
     base_url="https://api.groq.com/openai/v1"
@@ -36,12 +42,13 @@ SYSTEM_PROMPT = (
     "When things go well, allow yourself a small dry remark. When something "
     "fails or gets cancelled, stay calm and slightly deadpan rather than "
     "apologetic. You are unflappable — nothing surprises you, and you treat "
-    "even mundane requests (opening a calculator, checking the weather) with "
-    "the same composed confidence as anything else. "
-    "You have tools for controlling apps, files, weather, news, timers, "
-    "system info, web search, and email — use them when asked, don't pretend "
-    "you can't. Use search_web for questions about current events, recent "
-    "facts, or anything that might have changed recently. "
+    "even mundane requests with the same composed confidence as anything else. "
+    "You have a large toolkit: apps, files, weather, news, timers, system info, "
+    "web search, email, system volume/brightness/lock/screenshot/processes, "
+    "media playback control, developer tools (git, VS Code, calculator, unit "
+    "conversion), jokes, facts, a number guessing game, notes and a to-do list, "
+    "and interface theme control. Use them when asked, don't pretend you can't. "
+    "Use search_web for current events or anything that might have changed recently. "
     "When a tool returns a result, report it accurately — don't invent "
     "reasons or retry with a different tool if the result says the action "
     "was cancelled or not found; just relay that back to the user, perhaps "
@@ -51,6 +58,7 @@ SYSTEM_PROMPT = (
 AVAILABLE_FUNCTIONS = {
     "open_app": open_app,
     "close_app": close_app,
+    "open_youtube": open_youtube,
     "open_file": open_file,
     "create_folder": create_folder,
     "delete_file": delete_file,
@@ -69,283 +77,94 @@ AVAILABLE_FUNCTIONS = {
     "search_web": search_web,
     "get_recent_emails": get_recent_emails,
     "get_unread_count": get_unread_count,
-    "open_youtube": open_youtube,
     "set_theme": set_theme,
+    "set_volume": set_volume,
+    "get_volume": get_volume,
+    "volume_up": volume_up,
+    "volume_down": volume_down,
+    "mute_volume": mute_volume,
+    "unmute_volume": unmute_volume,
+    "set_brightness": set_brightness,
+    "get_brightness": get_brightness,
+    "lock_screen": lock_screen,
+    "take_screenshot": take_screenshot,
+    "list_top_processes": list_top_processes,
+    "kill_process": kill_process,
+    "play_pause_media": play_pause_media,
+    "next_track": next_track,
+    "previous_track": previous_track,
+    "run_git_command": run_git_command,
+    "open_vscode_project": open_vscode_project,
+    "calculate": calculate,
+    "convert_units": convert_units,
+    "tell_joke": tell_joke,
+    "random_fact": random_fact,
+    "start_number_game": start_number_game,
+    "guess_number": guess_number,
+    "add_note": add_note,
+    "list_notes": list_notes,
+    "delete_note": delete_note,
+    "add_todo": add_todo,
+    "list_todos": list_todos,
+    "complete_todo": complete_todo,
+    "delete_todo": delete_todo,
 }
 
 TOOLS_SCHEMA = [
-    {
-        "type": "function",
-        "function": {
-            "name": "open_app",
-            "description": "Открывает приложение на компьютере по названию",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "app_name": {"type": "string", "description": "Название приложения, например 'блокнот', 'калькулятор'"}
-                },
-                "required": ["app_name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "close_app",
-            "description": "Закрывает запущенное приложение по названию",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "app_name": {"type": "string", "description": "Название приложения для закрытия"}
-                },
-                "required": ["app_name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "open_file",
-            "description": "Находит файл или папку по имени на диске и открывает",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Имя файла или папки"}
-                },
-                "required": ["name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_folder",
-            "description": "Создаёт новую папку. По умолчанию на Рабочем столе, но можно указать другое место — Documents, Downloads, букву диска (например 'D:') или полный путь",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Имя новой папки"},
-                    "location": {"type": "string", "description": "Куда поместить: 'Desktop', 'Documents', 'Downloads', буква диска вроде 'D:' или полный путь. Необязательно, по умолчанию Desktop"}
-                },
-                "required": ["name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "delete_file",
-            "description": "Удаляет файл или папку по имени (перемещает в Корзину)",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Имя файла или папки для удаления"}
-                },
-                "required": ["name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "locate_file",
-            "description": "Находит файл или папку и сообщает, в какой папке она находится, не открывая",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Имя файла или папки для поиска"}
-                },
-                "required": ["name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": "Узнаёт текущую погоду",
-            "parameters": {"type": "object", "properties": {}}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_news",
-            "description": "Узнаёт последние новости",
-            "parameters": {"type": "object", "properties": {}}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "rename_file",
-            "description": "Renames a file or folder found by its current name",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "old_name": {"type": "string", "description": "Current name of the file or folder"},
-                    "new_name": {"type": "string", "description": "New name to give it"}
-                },
-                "required": ["old_name", "new_name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "copy_file",
-            "description": "Copies a file or folder to a destination, leaving the original in place",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Name of the file or folder to copy"},
-                    "destination": {"type": "string", "description": "Where to copy it: 'Desktop', 'Documents', 'Downloads', a drive letter like 'D:', or a full path. Defaults to Desktop"}
-                },
-                "required": ["name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "move_file",
-            "description": "Moves a file or folder to a destination, removing it from its original location",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Name of the file or folder to move"},
-                    "destination": {"type": "string", "description": "Where to move it: 'Desktop', 'Documents', 'Downloads', a drive letter like 'D:', or a full path. Defaults to Desktop"}
-                },
-                "required": ["name"]
-            }
-        }
-    },
-        {
-        "type": "function",
-        "function": {
-            "name": "get_cpu_usage",
-            "description": "Gets the current CPU usage percentage",
-            "parameters": {"type": "object", "properties": {}}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_memory_usage",
-            "description": "Gets current RAM usage",
-            "parameters": {"type": "object", "properties": {}}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_battery_status",
-            "description": "Gets battery charge level and charging status, if the device has a battery",
-            "parameters": {"type": "object", "properties": {}}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_disk_usage",
-            "description": "Gets free and used disk space for a specific drive",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "drive": {"type": "string", "description": "Drive letter, e.g. 'C:' or 'D:'. Defaults to C:"}
-                }
-            }
-        }
-    },
-        {
-        "type": "function",
-        "function": {
-            "name": "set_timer",
-            "description": "Sets a timer for a number of minutes, optionally with a custom message to say when it goes off",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "minutes": {"type": "number", "description": "How many minutes from now the timer should go off"},
-                    "message": {"type": "string", "description": "What to say when the timer finishes. Defaults to \"Timer's up!\""}
-                },
-                "required": ["minutes"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "list_timers",
-            "description": "Lists all currently active timers and how much time remains on each",
-            "parameters": {"type": "object", "properties": {}}
-        }
-    },
-        {
-        "type": "function",
-        "function": {
-            "name": "search_web",
-            "description": "Searches the web for current information not covered by other tools — general knowledge, facts, current events, etc.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "What to search for"}
-                },
-                "required": ["query"]
-            }
-        }
-    },
-        {
-        "type": "function",
-        "function": {
-            "name": "get_recent_emails",
-            "description": "Reads and summarizes the most recent emails from the inbox",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "count": {"type": "integer", "description": "How many recent emails to summarize. Defaults to 5"}
-                }
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_unread_count",
-            "description": "Gets the number of unread emails in the inbox",
-            "parameters": {"type": "object", "properties": {}}
-        }
-    },
-        {
-        "type": "function",
-        "function": {
-            "name": "open_youtube",
-            "description": "Opens YouTube in the browser with search results for a given query or video name",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "What to search for on YouTube"}
-                },
-                "required": ["query"]
-            }
-        }
-    },
-        {
-        "type": "function",
-        "function": {
-            "name": "set_theme",
-            "description": "Switches the interface theme between dark and light mode",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "theme": {"type": "string", "description": "Either 'dark' or 'light'"}
-                },
-                "required": ["theme"]
-            }
-        }
-    },
+    {"type": "function", "function": {"name": "open_app", "description": "Opens an application on the computer by name", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
+    {"type": "function", "function": {"name": "close_app", "description": "Closes a running application by name", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
+    {"type": "function", "function": {"name": "open_youtube", "description": "Opens YouTube search results for a query or video name", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
+    {"type": "function", "function": {"name": "open_file", "description": "Finds a file or folder by name and opens it", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "create_folder", "description": "Creates a new folder. location can be Desktop, Documents, Downloads, a drive letter, or a full path", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "location": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "delete_file", "description": "Deletes a file or folder by name (moves to Recycle Bin, asks for voice confirmation first)", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "locate_file", "description": "Finds a file or folder and reports where it is, without opening it", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "rename_file", "description": "Renames a file or folder (asks for voice confirmation first)", "parameters": {"type": "object", "properties": {"old_name": {"type": "string"}, "new_name": {"type": "string"}}, "required": ["old_name", "new_name"]}}},
+    {"type": "function", "function": {"name": "copy_file", "description": "Copies a file or folder to a destination, keeping the original (asks for voice confirmation first)", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "destination": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "move_file", "description": "Moves a file or folder to a destination (asks for voice confirmation first)", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "destination": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "get_weather", "description": "Gets the current weather", "parameters": {"type": "object", "properties": {"city": {"type": "string"}}}}},
+    {"type": "function", "function": {"name": "get_news", "description": "Gets the latest news headlines", "parameters": {"type": "object", "properties": {"count": {"type": "integer"}}}}},
+    {"type": "function", "function": {"name": "get_cpu_usage", "description": "Gets current CPU usage percentage", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "get_memory_usage", "description": "Gets current RAM usage", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "get_battery_status", "description": "Gets battery charge level and charging status", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "get_disk_usage", "description": "Gets free/used disk space for a drive", "parameters": {"type": "object", "properties": {"drive": {"type": "string"}}}}},
+    {"type": "function", "function": {"name": "set_timer", "description": "Sets a timer for a number of minutes with an optional message", "parameters": {"type": "object", "properties": {"minutes": {"type": "number"}, "message": {"type": "string"}}, "required": ["minutes"]}}},
+    {"type": "function", "function": {"name": "list_timers", "description": "Lists all active timers", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "search_web", "description": "Searches the web for current information", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
+    {"type": "function", "function": {"name": "get_recent_emails", "description": "Reads and summarizes recent inbox emails", "parameters": {"type": "object", "properties": {"count": {"type": "integer"}}}}},
+    {"type": "function", "function": {"name": "get_unread_count", "description": "Gets the number of unread emails", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "set_theme", "description": "Switches the interface theme to dark or light", "parameters": {"type": "object", "properties": {"theme": {"type": "string"}}, "required": ["theme"]}}},
+    {"type": "function", "function": {"name": "set_volume", "description": "Sets system volume to a specific percentage 0-100", "parameters": {"type": "object", "properties": {"level": {"type": "integer"}}, "required": ["level"]}}},
+    {"type": "function", "function": {"name": "get_volume", "description": "Gets current system volume", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "volume_up", "description": "Increases system volume", "parameters": {"type": "object", "properties": {"step": {"type": "integer"}}}}},
+    {"type": "function", "function": {"name": "volume_down", "description": "Decreases system volume", "parameters": {"type": "object", "properties": {"step": {"type": "integer"}}}}},
+    {"type": "function", "function": {"name": "mute_volume", "description": "Mutes system audio", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "unmute_volume", "description": "Unmutes system audio", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "set_brightness", "description": "Sets screen brightness percentage 0-100", "parameters": {"type": "object", "properties": {"level": {"type": "integer"}}, "required": ["level"]}}},
+    {"type": "function", "function": {"name": "get_brightness", "description": "Gets current screen brightness", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "lock_screen", "description": "Locks the Windows screen immediately", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "take_screenshot", "description": "Takes a screenshot and saves it to the Desktop", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "list_top_processes", "description": "Lists top processes by CPU usage", "parameters": {"type": "object", "properties": {"count": {"type": "integer"}}}}},
+    {"type": "function", "function": {"name": "kill_process", "description": "Force-closes a process by its exact name", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "play_pause_media", "description": "Toggles play/pause on the active media player", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "next_track", "description": "Skips to the next track", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "previous_track", "description": "Goes to the previous track", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "run_git_command", "description": "Runs a git command inside a project folder", "parameters": {"type": "object", "properties": {"command": {"type": "string"}, "project_path": {"type": "string"}}, "required": ["command"]}}},
+    {"type": "function", "function": {"name": "open_vscode_project", "description": "Opens a project folder in VS Code", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}},
+    {"type": "function", "function": {"name": "calculate", "description": "Evaluates a basic math expression", "parameters": {"type": "object", "properties": {"expression": {"type": "string"}}, "required": ["expression"]}}},
+    {"type": "function", "function": {"name": "convert_units", "description": "Converts a value between common units (km/mi, kg/lb, celsius/fahrenheit, m/ft)", "parameters": {"type": "object", "properties": {"value": {"type": "number"}, "from_unit": {"type": "string"}, "to_unit": {"type": "string"}}, "required": ["value", "from_unit", "to_unit"]}}},
+    {"type": "function", "function": {"name": "tell_joke", "description": "Tells a random joke", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "random_fact", "description": "Shares a random interesting fact", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "start_number_game", "description": "Starts a number guessing game between 1 and 100", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "guess_number", "description": "Submits a guess in the active number guessing game", "parameters": {"type": "object", "properties": {"guess": {"type": "integer"}}, "required": ["guess"]}}},
+    {"type": "function", "function": {"name": "add_note", "description": "Saves a short note", "parameters": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}}},
+    {"type": "function", "function": {"name": "list_notes", "description": "Lists all saved notes", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "delete_note", "description": "Deletes a note by its number", "parameters": {"type": "object", "properties": {"index": {"type": "integer"}}, "required": ["index"]}}},
+    {"type": "function", "function": {"name": "add_todo", "description": "Adds a task to the to-do list", "parameters": {"type": "object", "properties": {"task": {"type": "string"}}, "required": ["task"]}}},
+    {"type": "function", "function": {"name": "list_todos", "description": "Lists all to-do items", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "complete_todo", "description": "Marks a to-do item as done by its number", "parameters": {"type": "object", "properties": {"index": {"type": "integer"}}, "required": ["index"]}}},
+    {"type": "function", "function": {"name": "delete_todo", "description": "Deletes a to-do item by its number", "parameters": {"type": "object", "properties": {"index": {"type": "integer"}}, "required": ["index"]}}},
 ]
 
-# История диалога — ведём сами, начинается с системного промпта.
 conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
 
 
@@ -355,8 +174,6 @@ def ask_ai(question: str) -> str:
     conversation_history.append({"role": "user", "content": question})
 
     try:
-        # Цикл вместо одного фиксированного "второго запроса" — модель может
-        # захотеть вызвать несколько функций подряд, прежде чем дать финальный ответ
         for _ in range(5):
             response = client.chat.completions.create(
                 model=MODEL,

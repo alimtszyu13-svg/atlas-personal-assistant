@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ATLAS</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #060911;
+    --panel: rgba(13, 20, 30, 0.7);
+    --panel-solid: #0b1119;
+    --border: rgba(0, 217, 255, 0.14);
+    --text-primary: #e9f6fb;
+    --text-secondary: #56707f;
+    --accent: #22d3ee;
+    --user-bubble: rgba(255,255,255,0.03);
+    --atlas-bubble: rgba(34, 211, 238, 0.06);
+  }
+  [data-theme="light"] {
+    --bg: #eef3f7;
+    --panel: rgba(255,255,255,0.75);
+    --panel-solid: #ffffff;
+    --border: rgba(0, 140, 173, 0.18);
+    --text-primary: #0f2028;
+    --text-secondary: #6c8494;
+    --accent: #0089ad;
+    --user-bubble: rgba(0,0,0,0.03);
+    --atlas-bubble: rgba(0, 137, 173, 0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Space Grotesk', sans-serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text-primary); }
+
+  body {
+    background-image:
+      radial-gradient(ellipse at 50% 45%, rgba(34,211,238,0.06) 0%, transparent 55%),
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: auto, 42px 42px, 42px 42px;
+    position: relative;
+  }
+
+  /* угловые HUD-скобки — как в референсе */
+  .corner { position: fixed; width: 34px; height: 34px; border-color: var(--accent); opacity: 0.45; z-index: 5; }
+  .corner.tl { top: 14px; left: 14px; border-top: 2px solid; border-left: 2px solid; }
+  .corner.tr { top: 14px; right: 14px; border-top: 2px solid; border-right: 2px solid; }
+  .corner.bl { bottom: 14px; left: 14px; border-bottom: 2px solid; border-left: 2px solid; }
+  .corner.br { bottom: 14px; right: 14px; border-bottom: 2px solid; border-right: 2px solid; }
+
+  .glass { background: var(--panel); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--border); }
+
+  /* ---------- top-left: brand + quick actions ---------- */
+  .top-left { position: fixed; top: 26px; left: 32px; z-index: 10; display: flex; flex-direction: column; gap: 14px; }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px 2px var(--accent); }
+  .brand-name { font-size: 19px; font-weight: 700; letter-spacing: 0.14em; }
+
+  .quick-actions { display: flex; gap: 8px; }
+  .pill { display: flex; align-items: center; gap: 6px; padding: 9px 15px; border-radius: 999px; font-size: 12px;
+          cursor: pointer; user-select: none; transition: all .18s ease; }
+  .pill:hover { background: rgba(34,211,238,0.12) !important; border-color: var(--accent) !important; transform: translateY(-1px); }
+
+  /* ---------- top-right: settings ---------- */
+  .top-right { position: fixed; top: 26px; right: 32px; z-index: 20; }
+  #settings-panel { position: absolute; top: 46px; right: 0; width: 230px; padding: 16px; border-radius: 16px; display: none; }
+  #settings-panel.open { display: block; }
+  .settings-label { font-size: 9px; letter-spacing: 0.14em; color: var(--text-secondary); margin-bottom: 10px; }
+  .settings-row-label { font-size: 11px; color: var(--text-primary); margin: 10px 0 6px; }
+  .theme-row { display: flex; gap: 6px; }
+  .theme-btn { flex: 1; padding: 7px; font-size: 11px; border-radius: 9px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); cursor: pointer; color: var(--text-primary); }
+  .theme-btn.active { background: var(--accent); color: #05131a; border-color: var(--accent); font-weight: 600; }
+  .swatch-row { display: flex; gap: 7px; }
+  .swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+  .swatch.active { border-color: var(--text-primary); }
+
+  /* ---------- center orb ---------- */
+  .orb-wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+  .orb { position: relative; width: 440px; height: 440px; }
+  .ring { position: absolute; top: 50%; left: 50%; border-radius: 50%; border: 1px solid var(--border); transform: translate(-50%,-50%); }
+  .ring-spin { animation: spin linear infinite; }
+  .ring-spin-rev { animation: spin-rev linear infinite; }
+  @keyframes spin { from { transform: translate(-50%,-50%) rotate(0deg); } to { transform: translate(-50%,-50%) rotate(360deg); } }
+  @keyframes spin-rev { from { transform: translate(-50%,-50%) rotate(360deg); } to { transform: translate(-50%,-50%) rotate(0deg); } }
+  .core { width: 200px; height: 200px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          box-shadow: 0 0 70px 12px rgba(34,211,238,0.22), 0 0 160px 46px rgba(34,211,238,0.07);
+          animation: pulse 3.6s ease-in-out infinite; transition: filter .3s ease; }
+  @keyframes pulse { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.025); } }
+  .core-title { font-size: 27px; font-weight: 700; letter-spacing: 0.16em; color: var(--accent); }
+  .core-state { font-size: 10px; letter-spacing: 0.22em; color: var(--text-secondary); margin-top: 6px; }
+  .subtitle { margin-top: 40px; max-width: 420px; text-align: center; font-size: 13px; color: var(--text-secondary); min-height: 20px; }
+
+  .status-ticker { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: 0.16em;
+                    color: var(--text-secondary); opacity: 0.6; }
+
+  /* ---------- bottom-left: compact system readout ---------- */
+  .sys-panel { position: fixed; bottom: 26px; left: 32px; z-index: 10; width: 210px; padding: 13px 16px; border-radius: 14px; }
+  .sys-clock { font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; letter-spacing: 0.05em; }
+  .sys-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .sys-label { font-size: 9px; letter-spacing: 0.1em; color: var(--text-secondary); width: 30px; }
+  .sys-bar-track { flex: 1; height: 4px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+  .sys-bar-fill { height: 100%; border-radius: 3px; transition: width .5s ease; }
+  .sys-val { font-size: 10px; width: 30px; text-align: right; color: var(--text-primary); }
+
+  /* ---------- right sidebar: conversation ---------- */
+  .sidebar { position: fixed; top: 26px; right: 32px; bottom: 26px; width: 380px; z-index: 8;
+             border-radius: 18px; display: flex; flex-direction: column; overflow: hidden; }
+  .sidebar-header { padding: 16px 18px 10px; font-size: 10px; letter-spacing: 0.16em; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
+  .chat { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .chat::-webkit-scrollbar { width: 5px; }
+  .chat::-webkit-scrollbar-thumb { background: rgba(34,211,238,0.25); border-radius: 8px; }
+  .bubble { padding: 10px 13px; border-radius: 12px; font-size: 13px; line-height: 1.5; animation: msgIn .3s ease both; }
+  @keyframes msgIn { from { opacity:0; transform: translateY(6px);} to {opacity:1; transform:translateY(0);} }
+  .bubble.atlas { background: var(--atlas-bubble); border: 1px solid var(--border); border-top-left-radius: 3px; }
+  .bubble.user { background: var(--user-bubble); border: 1px solid rgba(255,255,255,0.05); border-top-right-radius: 3px; margin-left: 26px; }
+  .bubble-speaker { font-size: 9px; letter-spacing: 0.12em; margin-bottom: 4px; }
+  .bubble.atlas .bubble-speaker { color: var(--accent); }
+  .bubble.user .bubble-speaker { color: var(--text-secondary); }
+
+  .input-row { padding: 12px; display: flex; gap: 8px; border-top: 1px solid var(--border); }
+  #cmd-input { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 11px;
+               padding: 10px 13px; font-size: 12px; color: var(--text-primary); outline: none; }
+  #cmd-input::placeholder { color: var(--text-secondary); }
+  .send-btn { background: var(--accent); color: #05131a; border: none; border-radius: 11px; padding: 0 18px;
+              font-size: 12px; font-weight: 600; cursor: pointer; }
+  .send-btn:hover { filter: brightness(1.1); }
+</style>
+</head>
+<body data-theme="dark">
+
+  <div class="corner tl"></div><div class="corner tr"></div>
+  <div class="corner bl"></div><div class="corner br"></div>
+
+  <div class="top-left">
+    <div class="brand"><div class="brand-dot"></div><span class="brand-name">ATLAS</span></div>
+    <div class="quick-actions">
+      <div class="pill glass" onclick="quickCmd('check the weather')">☁ Weather</div>
+      <div class="pill glass" onclick="quickCmd('read me the news')">▤ News</div>
+      <div class="pill glass" onclick="quickCmd('set a timer for 5 minutes')">◔ Timer 5m</div>
+      <div class="pill glass" onclick="quickCmd('do I have unread emails')">✉ Mail</div>
+    </div>
+  </div>
+
+  <div class="top-right">
+    <div class="pill glass" onclick="toggleSettings()">⚙ Settings</div>
+    <div id="settings-panel" class="glass">
+      <div class="settings-label">SETTINGS</div>
+      <div class="settings-row-label">Theme</div>
+      <div class="theme-row">
+        <button class="theme-btn active" id="theme-dark" onclick="setTheme('dark')">Dark</button>
+        <button class="theme-btn" id="theme-light" onclick="setTheme('light')">Light</button>
+      </div>
+      <div class="settings-row-label">Accent color</div>
+      <div class="swatch-row" id="swatches">
+        <div class="swatch active" style="background:#22d3ee" onclick="setAccent('#22d3ee', this)"></div>
+        <div class="swatch" style="background:#34d399" onclick="setAccent('#34d399', this)"></div>
+        <div class="swatch" style="background:#fb7185" onclick="setAccent('#fb7185', this)"></div>
+        <div class="swatch" style="background:#fbbf24" onclick="setAccent('#fbbf24', this)"></div>
+        <div class="swatch" style="background:#a78bfa" onclick="setAccent('#a78bfa', this)"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="orb-wrap">
+    <div class="orb" id="orb">
+      <svg class="ring ring-spin" style="width:440px;height:440px;animation-duration:40s;" viewBox="0 0 440 440">
+        <circle cx="220" cy="220" r="218" fill="none" stroke="var(--border)" stroke-width="1" stroke-dasharray="4 10"/>
+      </svg>
+      <svg class="ring ring-spin-rev" style="width:370px;height:370px;animation-duration:28s;" viewBox="0 0 370 370">
+        <circle cx="185" cy="185" r="183" fill="none" stroke="var(--border)" stroke-width="1"/>
+        <circle cx="185" cy="3" r="3" fill="var(--accent)"/>
+      </svg>
+      <svg class="ring ring-spin" style="width:300px;height:300px;animation-duration:18s;" viewBox="0 0 300 300">
+        <circle cx="150" cy="150" r="148" fill="none" stroke="var(--accent)" stroke-opacity="0.3" stroke-width="2" stroke-dasharray="1 14" stroke-linecap="round"/>
+      </svg>
+      <div class="ring core glass" style="background: var(--panel-solid);">
+        <div class="core-title">ATLAS</div>
+        <div class="core-state" id="state-label">ONLINE</div>
+      </div>
+    </div>
+    <div class="subtitle" id="subtitle"></div>
+  </div>
+
+  <div class="status-ticker mono" id="ticker">STATUS: NOMINAL · AWAITING INPUT</div>
+
+  <div class="sys-panel glass">
+    <div class="sys-clock mono" id="clock">00:00:00</div>
+    <div class="sys-row">
+      <div class="sys-label mono">CPU</div>
+      <div class="sys-bar-track"><div class="sys-bar-fill" id="cpu-bar" style="width:0%; background: var(--accent);"></div></div>
+      <div class="sys-val mono" id="cpu-val">0%</div>
+    </div>
+    <div class="sys-row">
+      <div class="sys-label mono">RAM</div>
+      <div class="sys-bar-track"><div class="sys-bar-fill" id="ram-bar" style="width:0%; background: #fb7185;"></div></div>
+      <div class="sys-val mono" id="ram-val">0%</div>
+    </div>
+  </div>
+
+  <div class="sidebar glass">
+    <div class="sidebar-header mono">CONVERSATION</div>
+    <div class="chat" id="chat"></div>
+    <div class="input-row">
+      <input id="cmd-input" type="text" placeholder="Type a command..." onkeydown="if(event.key==='Enter') sendCommand()">
+      <button class="send-btn" onclick="sendCommand()">Send</button>
+    </div>
+  </div>
+
+<script>
+  let lastChatLen = 0;
+
+  function sendCommand() {
+    const input = document.getElementById('cmd-input');
+    const text = input.value.trim();
+    if (!text) return;
+    pywebview.api.send_text_command(text);
+    input.value = '';
+  }
+  function quickCmd(text) { pywebview.api.send_text_command(text); }
+
+  function toggleSettings() {
+    document.getElementById('settings-panel').classList.toggle('open');
+  }
+  function setTheme(t) {
+    document.body.setAttribute('data-theme', t);
+    document.getElementById('theme-dark').classList.toggle('active', t === 'dark');
+    document.getElementById('theme-light').classList.toggle('active', t === 'light');
+    pywebview.api.set_theme(t);
+  }
+  function setAccent(color, el) {
+    document.documentElement.style.setProperty('--accent', color);
+    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    el.classList.add('active');
+    pywebview.api.set_accent(color);
+  }
+
+  function renderChat(history) {
+    if (history.length === lastChatLen) return;
+    const chat = document.getElementById('chat');
+    history.slice(lastChatLen).forEach(([speaker, text]) => {
+      const isUser = speaker === 'You';
+      const div = document.createElement('div');
+      div.className = 'bubble ' + (isUser ? 'user' : 'atlas');
+      div.innerHTML = `<div class="bubble-speaker mono">${isUser ? 'YOU' : 'ATLAS'}</div><div>${text}</div>`;
+      chat.appendChild(div);
+    });
+    chat.scrollTop = chat.scrollHeight;
+    lastChatLen = history.length;
+  }
+
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString('en-GB');
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  const stateTickers = {
+    idle: 'STATUS: NOMINAL · AWAITING INPUT',
+    listening: 'STATUS: LISTENING · MICROPHONE ACTIVE',
+    thinking: 'STATUS: PROCESSING REQUEST',
+    speaking: 'STATUS: RESPONDING'
+  };
+
+  async function pollState() {
+    try {
+      const s = await pywebview.api.get_state();
+      document.getElementById('state-label').textContent = s.state.toUpperCase();
+      document.getElementById('subtitle').textContent = s.text.slice(0, 150);
+      document.getElementById('ticker').textContent = stateTickers[s.state] || stateTickers.idle;
+
+      document.getElementById('cpu-bar').style.width = s.cpu + '%';
+      document.getElementById('cpu-val').textContent = Math.round(s.cpu) + '%';
+      document.getElementById('ram-bar').style.width = s.ram + '%';
+      document.getElementById('ram-val').textContent = Math.round(s.ram) + '%';
+
+      renderChat(s.chat_history);
+
+      const orb = document.getElementById('orb');
+      const glowColor = s.state === 'listening' ? '#34d399' : s.state === 'thinking' ? '#fbbf24' :
+                         s.state === 'speaking' ? s.accent_color : 'transparent';
+      orb.style.filter = glowColor === 'transparent' ? 'none' : `drop-shadow(0 0 22px ${glowColor})`;
+    } catch (e) { console.log(e); }
+    setTimeout(pollState, 300);
+  }
+  pollState();
+</script>
+</body>
+</html>
