@@ -126,10 +126,77 @@
   .send-btn { background: var(--accent); color: #05131a; border: none; border-radius: 11px; padding: 0 18px;
               font-size: 12px; font-weight: 600; cursor: pointer; }
   .send-btn:hover { filter: brightness(1.1); }
+
+    /* ---------- boot splash ---------- */
+  #boot-overlay {
+    position: fixed; inset: 0; z-index: 100; background: #000;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 1s ease;
+  }
+  #boot-overlay.hide { opacity: 0; pointer-events: none; }
+  .boot-title {
+    font-size: 56px; font-weight: 700; letter-spacing: 0.3em; color: var(--accent);
+    opacity: 0; transform: scale(0.85);
+    animation: boot-in 2.2s ease forwards;
+    text-shadow: 0 0 40px rgba(34,211,238,0.5);
+  }
+  @keyframes boot-in {
+    0% { opacity: 0; transform: scale(0.85); letter-spacing: 0.5em; }
+    60% { opacity: 1; transform: scale(1); letter-spacing: 0.3em; }
+    100% { opacity: 1; transform: scale(1); letter-spacing: 0.3em; }
+  }
+  .boot-credit {
+    position: fixed; bottom: 40px; right: 48px; font-size: 11px; letter-spacing: 0.12em;
+    color: var(--text-secondary); opacity: 0; animation: credit-in 1.5s ease 1.6s forwards;
+  }
+  @keyframes credit-in { from { opacity: 0; transform: translateY(6px);} to { opacity: 0.7; transform: translateY(0);} }
+
+  /* ---------- shutdown (CRT-style power-off) ---------- */
+    #shutdown-overlay {
+    position: fixed; inset: 0; z-index: 200; background: #000;
+    display: none; align-items: center; justify-content: center; pointer-events: none;
+  }
+  #shutdown-overlay.active { display: flex; }
+  /* Фон становится сплошным чёрным СРАЗУ, как только .active навешивается —
+     это мгновенно скрывает весь настоящий интерфейс целиком, без анимации.
+     Дальше анимируется только декоративная светящаяся полоса поверх черноты. */
+
+  .crt-flash {
+    position: absolute; inset: 0; background: #eafcff; opacity: 0;
+  }
+  .crt-flash.play { animation: crt-flash 0.15s ease forwards; }
+  @keyframes crt-flash { 0% { opacity: 0; } 30% { opacity: 0.9; } 100% { opacity: 0; } }
+
+  .crt-line {
+    width: 100%; height: 5px; background: var(--accent);
+    box-shadow: 0 0 24px 6px var(--accent);
+    transform: scaleX(1);
+    opacity: 0;
+  }
+  .crt-line.play {
+    animation: crt-line-in 0.15s ease 0.12s forwards,
+               crt-line-collapse 0.4s cubic-bezier(.6,0,.9,.4) 0.3s forwards;
+  }
+  @keyframes crt-line-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes crt-line-collapse {
+    0%   { transform: scaleX(1); opacity: 1; }
+    100% { transform: scaleX(0); opacity: 0; }
+  }
+  @keyframes crt-collapse-y { from { transform: scaleY(1); } to { transform: scaleY(0.004); } }
+  @keyframes crt-collapse-x { from { transform: scaleY(0.004) scaleX(1); } to { transform: scaleY(0.004) scaleX(0); } }
 </style>
 </head>
 <body data-theme="dark">
 
+  <div id="boot-overlay">
+    <div class="boot-title">ATLAS</div>
+    <div class="boot-credit mono">PROJECT BY ALIM TSZYU</div>
+  </div>
+
+  <div id="shutdown-overlay">
+    <div class="crt-flash" id="crt-flash"></div>
+    <div class="crt-line" id="crt-line"></div>
+  </div>
   <div class="corner tl"></div><div class="corner tr"></div>
   <div class="corner bl"></div><div class="corner br"></div>
 
@@ -209,6 +276,26 @@
   </div>
 
 <script>
+
+  // Заставка загрузки — прячем через 3.2 сек после появления
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      document.getElementById('boot-overlay').classList.add('hide');
+    }, 3200);
+  });
+
+  let shutdownStarted = false;
+  function playShutdown() {
+    if (shutdownStarted) return;
+    shutdownStarted = true;
+    const overlay = document.getElementById('shutdown-overlay');
+    const flash = document.getElementById('crt-flash');
+    const line = document.getElementById('crt-line');
+    overlay.classList.add('active');
+    flash.classList.add('play');
+    line.classList.add('play');
+    setTimeout(() => { pywebview.api.confirm_quit(); }, 750);
+  }
   let lastChatLen = 0;
 
   function sendCommand() {
@@ -278,10 +365,15 @@
 
       renderChat(s.chat_history);
 
-      const orb = document.getElementById('orb');
+            const orb = document.getElementById('orb');
       const glowColor = s.state === 'listening' ? '#34d399' : s.state === 'thinking' ? '#fbbf24' :
                          s.state === 'speaking' ? s.accent_color : 'transparent';
       orb.style.filter = glowColor === 'transparent' ? 'none' : `drop-shadow(0 0 22px ${glowColor})`;
+
+      if (s.should_quit) {
+        playShutdown();
+        return;
+      }
     } catch (e) { console.log(e); }
     setTimeout(pollState, 300);
   }
