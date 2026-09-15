@@ -85,6 +85,7 @@ def _voice_loop():
         _process_command(command)
         
 start_push_to_talk_hotkey("ctrl+space")
+start_selection_hotkeys()
 
 voice_thread = threading.Thread(target=_voice_loop, daemon=True)
 voice_thread.start()
@@ -94,5 +95,3 @@ manual_thread.start()
 
 gui = WebGUI(shared_state)
 gui.run()
-
-start_selection_hotkeys()
