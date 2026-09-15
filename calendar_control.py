@@ -12,7 +12,7 @@ def _get_service():
     return _calendar_service
 
 
-def list_today_events() -> str:
+def list_today_events(count: int = None) -> str:
     """Lists all calendar events scheduled for today."""
     service = _get_service()
     now = datetime.utcnow()
@@ -42,9 +42,7 @@ def list_upcoming_events(days: int = 7) -> str:
 
 
 def create_event(title: str, date: str, time: str = "09:00", duration_minutes: int = 60) -> str:
-    """
-    Creates a calendar event. date format 'YYYY-MM-DD', time format 'HH:MM' (24h).
-    """
+    """Creates a calendar event. date format 'YYYY-MM-DD', time format 'HH:MM' (24h)."""
     try:
         start_dt = datetime.fromisoformat(f"{date}T{time}:00")
         end_dt = start_dt + timedelta(minutes=duration_minutes)

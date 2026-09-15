@@ -67,9 +67,18 @@ def _voice_loop():
     while True:
         shared_state["state"] = "idle"
         shared_state["text"] = ""
-        wait_for_wake_word()
 
-        _speak_and_update(random.choice(WAKE_RESPONSES), interruptible=False)
+        if shared_state.get("always_listening"):
+            trigger = "always"
+        else:
+            trigger = wait_for_wake_word()
+
+        # Короткий отклик ("Yes, sir?") уместен только когда Atlas реально
+        # услышал своё имя вслух. Push-to-talk и always-listening — уже
+        # осознанные действия пользователя, лишняя реплика тут была бы
+        # той самой "повторяющейся" болтовнёй, которая надоедала.
+        if trigger == "voice":
+            _speak_and_update(random.choice(WAKE_RESPONSES), interruptible=False)
 
         shared_state["state"] = "listening"
         command = listen()

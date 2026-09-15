@@ -22,6 +22,13 @@ STT_MODEL = "whisper-large-v3"
 SAMPLE_RATE = 16000
 INTERRUPT_WORDS = ("stop", "enough", "quiet")
 WAKE_WORD = "atlas"
+_push_to_talk_event = threading.Event()
+
+
+def trigger_push_to_talk() -> None:
+    """Вызывается извне (горячая клавиша или кнопка интерфейса) —
+    мгновенно 'будит' Атласа, минуя произнесение имени вслух."""
+    _push_to_talk_event.set()
 
 
 def _generate_speech(text: str, filename: str) -> None:
@@ -64,12 +71,13 @@ def _transcribe_audio(recording: np.ndarray) -> str:
         os.remove(temp_path)
 
 
-def wait_for_wake_word() -> None:
+def wait_for_wake_word() -> str:
+    """Возвращает 'manual', если разбудили push-to-talk'ом, или 'voice', если услышал имя."""
     print("(waiting for wake word 'Atlas'...)")
     while True:
         if _push_to_talk_event.is_set():
             _push_to_talk_event.clear()
-            return
+            return "manual"
 
         recording = sd.rec(int(2.5 * SAMPLE_RATE), samplerate=SAMPLE_RATE,
                             channels=1, dtype='int16')
@@ -77,7 +85,7 @@ def wait_for_wake_word() -> None:
 
         if _push_to_talk_event.is_set():
             _push_to_talk_event.clear()
-            return
+            return "manual"
 
         volume = np.sqrt(np.mean(recording.astype(np.float32) ** 2))
         if volume < 250:
@@ -85,15 +93,7 @@ def wait_for_wake_word() -> None:
 
         text = _transcribe_audio(recording).lower()
         if WAKE_WORD in text:
-            return
-
-_push_to_talk_event = threading.Event()
-
-
-def trigger_push_to_talk() -> None:
-    """Вызывается извне (горячая клавиша или кнопка интерфейса) —
-    мгновенно 'будит' Атласа, минуя произнесение имени вслух."""
-    _push_to_talk_event.set()
+            return "voice"
 
 
 def _watch_for_interrupt(stop_event: threading.Event) -> None:
@@ -200,3 +200,77 @@ def listen(max_duration: int = 8, silence_limit: float = 1.2) -> str:
 
     print(f"[You]: {text}")
     return text
+
+try:
+    from pygame._sdl2 import audio as sdl2_audio
+except ImportError:
+    sdl2_audio = None
+
+VOICE_OPTIONS = {
+    "male": ["troy", "daniel", "austin"],
+    "female": ["autumn", "diana", "hannah"],
+}
+
+
+def list_voices() -> str:
+    """Lists available TTS voices, grouped by gender."""
+    male = ", ".join(VOICE_OPTIONS["male"])
+    female = ", ".join(VOICE_OPTIONS["female"])
+    return f"Male voices: {male}. Female voices: {female}. Current voice: {TTS_VOICE}."
+
+
+def set_voice(name: str) -> str:
+    """Switches the TTS voice."""
+    global TTS_VOICE
+    name = name.lower().strip()
+    all_voices = VOICE_OPTIONS["male"] + VOICE_OPTIONS["female"]
+    if name not in all_voices:
+        return f"Unknown voice '{name}'. Available: {', '.join(all_voices)}."
+    TTS_VOICE = name
+    return f"Voice switched to {name}."
+
+
+def list_audio_devices() -> str:
+    """Lists available speaker (output) and microphone (input) devices."""
+    parts = []
+    if sdl2_audio is not None:
+        try:
+            outputs = sdl2_audio.get_audio_device_names(False)
+            parts.append("Speakers: " + ", ".join(outputs))
+        except Exception as e:
+            parts.append(f"Couldn't list speakers: {e}")
+
+    inputs = [d['name'] for d in sd.query_devices()
+                if d['max_input_channels'] > 0 and "переназначение" not in d['name'].lower()]
+    parts.append("Microphones: " + ", ".join(inputs))
+    return " | ".join(parts)
+
+
+def set_microphone(name: str) -> str:
+    """Switches which microphone Atlas listens through, by partial name match."""
+    name_lower = name.lower().strip()
+    for i, dev in enumerate(sd.query_devices()):
+        if dev['max_input_channels'] > 0 and name_lower in dev['name'].lower():
+            current = sd.default.device
+            out_idx = current[1] if isinstance(current, (list, tuple)) else None
+            sd.default.device = (i, out_idx)
+            return f"Microphone switched to {dev['name']}."
+    return f"Couldn't find a microphone matching '{name}'."
+
+
+def set_speaker(name: str) -> str:
+    """Switches which speaker/headphones Atlas talks through, by partial name match."""
+    if sdl2_audio is None:
+        return "Speaker switching isn't supported on this pygame version."
+    try:
+        outputs = sdl2_audio.get_audio_device_names(False)
+    except Exception as e:
+        return f"Couldn't list speakers: {e}"
+
+    match = next((o for o in outputs if name.lower().strip() in o.lower()), None)
+    if not match:
+        return f"Couldn't find a speaker matching '{name}'."
+
+    pygame.mixer.quit()
+    pygame.mixer.init(devicename=match)
+    return f"Speaker switched to {match}."

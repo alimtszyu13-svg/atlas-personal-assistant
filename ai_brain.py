@@ -30,6 +30,9 @@ from dev_tools import run_git_command, open_vscode_project, calculate, convert_u
 from fun import tell_joke, random_fact, start_number_game, guess_number
 from notes import add_note, list_notes, delete_note, add_todo, list_todos, complete_todo, delete_todo
 
+from voice import list_voices, set_voice, list_audio_devices, set_microphone, set_speaker
+from listening_mode import set_always_listening
+
 load_dotenv()
 
 client = OpenAI(
@@ -130,6 +133,12 @@ AVAILABLE_FUNCTIONS = {
     "search_google": search_google,
     "empty_recycle_bin": empty_recycle_bin,
     "get_uptime": get_uptime,
+    "list_voices": list_voices,
+    "set_voice": set_voice,
+    "list_audio_devices": list_audio_devices,
+    "set_microphone": set_microphone,
+    "set_speaker": set_speaker,
+    "set_always_listening": set_always_listening,
 }
 
 TOOLS_SCHEMA = [
@@ -201,6 +210,12 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "search_google", "description": "Opens Google search results for a query", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
     {"type": "function", "function": {"name": "empty_recycle_bin", "description": "Empties the Recycle Bin", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "get_uptime", "description": "Reports system uptime since last restart", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "list_voices", "description": "Lists available TTS voices", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "set_voice", "description": "Switches the TTS voice (male: troy, daniel, austin; female: autumn, diana, hannah)", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "list_audio_devices", "description": "Lists available speaker and microphone devices", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "set_microphone", "description": "Switches which microphone Atlas listens through", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "set_speaker", "description": "Switches which speaker/headphones Atlas talks through", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "set_always_listening", "description": "Enables or disables always-listening mode (no wake word needed)", "parameters": {"type": "object", "properties": {"enabled": {"type": "boolean"}}, "required": ["enabled"]}}},
 ]
 
 conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -232,7 +247,17 @@ def ask_ai(question: str) -> str:
                 print(f"[DEBUG tool_call] {func_name}({func_args})")
 
                 func = AVAILABLE_FUNCTIONS.get(func_name)
-                result = func(**func_args) if func else f"Функция {func_name} не найдена."
+                if func:
+                    import inspect
+                    # Фильтруем аргументы, которые модель придумала лишними —
+                    # оставляем только те, что функция реально принимает.
+                    # Так любая функция без параметров (get_volume, list_today_events
+                    # и подобные) не упадёт, даже если модель ошибочно передаст что-то ещё.
+                    valid_params = set(inspect.signature(func).parameters.keys())
+                    func_args = {k: v for k, v in func_args.items() if k in valid_params}
+                    result = func(**func_args)
+                else:
+                    result = f"Function {func_name} not found."
 
                 conversation_history.append({
                     "role": "tool",
@@ -243,8 +268,8 @@ def ask_ai(question: str) -> str:
         return "Sorry, that took too many steps — let's try something simpler."
 
     except Exception as e:
-        print(f"[Ошибка ask_ai]: {e}")
-        return "Не могу сейчас ответить, проблема со связью."
+        print(f"[Error ask_ai]: {e}")
+        return "I can't answer that right now, there's a connection issue."
 
 
 def reset_conversation() -> None:

@@ -14,6 +14,7 @@ _gmail_service = None  # кэшируем подключение, чтобы н�
 
 from google_auth import get_credentials
 
+
 def _get_gmail_service():
     global _gmail_service
     if _gmail_service is not None:

@@ -4,6 +4,39 @@ from ui_state import shared_state
 
 
 class Api:
+    def get_audio_options(self) -> dict:
+        import sounddevice as sd
+        from voice import VOICE_OPTIONS, TTS_VOICE
+        try:
+            from pygame._sdl2 import audio as sdl2_audio
+            speakers = sdl2_audio.get_audio_device_names(False)
+        except Exception:
+            speakers = []
+        mics = [d['name'] for d in sd.query_devices()
+                if d['max_input_channels'] > 0 and "переназначение" not in d['name'].lower()]
+        return {
+            "microphones": mics,
+            "speakers": speakers,
+            "voices": VOICE_OPTIONS["male"] + VOICE_OPTIONS["female"],
+            "current_voice": TTS_VOICE,
+            "always_listening": shared_state.get("always_listening", False),
+        }
+
+    def set_microphone_ui(self, name: str) -> None:
+        from voice import set_microphone
+        set_microphone(name)
+
+    def set_speaker_ui(self, name: str) -> None:
+        from voice import set_speaker
+        set_speaker(name)
+
+    def set_voice_ui(self, name: str) -> None:
+        from voice import set_voice
+        set_voice(name)
+
+    def set_always_listening_ui(self, enabled: bool) -> None:
+        from listening_mode import set_always_listening
+        set_always_listening(enabled)
     def push_to_talk(self) -> None:
         from voice import trigger_push_to_talk
         trigger_push_to_talk()

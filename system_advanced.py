@@ -9,10 +9,13 @@ from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 
 
 def _get_volume_interface():
-    devices = AudioUtilities.GetSpeakers()
-    interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-    return cast(interface, POINTER(IAudioEndpointVolume))
-
+    """
+    Новый pycaw (>= 2025-10-23) даёт готовый .EndpointVolume прямо на объекте
+    устройства — старый способ через Activate(IAudioEndpointVolume._iid_, ...)
+    больше не нужен и вызывает AttributeError на этой версии библиотеки.
+    """
+    device = AudioUtilities.GetSpeakers()
+    return device.EndpointVolume
 
 def set_volume(level: int) -> str:
     """Sets system volume to a specific percentage (0-100)."""

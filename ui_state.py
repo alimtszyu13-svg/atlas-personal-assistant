@@ -9,4 +9,5 @@ shared_state = {
     "accent_color": "#00d9ff", # можно менять из интерфейса
     "chat_history": [],        # список (speaker, text) для панели справа
     "manual_queue": [],        # текстовые команды, введённые руками
+    "always_listening": False,
 }
