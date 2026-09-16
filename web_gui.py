@@ -4,9 +4,17 @@ from ui_state import shared_state
 
 
 class Api:
+    def set_language_ui(self, lang: str) -> None:
+        from voice import set_response_language
+        set_response_language(lang)
+
+    def get_language(self) -> str:
+        from voice import get_response_language
+        return get_response_language()
+    
     def get_audio_options(self) -> dict:
         import sounddevice as sd
-        from voice import VOICE_OPTIONS, TTS_VOICE
+        from voice import VOICE_OPTIONS, TTS_VOICE, get_response_language, ELEVENLABS_VOICE_OPTIONS, _elevenlabs_voice
         try:
             from pygame._sdl2 import audio as sdl2_audio
             speakers = sdl2_audio.get_audio_device_names(False)
@@ -14,13 +22,30 @@ class Api:
             speakers = []
         mics = [d['name'] for d in sd.query_devices()
                 if d['max_input_channels'] > 0 and "переназначение" not in d['name'].lower()]
+
+        lang = get_response_language()
+        if lang == "ru":
+            voices = list(ELEVENLABS_VOICE_OPTIONS["male"].keys()) + list(ELEVENLABS_VOICE_OPTIONS["female"].keys())
+            current_voice = _elevenlabs_voice["name"]
+        else:
+            voices = VOICE_OPTIONS["male"] + VOICE_OPTIONS["female"]
+            current_voice = TTS_VOICE
+
         return {
             "microphones": mics,
             "speakers": speakers,
-            "voices": VOICE_OPTIONS["male"] + VOICE_OPTIONS["female"],
-            "current_voice": TTS_VOICE,
+            "voices": voices,
+            "current_voice": current_voice,
             "always_listening": shared_state.get("always_listening", False),
+            "language": lang,
         }
+
+    def set_voice_ui(self, name: str) -> None:
+        from voice import set_voice, set_elevenlabs_voice, get_response_language
+        if get_response_language() == "ru":
+            set_elevenlabs_voice(name)
+        else:
+            set_voice(name)
 
     def set_microphone_ui(self, name: str) -> None:
         from voice import set_microphone
@@ -29,10 +54,6 @@ class Api:
     def set_speaker_ui(self, name: str) -> None:
         from voice import set_speaker
         set_speaker(name)
-
-    def set_voice_ui(self, name: str) -> None:
-        from voice import set_voice
-        set_voice(name)
 
     def set_always_listening_ui(self, enabled: bool) -> None:
         from listening_mode import set_always_listening

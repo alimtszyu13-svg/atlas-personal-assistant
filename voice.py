@@ -8,6 +8,7 @@ from groq import Groq
 from dotenv import load_dotenv
 import asyncio
 import edge_tts
+from elevenlabs.client import ElevenLabs
 
 load_dotenv()
 
@@ -20,7 +21,7 @@ TTS_VOICE = "troy"
 STT_MODEL = "whisper-large-v3"
 
 SAMPLE_RATE = 16000
-INTERRUPT_WORDS = ("stop", "enough", "quiet")
+INTERRUPT_WORDS = ("stop", "enough", "quiet", "стоп", "хватит", "тихо")
 WAKE_WORD = "atlas"
 _push_to_talk_event = threading.Event()
 
@@ -149,23 +150,95 @@ def _generate_speech_fallback(text: str, filename: str) -> None:
 
 
 RUSSIAN_TTS_VOICE = "ru-RU-DmitryNeural"
+elevenlabs_client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
+ELEVENLABS_VOICE_OPTIONS = {
+    "male": {
+        "george": "JBFqnCBsd6RMkjVDRZzb",
+        "daniel": "onwK4e9ZLuTAKqWW03F9",
+        "adam": "pNInz6obpgDQGcFmaJgB",
+        "chris": "iP95p4xoKVk53GoZ742B",
+    },
+    "female": {
+        "sarah": "EXAVITQu4vr4xnSDxMaL",
+        "jessica": "cgSgspJ2msm6clMCkdW9",
+        "alice": "Xb7hH8MSUJpSbSDYk0k2",
+        "matilda": "XrExE9yKIg1WjnnlVkGX",
+    },
+}
+_elevenlabs_voice = {"id": ELEVENLABS_VOICE_OPTIONS["male"]["george"], "name": "george"}
 
+
+def list_elevenlabs_voices() -> str:
+    """Lists available Russian TTS voices (ElevenLabs), grouped by gender."""
+    male = ", ".join(ELEVENLABS_VOICE_OPTIONS["male"].keys())
+    female = ", ".join(ELEVENLABS_VOICE_OPTIONS["female"].keys())
+    return f"Male voices: {male}. Female voices: {female}. Current voice: {_elevenlabs_voice['name']}."
+
+
+def set_elevenlabs_voice(name: str) -> str:
+    """Switches the ElevenLabs voice used for Russian responses."""
+    name = name.lower().strip()
+    all_voices = {**ELEVENLABS_VOICE_OPTIONS["male"], **ELEVENLABS_VOICE_OPTIONS["female"]}
+    if name not in all_voices:
+        return f"Unknown voice '{name}'. Available: {', '.join(all_voices.keys())}."
+    _elevenlabs_voice["id"] = all_voices[name]
+    _elevenlabs_voice["name"] = name
+    return f"Voice switched to {name}."
+
+def _generate_speech_elevenlabs(text: str, filename: str) -> None:
+    """Основной голос для русского — самый естественный из доступных, но с месячным лимитом символов."""
+    audio = elevenlabs_client.text_to_speech.convert(
+        text=text,
+        voice_id=_elevenlabs_voice["id"],
+        model_id="eleven_multilingual_v2",
+        output_format="mp3_44100_128"
+    )
+    with open(filename, "wb") as f:
+        for chunk in audio:
+            f.write(chunk)
+
+_silero_model = None
+SILERO_SPEAKER = "baya"  # варианты: aidar (муж., глубокий), baya (жен., мягкий),
+                          # kseniya (жен., чёткий), xenia (жен., спокойный), eugene (муж.)
+
+
+def _get_silero_model():
+    """Загружает модель Silero один раз и кэширует — сама генерация после этого мгновенная."""
+    global _silero_model
+    if _silero_model is None:
+        from silero import silero_tts
+        _silero_model, _ = silero_tts(language='ru', speaker='v5_ru')
+    return _silero_model
+
+
+def _generate_speech_silero(text: str, filename: str) -> None:
+    """Генерирует речь локально через Silero — без сетевого запроса, естественнее и быстрее Edge-TTS."""
+    model = _get_silero_model()
+    model.save_wav(text=text, speaker=SILERO_SPEAKER, sample_rate=48000, audio_path=filename)
 
 def speak(text: str, interruptible: bool = True) -> None:
     print(f"[Atlas]: {text}")
 
     if _response_language["lang"] == "ru":
-        # Orpheus (Groq) поддерживает только английский —
-        # для русского режима сразу используем Edge-TTS с русским голосом
         filename = "temp_speech.mp3"
         try:
-            async def _gen():
-                communicate = edge_tts.Communicate(text, RUSSIAN_TTS_VOICE)
-                await communicate.save(filename)
-            asyncio.run(_gen())
+            _generate_speech_elevenlabs(text, filename)
         except Exception as e:
-            print(f"[TTS error, speaking skipped]: {e}")
-            return
+            print(f"[ElevenLabs error]: {e}, falling back to Silero")
+            filename = "temp_speech.wav"
+            try:
+                _generate_speech_silero(text, filename)
+            except Exception as e2:
+                print(f"[Silero error]: {e2}, falling back to Edge-TTS")
+                filename = "temp_speech.mp3"
+                try:
+                    async def _gen():
+                        communicate = edge_tts.Communicate(text, RUSSIAN_TTS_VOICE)
+                        await communicate.save(filename)
+                    asyncio.run(_gen())
+                except Exception as e3:
+                    print(f"[TTS error, speaking skipped]: {e3}")
+                    return
         pygame.mixer.music.load(filename)
         pygame.mixer.music.play()
 

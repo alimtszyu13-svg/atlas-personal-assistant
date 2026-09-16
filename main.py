@@ -12,17 +12,20 @@ from selection_hotkey import start_selection_hotkeys
 from hotkeys import start_push_to_talk_hotkey
 from voice import speak, listen, wait_for_wake_word, _push_to_talk_event
 
-WAKE_RESPONSES = [
-    "Yes, sir?",
-    "Always ready, sir.",
-    "What do you want, sir?",
-    "At your service.",
-    "Waiting for your command.",
-    "I'm here, sir.",
-    "I thought you are sleeping, sir.",
-    "Ready when you are.",
-    "Something happened, sir?",
-]
+WAKE_RESPONSES = {
+    "en": [
+        "Yes, sir?", "Always ready, sir.", "What do you want, sir?",
+        "At your service.", "Waiting for your command.", "I'm here, sir.",
+        "I thought you are sleeping, sir.", "Ready when you are.",
+        "Something happened, sir?",
+    ],
+    "ru": [
+        "Да, сэр?", "Всегда готов, сэр.", "Что вам угодно, сэр?",
+        "К вашим услугам.", "Жду вашей команды.", "Я здесь, сэр.",
+        "Я думал, вы спите, сэр.", "Готов, как только скажете.",
+        "Что-то случилось, сэр?",
+    ],
+}
 
 def _time_greeting() -> str:
     hour = datetime.now().hour
@@ -44,11 +47,18 @@ def _speak_and_update(text: str, interruptible: bool = True) -> None:
     shared_state["state"] = "idle"
 
 
+from voice import get_response_language
+
 def _process_command(command: str) -> None:
     shared_state["chat_history"].append(("You", command))
     shared_state["state"] = "thinking"
     shared_state["text"] = command
-    response = ask_ai(command)
+
+    # Явно подсказываем модели язык ответа на каждом ходу — не полагаемся
+    # на то, что она "запомнит" переключение из истории диалога, особенно
+    # если язык менялся через интерфейс, минуя саму беседу
+    lang_hint = "(Respond in Russian.) " if get_response_language() == "ru" else "(Respond in English.) "
+    response = ask_ai(lang_hint + command)
     _speak_and_update(response)
 
 
@@ -84,7 +94,8 @@ def _voice_loop():
         # осознанные действия пользователя, лишняя реплика тут была бы
         # той самой "повторяющейся" болтовнёй, которая надоедала.
         if trigger == "voice":
-            _speak_and_update(random.choice(WAKE_RESPONSES), interruptible=False)
+            lang = get_response_language()
+            _speak_and_update(random.choice(WAKE_RESPONSES[lang]), interruptible=False)
 
         shared_state["state"] = "listening"
         command = listen()
@@ -92,11 +103,12 @@ def _voice_loop():
         if len(command.strip()) < MIN_COMMAND_LENGTH:
             continue  # мусорное/пустое распознавание — не тратим вызов ask_ai
 
-        if "stop" in command.lower():
-            _speak_and_update("Shutting down.")
+        STOP_WORDS = ("stop", "стоп", "выключись")
+        if any(word in command.lower() for word in STOP_WORDS):
+            shutdown_msg = "До свидания, сэр." if get_response_language() == "ru" else "Shutting down."
+            _speak_and_update(shutdown_msg)
             shared_state["should_quit"] = True
             break
-
         _process_command(command)
         
 start_push_to_talk_hotkey("f9")

@@ -221,40 +221,48 @@
 
   <div class="top-left">
     <div class="brand"><div class="brand-dot"></div><span class="brand-name">ATLAS</span></div>
-    <div class="quick-actions">
-        <div class="pill glass" onclick="pywebview.api.push_to_talk()" style="width: fit-content;">🎙 Push to talk</div>
-      <div class="pill glass" onclick="quickCmd('check the weather')">☁ Weather</div>
-      <div class="pill glass" onclick="quickCmd('read me the news')">▤ News</div>
-      <div class="pill glass" onclick="quickCmd('set a timer for 5 minutes')">◔ Timer 5m</div>
-      <div class="pill glass" onclick="quickCmd('do I have unread emails')">✉ Mail</div>
+      <div class="quick-actions">
+        <div class="pill glass" onclick="pywebview.api.push_to_talk()" style="width: fit-content;">🎙 <span id="t-ptt">Нажми и говори</span></div>
+      <div class="pill glass" onclick="quickCmd('check the weather')">☁ <span id="t-weather">Погода</span></div>
+      <div class="pill glass" onclick="quickCmd('read me the news')">▤ <span id="t-news">Новости</span></div>
+      <div class="pill glass" onclick="quickCmd('set a timer for 5 minutes')">◔ <span id="t-timer">Таймер 5м</span></div>
+      <div class="pill glass" onclick="quickCmd('do I have unread emails')">✉ <span id="t-mail">Почта</span></div>
     </div>
   </div>
 
-  <div class="top-right">
-    <div class="pill glass" onclick="toggleSettings()">⚙ Settings</div>
-    <div id="settings-panel" class="glass">
-      <div class="settings-label">SETTINGS</div>
-      <div class="settings-row-label">Theme</div>
+    <div class="top-right">
+    <div class="pill glass" onclick="toggleSettings()">⚙ <span id="t-settings-btn">Настройки</span></div>
+        <div id="settings-panel" class="glass">
+      <div class="settings-label" id="t-settings-title">НАСТРОЙКИ</div>
+
+      <div class="settings-row-label" id="t-theme">Тема</div>
       <div class="theme-row">
-        <button class="theme-btn active" id="theme-dark" onclick="setTheme('dark')">Dark</button>
-        <button class="theme-btn" id="theme-light" onclick="setTheme('light')">Light</button>
-        
+        <button class="theme-btn active" id="theme-dark" onclick="setTheme('dark')" data-t="dark">Тёмная</button>
+        <button class="theme-btn" id="theme-light" onclick="setTheme('light')" data-t="light">Светлая</button>
       </div>
-        <div class="settings-row-label">Microphone</div>
+
+      <div class="settings-row-label" id="t-language">Язык</div>
+      <div class="theme-row">
+        <button class="theme-btn" id="lang-en" onclick="setLanguage('en')">English</button>
+        <button class="theme-btn active" id="lang-ru" onclick="setLanguage('ru')">Русский</button>
+      </div>
+    
+
+      <div class="settings-row-label" id="t-mic">Микрофон</div>
       <div class="dropdown" id="mic-dropdown"></div>
 
-      <div class="settings-row-label">Speaker</div>
+      <div class="settings-row-label" id="t-speaker">Динамик</div>
       <div class="dropdown" id="speaker-dropdown"></div>
 
-      <div class="settings-row-label">Voice</div>
+      <div class="settings-row-label" id="t-voice">Голос</div>
       <div class="dropdown" id="voice-dropdown"></div>
 
-      <div class="settings-row-label">Always listening</div>
+      <div class="settings-row-label" id="t-always">Постоянное прослушивание</div>
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
         <input type="checkbox" id="always-listening-toggle" onchange="pywebview.api.set_always_listening_ui(this.checked)">
-        <span style="font-size:11px; color: var(--text-secondary);">Respond without saying "Atlas"</span>
+        <span style="font-size:11px; color: var(--text-secondary);" id="t-always-desc">Отвечать без слова "Атлас"</span>
       </label>
-      <div class="settings-row-label">Accent color</div>
+      <div class="settings-row-label" id="t-accent">Цвет акцента</div>
       <div class="swatch-row" id="swatches">
         <div class="swatch active" style="background:#22d3ee" onclick="setAccent('#22d3ee', this)"></div>
         <div class="swatch" style="background:#34d399" onclick="setAccent('#34d399', this)"></div>
@@ -302,11 +310,11 @@
   </div>
 
   <div class="sidebar glass">
-    <div class="sidebar-header mono">CONVERSATION</div>
+    <div class="sidebar-header mono" id="t-conversation">ДИАЛОГ</div>
     <div class="chat" id="chat"></div>
     <div class="input-row">
-      <input id="cmd-input" type="text" placeholder="Type a command..." onkeydown="if(event.key==='Enter') sendCommand()">
-      <button class="send-btn" onclick="sendCommand()">Send</button>
+      <input id="cmd-input" type="text" placeholder="Введите команду..." onkeydown="if(event.key==='Enter') sendCommand()">
+      <button class="send-btn" onclick="sendCommand()" id="t-send">Отправить</button>
     </div>
   </div>
   
@@ -319,8 +327,10 @@
       document.getElementById('boot-overlay').classList.add('hide');
     }, 3200);
   });
-
+  
+  let currentLang = 'en';
   let shutdownStarted = false;
+  
   function playShutdown() {
     if (shutdownStarted) return;
     shutdownStarted = true;
@@ -332,6 +342,58 @@
     line.classList.add('play');
     setTimeout(() => { pywebview.api.confirm_quit(); }, 750);
   }
+    const translations = {
+    en: {
+      "t-ptt": "Push to talk", "t-weather": "Weather", "t-news": "News",
+      "t-timer": "Timer 5m", "t-mail": "Mail", "t-settings-btn": "Settings",
+      "t-settings-title": "SETTINGS", "t-theme": "Theme", "t-language": "Language",
+      "t-mic": "Microphone", "t-speaker": "Speaker", "t-voice": "Voice",
+      "t-always": "Always listening", "t-always-desc": 'Respond without saying "Atlas"',
+      "t-accent": "Accent color", "t-conversation": "CONVERSATION", "t-send": "Send",
+    },
+    ru: {
+      "t-ptt": "Нажми и говори", "t-weather": "Погода", "t-news": "Новости",
+      "t-timer": "Таймер 5м", "t-mail": "Почта", "t-settings-btn": "Настройки",
+      "t-settings-title": "НАСТРОЙКИ", "t-theme": "Тема", "t-language": "Язык",
+      "t-mic": "Микрофон", "t-speaker": "Динамик", "t-voice": "Голос",
+      "t-always": "Постоянное прослушивание", "t-always-desc": 'Отвечать без слова "Атлас"',
+      "t-accent": "Цвет акцента", "t-conversation": "ДИАЛОГ", "t-send": "Отправить",
+    },
+  };
+  const themeBtnText = {
+    en: { dark: "Dark", light: "Light" },
+    ru: { dark: "Тёмная", light: "Светлая" },
+  };
+
+  function applyTranslations(lang) {
+    currentLang = lang;
+    const dict = translations[lang] || translations.en;
+    for (const id in dict) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = dict[id];
+    }
+    document.getElementById('cmd-input').placeholder = lang === 'ru' ? 'Введите команду...' : 'Type a command...';
+    document.getElementById('theme-dark').textContent = themeBtnText[lang].dark;
+    document.getElementById('theme-light').textContent = themeBtnText[lang].light;
+  }
+    const stateLabelsDict = {
+    en: { idle: 'IDLE', listening: 'LISTENING', thinking: 'THINKING', speaking: 'SPEAKING' },
+    ru: { idle: 'ОЖИДАНИЕ', listening: 'СЛУШАЮ', thinking: 'ОБРАБОТКА', speaking: 'ГОВОРЮ' },
+  };
+  const stateTickersDict = {
+    en: {
+      idle: 'STATUS: NOMINAL · AWAITING INPUT',
+      listening: 'STATUS: LISTENING · MICROPHONE ACTIVE',
+      thinking: 'STATUS: PROCESSING REQUEST',
+      speaking: 'STATUS: RESPONDING'
+    },
+    ru: {
+      idle: 'СТАТУС: В НОРМЕ · ОЖИДАНИЕ',
+      listening: 'СТАТУС: СЛУШАЮ · МИКРОФОН АКТИВЕН',
+      thinking: 'СТАТУС: ОБРАБОТКА ЗАПРОСА',
+      speaking: 'СТАТУС: ОТВЕЧАЮ'
+    },
+  };
   let lastChatLen = 0;
 
   function sendCommand() {
@@ -383,13 +445,16 @@
     document.querySelectorAll('.dropdown-list').forEach(l => l.classList.remove('open'));
   });
 
-  async function populateAudioOptions() {
+    async function populateAudioOptions() {
     try {
       const opts = await pywebview.api.get_audio_options();
       buildDropdown('mic-dropdown', opts.microphones, opts.microphones[0], v => pywebview.api.set_microphone_ui(v));
       buildDropdown('speaker-dropdown', opts.speakers, opts.speakers[0], v => pywebview.api.set_speaker_ui(v));
       buildDropdown('voice-dropdown', opts.voices, opts.current_voice || opts.voices[0], v => pywebview.api.set_voice_ui(v));
       document.getElementById('always-listening-toggle').checked = opts.always_listening;
+      document.getElementById('lang-en').classList.toggle('active', opts.language === 'en');
+      document.getElementById('lang-ru').classList.toggle('active', opts.language === 'ru');
+      applyTranslations(opts.language);
     } catch (e) { console.log(e); }
   }
 
@@ -406,6 +471,13 @@
     document.getElementById('theme-light').classList.toggle('active', t === 'light');
     pywebview.api.set_theme(t);
   }
+    function setLanguage(lang) {
+    document.getElementById('lang-en').classList.toggle('active', lang === 'en');
+    document.getElementById('lang-ru').classList.toggle('active', lang === 'ru');
+    pywebview.api.set_language_ui(lang);
+    applyTranslations(lang);
+    populateAudioOptions();
+  }
   function setAccent(color, el) {
     document.documentElement.style.setProperty('--accent', color);
     document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
@@ -420,7 +492,9 @@
       const isUser = speaker === 'You';
       const div = document.createElement('div');
       div.className = 'bubble ' + (isUser ? 'user' : 'atlas');
-      div.innerHTML = `<div class="bubble-speaker mono">${isUser ? 'YOU' : 'ATLAS'}</div><div>${text}</div>`;
+      const youLabel = currentLang === 'ru' ? 'ВЫ' : 'YOU';
+      const atlasLabel = currentLang === 'ru' ? 'АТЛАС' : 'ATLAS';
+      div.innerHTML = `<div class="bubble-speaker mono">${isUser ? youLabel : atlasLabel}</div><div>${text}</div>`;
       chat.appendChild(div);
     });
     chat.scrollTop = chat.scrollHeight;
@@ -434,19 +508,12 @@
   setInterval(updateClock, 1000);
   updateClock();
 
-  const stateTickers = {
-    idle: 'STATUS: NOMINAL · AWAITING INPUT',
-    listening: 'STATUS: LISTENING · MICROPHONE ACTIVE',
-    thinking: 'STATUS: PROCESSING REQUEST',
-    speaking: 'STATUS: RESPONDING'
-  };
-
   async function pollState() {
     try {
       const s = await pywebview.api.get_state();
-      document.getElementById('state-label').textContent = s.state.toUpperCase();
+      document.getElementById('state-label').textContent = stateLabelsDict[currentLang][s.state] || s.state.toUpperCase();
       document.getElementById('subtitle').textContent = s.text.slice(0, 150);
-      document.getElementById('ticker').textContent = stateTickers[s.state] || stateTickers.idle;
+      document.getElementById('ticker').textContent = stateTickersDict[currentLang][s.state] || stateTickersDict[currentLang].idle;
 
       document.getElementById('cpu-bar').style.width = s.cpu + '%';
       document.getElementById('cpu-val').textContent = Math.round(s.cpu) + '%';

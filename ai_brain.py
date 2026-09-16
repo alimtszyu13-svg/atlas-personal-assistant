@@ -33,6 +33,7 @@ from notes import add_note, list_notes, delete_note, add_todo, list_todos, compl
 from voice import list_voices, set_voice, list_audio_devices, set_microphone, set_speaker
 from listening_mode import set_always_listening
 from voice import set_response_language, get_response_language
+from voice import list_elevenlabs_voices, set_elevenlabs_voice
 
 load_dotenv()
 
@@ -142,6 +143,8 @@ AVAILABLE_FUNCTIONS = {
     "set_speaker": set_speaker,
     "set_always_listening": set_always_listening,
     "set_response_language": set_response_language,
+    "list_elevenlabs_voices": list_elevenlabs_voices,
+    "set_elevenlabs_voice": set_elevenlabs_voice,
 }
 
 TOOLS_SCHEMA = [
