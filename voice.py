@@ -24,6 +24,21 @@ INTERRUPT_WORDS = ("stop", "enough", "quiet")
 WAKE_WORD = "atlas"
 _push_to_talk_event = threading.Event()
 
+_response_language = {"lang": "en"}  # "en" или "ru"
+
+
+def set_response_language(lang: str) -> str:
+    """Switches Atlas's spoken/response language between English and Russian."""
+    lang = lang.lower().strip()
+    if lang not in ("en", "ru", "english", "russian"):
+        return "Supported languages: English or Russian."
+    _response_language["lang"] = "ru" if lang.startswith("ru") else "en"
+    name = "Russian" if _response_language["lang"] == "ru" else "English"
+    return f"Language switched to {name}."
+
+
+def get_response_language() -> str:
+    return _response_language["lang"]
 
 def trigger_push_to_talk() -> None:
     """Вызывается извне (горячая клавиша или кнопка интерфейса) —
@@ -44,10 +59,9 @@ def _generate_speech(text: str, filename: str) -> None:
 
 def _transcribe_audio(recording: np.ndarray) -> str:
     """
-    Сохраняет numpy-запись во временный wav-файл и отправляет
-    в Groq Whisper Translation — распознаёт речь на ЛЮБОМ языке
-    и переводит результат в английский текст. Официальный механизм
-    (endpoint /audio/translations), а не побочный эффект несовпадения language.
+    В английском режиме: переводит речь на ЛЮБОМ языке в английский текст
+    (endpoint /audio/translations). В русском режиме: распознаёт речь как есть,
+    без перевода, ожидая русский язык (endpoint /audio/transcriptions).
     """
     temp_path = "temp_stt.wav"
 
@@ -59,11 +73,18 @@ def _transcribe_audio(recording: np.ndarray) -> str:
 
     try:
         with open(temp_path, "rb") as f:
-            translation = groq_client.audio.translations.create(
-                file=(temp_path, f.read()),
-                model=STT_MODEL
-            )
-        return translation.text.strip()
+            if _response_language["lang"] == "ru":
+                result = groq_client.audio.transcriptions.create(
+                    file=(temp_path, f.read()),
+                    model=STT_MODEL,
+                    language="ru"
+                )
+            else:
+                result = groq_client.audio.translations.create(
+                    file=(temp_path, f.read()),
+                    model=STT_MODEL
+                )
+        return result.text.strip()
     except Exception as e:
         print(f"[STT error]: {e}")
         return ""
@@ -127,8 +148,41 @@ def _generate_speech_fallback(text: str, filename: str) -> None:
     asyncio.run(_gen())
 
 
+RUSSIAN_TTS_VOICE = "ru-RU-DmitryNeural"
+
+
 def speak(text: str, interruptible: bool = True) -> None:
     print(f"[Atlas]: {text}")
+
+    if _response_language["lang"] == "ru":
+        # Orpheus (Groq) поддерживает только английский —
+        # для русского режима сразу используем Edge-TTS с русским голосом
+        filename = "temp_speech.mp3"
+        try:
+            async def _gen():
+                communicate = edge_tts.Communicate(text, RUSSIAN_TTS_VOICE)
+                await communicate.save(filename)
+            asyncio.run(_gen())
+        except Exception as e:
+            print(f"[TTS error, speaking skipped]: {e}")
+            return
+        pygame.mixer.music.load(filename)
+        pygame.mixer.music.play()
+
+        stop_event = threading.Event()
+        listener = None
+        if interruptible:
+            listener = threading.Thread(target=_watch_for_interrupt, args=(stop_event,), daemon=True)
+            listener.start()
+        while pygame.mixer.music.get_busy():
+            pygame.time.wait(100)
+        stop_event.set()
+        if listener is not None:
+            listener.join(timeout=2)
+        pygame.mixer.music.unload()
+        os.remove(filename)
+        return
+
     filename = "temp_speech.wav"
 
     try:

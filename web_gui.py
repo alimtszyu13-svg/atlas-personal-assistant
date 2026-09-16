@@ -82,6 +82,7 @@ class WebGUI:
         self.shared_state = shared_state
         self.api = Api()
         self.window = None
+        self._is_hidden = False
 
     def run(self):
         self.window = webview.create_window(
@@ -99,3 +100,29 @@ class WebGUI:
         if self.window:
             self.window.destroy()
 
+
+    def toggle_visibility(self) -> None:
+        if self.window is None:
+            print("[window toggle] window object is None")
+            return
+
+        print(f"[window toggle] hiding={not self._is_hidden}, methods available: "
+              f"hide={hasattr(self.window, 'hide')}, minimize={hasattr(self.window, 'minimize')}")
+
+        try:
+            if self._is_hidden:
+                self.window.show()
+            else:
+                self.window.hide()
+        except Exception as e:
+            print(f"[window toggle] hide/show failed ({e}), trying minimize/restore instead")
+            try:
+                if self._is_hidden:
+                    self.window.restore()
+                else:
+                    self.window.minimize()
+            except Exception as e2:
+                print(f"[window toggle] minimize/restore also failed: {e2}")
+                return
+
+        self._is_hidden = not self._is_hidden

@@ -32,6 +32,7 @@ from notes import add_note, list_notes, delete_note, add_todo, list_todos, compl
 
 from voice import list_voices, set_voice, list_audio_devices, set_microphone, set_speaker
 from listening_mode import set_always_listening
+from voice import set_response_language, get_response_language
 
 load_dotenv()
 
@@ -62,6 +63,7 @@ SYSTEM_PROMPT = (
     "reasons or retry with a different tool if the result says the action "
     "was cancelled or not found; just relay that back to the user, perhaps "
     "with a touch of dry wit."
+    "If the user asks to switch language, use set_response_language, then continue replying in that language."
 )
 
 AVAILABLE_FUNCTIONS = {
@@ -139,6 +141,7 @@ AVAILABLE_FUNCTIONS = {
     "set_microphone": set_microphone,
     "set_speaker": set_speaker,
     "set_always_listening": set_always_listening,
+    "set_response_language": set_response_language,
 }
 
 TOOLS_SCHEMA = [
@@ -216,8 +219,8 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "set_microphone", "description": "Switches which microphone Atlas listens through", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
     {"type": "function", "function": {"name": "set_speaker", "description": "Switches which speaker/headphones Atlas talks through", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
     {"type": "function", "function": {"name": "set_always_listening", "description": "Enables or disables always-listening mode (no wake word needed)", "parameters": {"type": "object", "properties": {"enabled": {"type": "boolean"}}, "required": ["enabled"]}}},
+    {"type": "function", "function": {"name": "set_response_language", "description": "Sets the language for AI responses", "parameters": {"type": "object", "properties": {"language": {"type": "string"}}, "required": ["language"]}}},
 ]
-
 conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
 
 

@@ -5,10 +5,12 @@ from voice import speak, listen, wait_for_wake_word
 from ai_brain import ask_ai
 from reminders import start_reminder_thread
 from web_gui import WebGUI
+from window_hotkey import start_window_toggle_hotkey
 from ui_state import shared_state
 import random
 from selection_hotkey import start_selection_hotkeys
 from hotkeys import start_push_to_talk_hotkey
+from voice import speak, listen, wait_for_wake_word, _push_to_talk_event
 
 WAKE_RESPONSES = [
     "Yes, sir?",
@@ -65,13 +67,17 @@ def _voice_loop():
     _speak_and_update(f"{_time_greeting()} Atlas is online and ready.", interruptible=False)
 
     while True:
+        _push_to_talk_event.clear()  # страхуемся от "призрачного" события,
+                                       # унаследованного от системного хука клавиатуры
         shared_state["state"] = "idle"
         shared_state["text"] = ""
 
+        print(f"[DEBUG] always_listening={shared_state.get('always_listening')}")
         if shared_state.get("always_listening"):
             trigger = "always"
         else:
             trigger = wait_for_wake_word()
+        print(f"[DEBUG] trigger={trigger}")
 
         # Короткий отклик ("Yes, sir?") уместен только когда Atlas реально
         # услышал своё имя вслух. Push-to-talk и always-listening — уже
@@ -93,7 +99,7 @@ def _voice_loop():
 
         _process_command(command)
         
-start_push_to_talk_hotkey("ctrl+space")
+start_push_to_talk_hotkey("f9")
 start_selection_hotkeys()
 
 voice_thread = threading.Thread(target=_voice_loop, daemon=True)
@@ -103,4 +109,5 @@ manual_thread = threading.Thread(target=_manual_queue_watcher, daemon=True)
 manual_thread.start()
 
 gui = WebGUI(shared_state)
+start_window_toggle_hotkey(gui, "f10")
 gui.run()
