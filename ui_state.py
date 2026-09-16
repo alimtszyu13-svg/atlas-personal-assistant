@@ -10,4 +10,7 @@ shared_state = {
     "chat_history": [],        # список (speaker, text) для панели справа
     "manual_queue": [],        # текстовые команды, введённые руками
     "always_listening": False,
+    "speech_envelope": [],
+    "speech_duration": 0,
+    "speech_start_time": 0,
 }

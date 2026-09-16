@@ -1,3 +1,4 @@
+from audioop import rms
 import sounddevice as sd
 import numpy as np
 import os
@@ -9,6 +10,9 @@ from dotenv import load_dotenv
 import asyncio
 import edge_tts
 from elevenlabs.client import ElevenLabs
+import time
+import random
+from ui_state import shared_state
 
 load_dotenv()
 
@@ -239,8 +243,13 @@ def speak(text: str, interruptible: bool = True) -> None:
                 except Exception as e3:
                     print(f"[TTS error, speaking skipped]: {e3}")
                     return
+
         pygame.mixer.music.load(filename)
         pygame.mixer.music.play()
+        duration = pygame.mixer.Sound(filename).get_length()
+        shared_state["speech_envelope"] = _compute_envelope(filename, duration)
+        shared_state["speech_duration"] = duration
+        shared_state["speech_start_time"] = time.time()
 
         stop_event = threading.Event()
         listener = None
@@ -271,6 +280,10 @@ def speak(text: str, interruptible: bool = True) -> None:
 
     pygame.mixer.music.load(filename)
     pygame.mixer.music.play()
+    duration = pygame.mixer.Sound(filename).get_length()
+    shared_state["speech_envelope"] = _compute_envelope(filename, duration)
+    shared_state["speech_duration"] = duration
+    shared_state["speech_start_time"] = time.time()
 
     stop_event = threading.Event()
     listener = None
@@ -401,3 +414,33 @@ def set_speaker(name: str) -> str:
     pygame.mixer.quit()
     pygame.mixer.init(devicename=match)
     return f"Speaker switched to {match}."
+
+def _compute_envelope(filename: str, duration: float, buckets: int = 40) -> list:
+    """
+    Считает реальную амплитудную огибающую из WAV (Groq/Silero).
+    Для MP3 (ElevenLabs/Edge-TTS) честного декодера нет без ffmpeg —
+    генерируем правдоподобную, но не настоящую огибающую взамен.
+    """
+    try:
+        if filename.lower().endswith(".wav"):
+            with wave.open(filename, 'rb') as wf:
+                n_frames = wf.getnframes()
+                raw = wf.readframes(n_frames)
+                samples = np.frombuffer(raw, dtype=np.int16)
+                if wf.getnchannels() == 2:
+                    samples = samples[::2]
+                chunk_size = max(1, len(samples) // buckets)
+                envelope = []
+                for i in range(buckets):
+                    chunk = samples[i*chunk_size:(i+1)*chunk_size]
+                    if len(chunk) == 0:
+                        envelope.append(0.0)
+                        continue
+                    rms = np.sqrt(np.mean(chunk.astype(np.float32) ** 2))
+                    envelope.append(float(min(rms / 8000, 1.0)))
+                return envelope
+    except Exception as e:
+        print(f"[envelope error]: {e}")
+
+    random.seed(len(filename) + int(duration * 100))
+    return [round(0.25 + 0.65 * abs(random.random() - 0.5) * 2, 2) for _ in range(buckets)]

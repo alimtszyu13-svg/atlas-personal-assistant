@@ -1,6 +1,7 @@
 import webview
 import psutil
 from ui_state import shared_state
+import time
 
 
 class Api:
@@ -87,6 +88,8 @@ class Api:
         os._exit(0)
 
     def get_state(self) -> dict:
+        speech_start = shared_state.get("speech_start_time", 0)
+        speech_elapsed = time.time() - speech_start if speech_start else 0
         return {
             "state": shared_state.get("state", "idle"),
             "text": shared_state.get("text", ""),
@@ -96,6 +99,9 @@ class Api:
             "cpu": psutil.cpu_percent(interval=None),
             "ram": psutil.virtual_memory().percent,
             "should_quit": shared_state.get("should_quit", False),
+            "speech_envelope": shared_state.get("speech_envelope", []),
+            "speech_duration": shared_state.get("speech_duration", 0),
+            "speech_elapsed": speech_elapsed,
         }
 
 class WebGUI:
