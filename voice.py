@@ -62,6 +62,60 @@ def _generate_speech(text: str, filename: str) -> None:
     response.write_to_file(filename)
 
 
+def _vary_pitch(filename: str) -> None:
+    """Лёгкая случайная вариация скорости/высоты голоса (±4%) — трюк с
+    изменением заявленной частоты дискретизации в WAV-заголовке, без
+    ресемплинга. Работает только для WAV (Groq/Silero); для MP3
+    (ElevenLabs/Edge-TTS) честного способа без ffmpeg нет — пропускаем."""
+    if not filename.lower().endswith(".wav"):
+        return
+    try:
+        with wave.open(filename, 'rb') as wf:
+            params = wf.getparams()
+            frames = wf.readframes(wf.getnframes())
+        factor = random.uniform(0.96, 1.04)
+        new_rate = int(params.framerate * factor)
+        with wave.open(filename, 'wb') as wf:
+            wf.setnchannels(params.nchannels)
+            wf.setsampwidth(params.sampwidth)
+            wf.setframerate(new_rate)
+            wf.writeframes(frames)
+    except Exception as e:
+        print(f"[pitch variation error]: {e}")
+
+
+AMBIENT_SOUNDS_DIR = "sounds"
+AMBIENT_CHANCE = 0.06  # ~6% шанс, и только перед репликой подлиннее
+
+
+def _maybe_play_ambient(text: str) -> None:
+    """Изредка, перед длинной репликой — короткий смешок/вздох из готового
+    сэмпла (sounds/chuckle_en.wav, sounds/sigh_ru.wav и т.п.), НЕ через TTS.
+    Файлов сейчас нет на диске — если папки/файлов нет, просто ничего не
+    происходит. Положи туда пару 2-3-секундных .wav, названных по шаблону
+    chuckle_<lang>_*.wav / sigh_<lang>_*.wav, чтобы это заработало."""
+    if len(text.split()) < 8:
+        return
+    if random.random() > AMBIENT_CHANCE:
+        return
+    lang = _response_language["lang"]
+    if not os.path.isdir(AMBIENT_SOUNDS_DIR):
+        return
+    candidates = [
+        f for f in os.listdir(AMBIENT_SOUNDS_DIR)
+        if f.startswith(f"chuckle_{lang}") or f.startswith(f"sigh_{lang}")
+    ]
+    if not candidates:
+        return
+    path = os.path.join(AMBIENT_SOUNDS_DIR, random.choice(candidates))
+    try:
+        sound = pygame.mixer.Sound(path)
+        sound.play()
+        time.sleep(sound.get_length() * 0.85)
+    except Exception as e:
+        print(f"[ambient sound error]: {e}")
+
+
 def _transcribe_audio(recording: np.ndarray) -> str:
     """
     В английском режиме: переводит речь на ЛЮБОМ языке в английский текст
@@ -222,6 +276,7 @@ def _generate_speech_silero(text: str, filename: str) -> None:
 
 def speak(text: str, interruptible: bool = True) -> None:
     print(f"[Atlas]: {text}")
+    _maybe_play_ambient(text)
 
     if _response_language["lang"] == "ru":
         filename = "temp_speech.mp3"
@@ -244,6 +299,7 @@ def speak(text: str, interruptible: bool = True) -> None:
                     print(f"[TTS error, speaking skipped]: {e3}")
                     return
 
+        _vary_pitch(filename)
         pygame.mixer.music.load(filename)
         pygame.mixer.music.play()
         duration = pygame.mixer.Sound(filename).get_length()
@@ -278,6 +334,7 @@ def speak(text: str, interruptible: bool = True) -> None:
             print(f"[TTS error, speaking skipped]: {e2}")
             return
 
+    _vary_pitch(filename)
     pygame.mixer.music.load(filename)
     pygame.mixer.music.play()
     duration = pygame.mixer.Sound(filename).get_length()

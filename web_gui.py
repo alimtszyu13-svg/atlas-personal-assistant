@@ -5,6 +5,17 @@ import time
 
 
 class Api:
+    def get_memories(self) -> list:
+        from database import get_all_memories
+        return get_all_memories()
+
+    def delete_memory_ui(self, memory_id: int) -> None:
+        from database import delete_memory_by_id
+        delete_memory_by_id(memory_id)
+
+    def get_trace(self) -> list:
+        from database import get_recent_tasks
+        return get_recent_tasks()
     def set_language_ui(self, lang: str) -> None:
         from voice import set_response_language
         set_response_language(lang)
@@ -116,7 +127,7 @@ class WebGUI:
             "ATLAS", "atlas_ui.html", js_api=self.api,
             fullscreen=True, background_color="#050810"
         )
-        webview.start()
+        webview.start(debug=True)
 
     def show_window(self):
         if self.window:

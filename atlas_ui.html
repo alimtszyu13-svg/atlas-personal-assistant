@@ -265,52 +265,70 @@
     </div>
   </div>
 
-  <div class="top-right">
-    <div class="pill glass" onclick="toggleSettings()">
-      <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-      <span id="t-settings-btn">Настройки</span>
+    <div class="top-right" style="display:flex; gap:8px;">
+    <div style="position:relative;">
+      <div class="pill glass" onclick="toggleMemory()">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 2a4 4 0 00-4 4v1a3 3 0 00-2 5.5V16a3 3 0 003 3h1a2 2 0 002-2v-1"/><path d="M12 2a4 4 0 014 4v1a3 3 0 012 5.5V16a3 3 0 01-3 3h-1a2 2 0 01-2-2v-1"/></svg>
+        <span id="t-memory-btn">Memory</span>
+      </div>
+      <div id="memory-panel" class="glass" style="position:absolute; top:46px; right:0; width:320px; max-height:420px; overflow-y:auto; padding:16px; border-radius:16px; display:none; z-index:30;"></div>
     </div>
-    <div id="settings-panel" class="glass">
-      <div class="settings-label" id="t-settings-title">НАСТРОЙКИ</div>
 
-      <div class="settings-row-label" id="t-theme">Тема</div>
-      <div class="theme-row">
-        <button class="theme-btn active" id="theme-dark" onclick="setTheme('dark')">Тёмная</button>
-        <button class="theme-btn" id="theme-light" onclick="setTheme('light')">Светлая</button>
+    <div style="position:relative;">
+      <div class="pill glass" onclick="toggleTrace()">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        <span id="t-trace-btn">Trace</span>
       </div>
+      <div id="trace-panel" class="glass" style="position:absolute; top:46px; right:0; width:320px; max-height:420px; overflow-y:auto; padding:16px; border-radius:16px; display:none; z-index:30;"></div>
+    </div>
 
-      <div class="settings-row-label" id="t-language">Язык</div>
-      <div class="theme-row">
-        <button class="theme-btn" id="lang-en" onclick="setLanguage('en')">English</button>
-        <button class="theme-btn active" id="lang-ru" onclick="setLanguage('ru')">Русский</button>
+    <div style="position:relative;">
+      <div class="pill glass" onclick="toggleSettings()">
+       <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span id="t-settings-btn">Настройки</span>
       </div>
+      <div id="settings-panel" class="glass">
+        <div class="settings-label" id="t-settings-title">НАСТРОЙКИ</div>
 
-      <div class="settings-row-label" id="t-mic">Микрофон</div>
-      <div class="dropdown" id="mic-dropdown"></div>
+        <div class="settings-row-label" id="t-theme">Тема</div>
+        <div class="theme-row">
+          <button class="theme-btn active" id="theme-dark" onclick="setTheme('dark')">Тёмная</button>
+          <button class="theme-btn" id="theme-light" onclick="setTheme('light')">Светлая</button>
+        </div>
 
-      <div class="settings-row-label" id="t-speaker">Динамик</div>
-      <div class="dropdown" id="speaker-dropdown"></div>
+        <div class="settings-row-label" id="t-language">Язык</div>
+        <div class="theme-row">
+          <button class="theme-btn" id="lang-en" onclick="setLanguage('en')">English</button>
+          <button class="theme-btn active" id="lang-ru" onclick="setLanguage('ru')">Русский</button>
+        </div>
 
-      <div class="settings-row-label" id="t-voice">Голос</div>
-      <div class="dropdown" id="voice-dropdown"></div>
+        <div class="settings-row-label" id="t-mic">Микрофон</div>
+        <div class="dropdown" id="mic-dropdown"></div>
 
-      <div class="settings-row-label" id="t-always">Постоянное прослушивание</div>
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-        <input type="checkbox" id="always-listening-toggle" onchange="pywebview.api.set_always_listening_ui(this.checked)">
-        <span style="font-size:11px; color: var(--text-secondary);" id="t-always-desc">Отвечать без слова "Атлас"</span>
-      </label>
+        <div class="settings-row-label" id="t-speaker">Динамик</div>
+        <div class="dropdown" id="speaker-dropdown"></div>
 
-      <div class="settings-row-label" id="t-accent">Цвет акцента</div>
-      <div class="swatch-row" id="swatches">
-        <div class="swatch active" style="background:#22d3ee" onclick="setAccent('#22d3ee', this)"></div>
-        <div class="swatch" style="background:#34d399" onclick="setAccent('#34d399', this)"></div>
-        <div class="swatch" style="background:#fb7185" onclick="setAccent('#fb7185', this)"></div>
-        <div class="swatch" style="background:#fbbf24" onclick="setAccent('#fbbf24', this)"></div>
-        <div class="swatch" style="background:#a78bfa" onclick="setAccent('#a78bfa', this)"></div>
+        <div class="settings-row-label" id="t-voice">Голос</div>
+        <div class="dropdown" id="voice-dropdown"></div>
+
+        <div class="settings-row-label" id="t-always">Постоянное прослушивание</div>
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="always-listening-toggle" onchange="pywebview.api.set_always_listening_ui(this.checked)">
+          <span style="font-size:11px; color: var(--text-secondary);" id="t-always-desc">Отвечать без слова "Атлас"</span>
+        </label>
+
+        <div class="settings-row-label" id="t-accent">Цвет акцента</div>
+        <div class="swatch-row" id="swatches">
+          <div class="swatch active" style="background:#22d3ee" onclick="setAccent('#22d3ee', this)"></div>
+          <div class="swatch" style="background:#34d399" onclick="setAccent('#34d399', this)"></div>
+          <div class="swatch" style="background:#fb7185" onclick="setAccent('#fb7185', this)"></div>
+          <div class="swatch" style="background:#fbbf24" onclick="setAccent('#fbbf24', this)"></div>
+          <div class="swatch" style="background:#a78bfa" onclick="setAccent('#a78bfa', this)"></div>
+        </div>
       </div>
     </div>
   </div>
-
+  </div>
   <div class="orb-wrap">
     <div class="orb" id="orb">
       <svg class="ring ring-spin" style="width:440px;height:440px;animation-duration:40s;" viewBox="0 0 440 440">
@@ -359,6 +377,9 @@
 
 <script>
 
+  window.addEventListener('pywebviewready', () => {
+    populateAudioOptions();
+  });
   window.addEventListener('load', () => {
     setTimeout(() => { document.getElementById('boot-overlay').classList.add('hide'); }, 3200);
   });
@@ -501,18 +522,23 @@
     en: {
       "t-ptt": "Push to talk", "t-weather": "Weather", "t-news": "News",
       "t-timer": "Timer 5m", "t-mail": "Mail", "t-settings-btn": "Settings",
+      "t-memory-btn": "Memory", "t-trace-btn": "Trace",
       "t-settings-title": "SETTINGS", "t-theme": "Theme", "t-language": "Language",
       "t-mic": "Microphone", "t-speaker": "Speaker", "t-voice": "Voice",
       "t-always": "Always listening", "t-always-desc": 'Respond without saying "Atlas"',
       "t-accent": "Accent color", "t-conversation": "CONVERSATION", "t-send": "Send",
+        
+      
     },
     ru: {
       "t-ptt": "Нажми и говори", "t-weather": "Погода", "t-news": "Новости",
       "t-timer": "Таймер 5м", "t-mail": "Почта", "t-settings-btn": "Настройки",
+      "t-memory-btn": "Память", "t-trace-btn": "Журнал",
       "t-settings-title": "НАСТРОЙКИ", "t-theme": "Тема", "t-language": "Язык",
       "t-mic": "Микрофон", "t-speaker": "Динамик", "t-voice": "Голос",
       "t-always": "Постоянное прослушивание", "t-always-desc": 'Отвечать без слова "Атлас"',
       "t-accent": "Цвет акцента", "t-conversation": "ДИАЛОГ", "t-send": "Отправить",
+      
     },
   };
   const themeBtnText = {
@@ -614,8 +640,66 @@
     } catch (e) { console.log(e); }
   }
 
+  async function toggleMemory() {
+    const panel = document.getElementById('memory-panel');
+    const isOpen = panel.style.display === 'block';
+    document.getElementById('trace-panel').style.display = 'none';
+    if (isOpen) { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+    panel.innerHTML = '<div class="settings-label">MEMORY</div>';
+    try {
+      const memories = await pywebview.api.get_memories();
+      if (memories.length === 0) {
+        panel.innerHTML += '<div style="font-size:11px; color: var(--text-secondary); padding: 8px 0;">Nothing saved yet.</div>';
+        return;
+      }
+      memories.forEach(m => {
+        const item = document.createElement('div');
+        item.style.cssText = 'padding:8px 0; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; gap:8px; align-items:flex-start;';
+        item.innerHTML = `<div><div style="font-size:9px; color: var(--accent); font-weight:700; letter-spacing:0.08em;">${m.category.toUpperCase()}</div>
+          <div style="font-size:12px; margin-top:2px;">${m.content}</div>
+          <div style="font-size:9px; color: var(--text-secondary); margin-top:2px;">${m.created_at}</div></div>
+          <div style="cursor:pointer; color: var(--text-secondary); font-size:14px;" onclick="deleteMemory(${m.id})">✕</div>`;
+        panel.appendChild(item);
+      });
+    } catch (e) { console.log(e); }
+  }
+
+  async function deleteMemory(id) {
+    await pywebview.api.delete_memory_ui(id);
+    toggleMemory();
+    toggleMemory();
+  }
+
+  async function toggleTrace() {
+    const panel = document.getElementById('trace-panel');
+    const isOpen = panel.style.display === 'block';
+    document.getElementById('memory-panel').style.display = 'none';
+    if (isOpen) { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+    panel.innerHTML = '<div class="settings-label">EXECUTION TRACE</div>';
+    try {
+      const tasks = await pywebview.api.get_trace();
+      if (tasks.length === 0) {
+        panel.innerHTML += '<div style="font-size:11px; color: var(--text-secondary); padding: 8px 0;">No actions yet.</div>';
+        return;
+      }
+      tasks.forEach(t => {
+        const item = document.createElement('div');
+        item.style.cssText = 'padding:7px 0; border-bottom:1px solid var(--border); font-size:11px;';
+        const statusIcon = t.success ? '✓' : '✕';
+        const statusColor = t.success ? '#34d399' : '#fb7185';
+        item.innerHTML = `<span style="color:${statusColor}; font-weight:700;">${statusIcon}</span>
+          <span style="color: var(--text-primary); font-weight:600;"> ${t.tool_name}</span>
+          <span style="color: var(--text-secondary);"> · ${t.timestamp} · ${t.duration_ms}ms</span>`;
+        panel.appendChild(item);
+      });
+    } catch (e) { console.log(e); }
+  }
   function toggleSettings() {
     const panel = document.getElementById('settings-panel');
+    document.getElementById('memory-panel').style.display = 'none';
+    document.getElementById('trace-panel').style.display = 'none';
     panel.classList.toggle('open');
     if (panel.classList.contains('open')) populateAudioOptions();
   }

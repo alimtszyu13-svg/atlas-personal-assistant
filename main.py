@@ -1,7 +1,6 @@
 import threading
 import time
 from datetime import datetime
-from voice import speak, listen, wait_for_wake_word
 from ai_brain import ask_ai
 from reminders import start_reminder_thread
 from web_gui import WebGUI
@@ -10,7 +9,9 @@ from ui_state import shared_state
 import random
 from selection_hotkey import start_selection_hotkeys
 from hotkeys import start_push_to_talk_hotkey
-from voice import speak, listen, wait_for_wake_word, _push_to_talk_event
+from voice import speak, listen, wait_for_wake_word, _push_to_talk_event, get_response_language
+from database import init_db
+init_db()
 
 WAKE_RESPONSES = {
     "en": [
@@ -27,16 +28,39 @@ WAKE_RESPONSES = {
     ],
 }
 
+GREETING_TIME = {
+    "en": {
+        "morning": ["Good morning, sir.", "Morning, sir.", "Up early, sir?"],
+        "afternoon": ["Good afternoon, sir.", "Afternoon, sir."],
+        "evening": ["Good evening, sir.", "Evening, sir."],
+        "night": ["Working late, sir?", "Still up, sir?", "Burning the midnight oil, sir?"],
+    },
+    "ru": {
+        "morning": ["Доброе утро, сэр.", "С добрым утром, сэр.", "Рано встали, сэр?"],
+        "afternoon": ["Добрый день, сэр.", "Добрый день."],
+        "evening": ["Добрый вечер, сэр.", "Вечер добрый, сэр."],
+        "night": ["Что, опять допоздна, сэр?", "Ещё не спите, сэр?", "Полуночничаем, сэр?"],
+    },
+}
+
+GREETING_TAIL = {
+    "en": ["Atlas is online and ready.", "Atlas online.", "Systems up, ready when you are.", "Atlas here, all systems go."],
+    "ru": ["Атлас на связи, готов к работе.", "Атлас в сети.", "Всё запущено, готов слушать.", "Атлас на месте."],
+}
+
+
 def _time_greeting() -> str:
     hour = datetime.now().hour
     if 5 <= hour < 12:
-        return "Good morning, sir."
+        bucket = "morning"
     elif 12 <= hour < 18:
-        return "Good afternoon, sir."
+        bucket = "afternoon"
     elif 18 <= hour < 23:
-        return "Good evening, sir."
+        bucket = "evening"
     else:
-        return "Working late, sir?"
+        bucket = "night"
+    lang = get_response_language()
+    return random.choice(GREETING_TIME[lang][bucket])
 
 
 def _speak_and_update(text: str, interruptible: bool = True) -> None:
@@ -46,8 +70,6 @@ def _speak_and_update(text: str, interruptible: bool = True) -> None:
     speak(text, interruptible=interruptible)
     shared_state["state"] = "idle"
 
-
-from voice import get_response_language
 
 def _process_command(command: str) -> None:
     shared_state["chat_history"].append(("You", command))
@@ -71,10 +93,14 @@ def _manual_queue_watcher():
 
 
 MIN_COMMAND_LENGTH = 3  # отсекаем случайный шум/мусор вроде "." или "uh"
-
+SHUTDOWN_RESPONSES = {
+    "en": ["Shutting down.", "Signing off, sir.", "Going dark. See you soon, sir.", "Powering down now."],
+    "ru": ["До свидания, сэр.", "Отключаюсь, сэр.", "Ухожу в тень. До скорого, сэр.", "Выключаюсь."],
+}
 def _voice_loop():
     start_reminder_thread(_speak_and_update)
-    _speak_and_update(f"{_time_greeting()} Atlas is online and ready.", interruptible=False)
+    lang = get_response_language()
+    _speak_and_update(f"{_time_greeting()} {random.choice(GREETING_TAIL[lang])}", interruptible=False)
 
     while True:
         _push_to_talk_event.clear()  # страхуемся от "призрачного" события,
@@ -96,7 +122,7 @@ def _voice_loop():
         if trigger == "voice":
             lang = get_response_language()
             _speak_and_update(random.choice(WAKE_RESPONSES[lang]), interruptible=False)
-
+            
         shared_state["state"] = "listening"
         command = listen()
 
@@ -105,7 +131,7 @@ def _voice_loop():
 
         STOP_WORDS = ("stop", "стоп", "выключись")
         if any(word in command.lower() for word in STOP_WORDS):
-            shutdown_msg = "До свидания, сэр." if get_response_language() == "ru" else "Shutting down."
+            shutdown_msg = random.choice(SHUTDOWN_RESPONSES[get_response_language()])
             _speak_and_update(shutdown_msg)
             shared_state["should_quit"] = True
             break

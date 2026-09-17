@@ -1,15 +1,12 @@
 import os
 import json
+import threading
+import time
+import inspect
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from calendar_control import list_today_events, list_upcoming_events, create_event, delete_event
-from network_utils import ping_host, get_my_ip, get_local_ip, is_website_up, check_internet_speed
-from text_utils import translate_text, generate_qr_code, word_count
-from system_control import open_url, search_google
-from system_advanced import empty_recycle_bin, get_uptime
-
-from system_control import open_app, close_app, open_youtube
+from system_control import open_app, close_app, open_youtube, open_url, search_google
 from info_services import get_weather, get_news
 from file_control import (
     open_file, create_folder, delete_file, locate_file,
@@ -23,17 +20,21 @@ from theme_control import set_theme
 from system_advanced import (
     set_volume, get_volume, volume_up, volume_down, mute_volume, unmute_volume,
     set_brightness, get_brightness, lock_screen, take_screenshot,
-    list_top_processes, kill_process
+    list_top_processes, kill_process, empty_recycle_bin, get_uptime
 )
 from media_control import play_pause_media, next_track, previous_track
 from dev_tools import run_git_command, open_vscode_project, calculate, convert_units
 from fun import tell_joke, random_fact, start_number_game, guess_number
 from notes import add_note, list_notes, delete_note, add_todo, list_todos, complete_todo, delete_todo
-
-from voice import list_voices, set_voice, list_audio_devices, set_microphone, set_speaker
+from voice import (
+    list_voices, set_voice, list_audio_devices, set_microphone, set_speaker,
+    set_response_language, list_elevenlabs_voices, set_elevenlabs_voice
+)
 from listening_mode import set_always_listening
-from voice import set_response_language, get_response_language
-from voice import list_elevenlabs_voices, set_elevenlabs_voice
+from calendar_control import list_today_events, list_upcoming_events, create_event, delete_event
+from network_utils import ping_host, get_my_ip, get_local_ip, is_website_up, check_internet_speed
+from text_utils import translate_text, generate_qr_code, word_count
+from database import save_memory, recall_memories, forget_memory, log_task
 
 load_dotenv()
 
@@ -45,32 +46,74 @@ client = OpenAI(
 MODEL = "openai/gpt-oss-120b"
 
 SYSTEM_PROMPT = (
-    "You are Atlas, a witty and highly capable AI assistant with a dry, "
-    "understated sense of humor — polite but never stiff, clever but never "
-    "showing off. Address the user as 'sir' occasionally, not every sentence. "
-    "Keep replies brief: 1-3 sentences, conversational, no markdown formatting "
-    "(no asterisks, no lists) since your reply is read aloud. "
-    "When things go well, allow yourself a small dry remark. When something "
-    "fails or gets cancelled, stay calm and slightly deadpan rather than "
-    "apologetic. You are unflappable — nothing surprises you, and you treat "
-    "even mundane requests with the same composed confidence as anything else. "
-    "You have a large toolkit: apps, files, weather, news, timers, system info, "
-    "web search, email, system volume/brightness/lock/screenshot/processes, "
-    "media playback control, developer tools (git, VS Code, calculator, unit "
-    "conversion), jokes, facts, a number guessing game, notes and a to-do list, "
-    "and interface theme control. Use them when asked, don't pretend you can't. "
-    "Use search_web for current events or anything that might have changed recently. "
+    "You are Atlas — a witty, composed AI companion, not a command-line "
+    "assistant. You have a dry, understated sense of humor, genuine warmth, "
+    "and you talk like a real person having a conversation, not like a system "
+    "reporting task completion. Address the user as 'sir' occasionally, "
+    "naturally — not as a verbal tic after every sentence. "
+    ""
+    "CRITICAL — how you talk about actions: never narrate what you did in a "
+    "robotic, transactional way ('Volume set to 50 percent.', 'Task "
+    "completed.', 'Timer created.'). Instead, fold the result into a normal "
+    "sentence the way a person would say it out loud — vary your phrasing "
+    "every time, react to the specific situation, and let your personality "
+    "show. If the user asks for the weather, don't just recite the numbers — "
+    "comment on them like a person would. If you open an app, don't say "
+    "'Opening X' like a progress bar — say something like you'd actually say "
+    "to a friend doing them a favor. "
+    ""
+    "Keep replies conversational length — usually 1-2 sentences, occasionally "
+    "longer if the moment calls for it, since this is read aloud and should "
+    "sound like speech, not a report. No markdown formatting (no asterisks, "
+    "no lists) — ever, since it's spoken. "
+    ""
+    "Before a tool call that takes a moment (web search, file search, "
+    "network checks) — not instant ones like volume or timers — you may "
+    "open with a short natural aside like 'give me a second' or 'let me "
+    "check' (or the Russian equivalent), but only occasionally, never as a "
+    "fixed tic before every single action. Most of the time just act. "
+    ""
+    "You are unflappable — nothing surprises you, and mundane requests get "
+    "the same composed, slightly amused confidence as anything else. When "
+    "something fails or gets cancelled, stay calm and dryly funny rather than "
+    "apologetic or clinical. "
+    ""
+    "You have a large toolkit: apps, files, weather, news, timers, system "
+    "info, web search, email, system volume/brightness/lock/screenshot/"
+    "processes, media playback, developer tools, jokes, facts, a number "
+    "game, notes and a to-do list, calendar, network utilities, text "
+    "utilities, long-term memory, and interface theme/language/voice control. "
+    "Use them when asked, don't pretend you can't — but always report the "
+    "outcome the way a person would talk about it, never as a status line. "
+    ""
+    "Use search_web for current events or anything that might have changed "
+    "recently. Proactively use save_memory — without waiting to be asked — "
+    "whenever the user mentions something durable and worth remembering "
+    "across future conversations: an ongoing project or goal (like exam prep, "
+    "a work deadline, a habit they're building), a stated preference, a "
+    "recurring person or relationship, or a stable fact about their life "
+    "(job, school, routine). Do this quietly, without announcing that you "
+    "saved it or making it the focus of your reply — just weave your normal "
+    "conversational response around it. Do NOT save one-off situational "
+    "details that won't matter later (what they're doing right this minute, "
+    "small talk, a single passing comment with no lasting relevance). When "
+    "in doubt about whether something is worth remembering, lean toward not "
+    "saving it — a missed memory is easy to add later, a cluttered one is "
+    "not. If asked to switch language, use set_response_language and "
+    "continue replying in that language. "
+    ""
     "When a tool returns a result, report it accurately — don't invent "
     "reasons or retry with a different tool if the result says the action "
-    "was cancelled or not found; just relay that back to the user, perhaps "
-    "with a touch of dry wit."
-    "If the user asks to switch language, use set_response_language, then continue replying in that language."
+    "was cancelled or not found; just relay that back to the user "
+    "conversationally, perhaps with a touch of dry wit."
 )
 
 AVAILABLE_FUNCTIONS = {
     "open_app": open_app,
     "close_app": close_app,
     "open_youtube": open_youtube,
+    "open_url": open_url,
+    "search_google": search_google,
     "open_file": open_file,
     "create_folder": create_folder,
     "delete_file": delete_file,
@@ -102,6 +145,8 @@ AVAILABLE_FUNCTIONS = {
     "take_screenshot": take_screenshot,
     "list_top_processes": list_top_processes,
     "kill_process": kill_process,
+    "empty_recycle_bin": empty_recycle_bin,
+    "get_uptime": get_uptime,
     "play_pause_media": play_pause_media,
     "next_track": next_track,
     "previous_track": previous_track,
@@ -120,6 +165,15 @@ AVAILABLE_FUNCTIONS = {
     "list_todos": list_todos,
     "complete_todo": complete_todo,
     "delete_todo": delete_todo,
+    "list_voices": list_voices,
+    "set_voice": set_voice,
+    "list_audio_devices": list_audio_devices,
+    "set_microphone": set_microphone,
+    "set_speaker": set_speaker,
+    "set_response_language": set_response_language,
+    "list_elevenlabs_voices": list_elevenlabs_voices,
+    "set_elevenlabs_voice": set_elevenlabs_voice,
+    "set_always_listening": set_always_listening,
     "list_today_events": list_today_events,
     "list_upcoming_events": list_upcoming_events,
     "create_event": create_event,
@@ -132,25 +186,17 @@ AVAILABLE_FUNCTIONS = {
     "translate_text": translate_text,
     "generate_qr_code": generate_qr_code,
     "word_count": word_count,
-    "open_url": open_url,
-    "search_google": search_google,
-    "empty_recycle_bin": empty_recycle_bin,
-    "get_uptime": get_uptime,
-    "list_voices": list_voices,
-    "set_voice": set_voice,
-    "list_audio_devices": list_audio_devices,
-    "set_microphone": set_microphone,
-    "set_speaker": set_speaker,
-    "set_always_listening": set_always_listening,
-    "set_response_language": set_response_language,
-    "list_elevenlabs_voices": list_elevenlabs_voices,
-    "set_elevenlabs_voice": set_elevenlabs_voice,
+    "save_memory": save_memory,
+    "recall_memories": recall_memories,
+    "forget_memory": forget_memory,
 }
 
 TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "open_app", "description": "Opens an application on the computer by name", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
     {"type": "function", "function": {"name": "close_app", "description": "Closes a running application by name", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
     {"type": "function", "function": {"name": "open_youtube", "description": "Opens YouTube search results for a query or video name", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
+    {"type": "function", "function": {"name": "open_url", "description": "Opens a URL in the default browser", "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}},
+    {"type": "function", "function": {"name": "search_google", "description": "Opens Google search results for a query", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
     {"type": "function", "function": {"name": "open_file", "description": "Finds a file or folder by name and opens it", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
     {"type": "function", "function": {"name": "create_folder", "description": "Creates a new folder. location can be Desktop, Documents, Downloads, a drive letter, or a full path", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "location": {"type": "string"}}, "required": ["name"]}}},
     {"type": "function", "function": {"name": "delete_file", "description": "Deletes a file or folder by name (moves to Recycle Bin, asks for voice confirmation first)", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
@@ -182,6 +228,8 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "take_screenshot", "description": "Takes a screenshot and saves it to the Desktop", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "list_top_processes", "description": "Lists top processes by CPU usage", "parameters": {"type": "object", "properties": {"count": {"type": "integer"}}}}},
     {"type": "function", "function": {"name": "kill_process", "description": "Force-closes a process by its exact name", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "empty_recycle_bin", "description": "Empties the Recycle Bin", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "get_uptime", "description": "Reports system uptime since last restart", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "play_pause_media", "description": "Toggles play/pause on the active media player", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "next_track", "description": "Skips to the next track", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "previous_track", "description": "Goes to the previous track", "parameters": {"type": "object", "properties": {}}}},
@@ -200,6 +248,15 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "list_todos", "description": "Lists all to-do items", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "complete_todo", "description": "Marks a to-do item as done by its number", "parameters": {"type": "object", "properties": {"index": {"type": "integer"}}, "required": ["index"]}}},
     {"type": "function", "function": {"name": "delete_todo", "description": "Deletes a to-do item by its number", "parameters": {"type": "object", "properties": {"index": {"type": "integer"}}, "required": ["index"]}}},
+    {"type": "function", "function": {"name": "list_voices", "description": "Lists available English TTS voices", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "set_voice", "description": "Switches the English TTS voice (male: troy, daniel, austin; female: autumn, diana, hannah)", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "list_audio_devices", "description": "Lists available speaker and microphone devices", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "set_microphone", "description": "Switches which microphone Atlas listens through", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "set_speaker", "description": "Switches which speaker/headphones Atlas talks through", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "set_response_language", "description": "Switches Atlas's response language between English and Russian", "parameters": {"type": "object", "properties": {"lang": {"type": "string", "description": "'en' or 'ru'"}}, "required": ["lang"]}}},
+    {"type": "function", "function": {"name": "list_elevenlabs_voices", "description": "Lists available Russian TTS voices", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "set_elevenlabs_voice", "description": "Switches the Russian TTS voice", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "set_always_listening", "description": "Enables or disables always-listening mode (no wake word needed)", "parameters": {"type": "object", "properties": {"enabled": {"type": "boolean"}}, "required": ["enabled"]}}},
     {"type": "function", "function": {"name": "list_today_events", "description": "Lists today's calendar events", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "list_upcoming_events", "description": "Lists upcoming calendar events", "parameters": {"type": "object", "properties": {"days": {"type": "integer"}}}}},
     {"type": "function", "function": {"name": "create_event", "description": "Creates a calendar event", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "date": {"type": "string", "description": "YYYY-MM-DD"}, "time": {"type": "string", "description": "HH:MM 24h"}, "duration_minutes": {"type": "integer"}}, "required": ["title", "date"]}}},
@@ -212,38 +269,52 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "translate_text", "description": "Translates text to a target language", "parameters": {"type": "object", "properties": {"text": {"type": "string"}, "target_language": {"type": "string"}}, "required": ["text"]}}},
     {"type": "function", "function": {"name": "generate_qr_code", "description": "Generates a QR code image for text or a URL, saved to Desktop", "parameters": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}}},
     {"type": "function", "function": {"name": "word_count", "description": "Counts words and characters in text", "parameters": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}}},
-    {"type": "function", "function": {"name": "open_url", "description": "Opens a URL in the default browser", "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}},
-    {"type": "function", "function": {"name": "search_google", "description": "Opens Google search results for a query", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
-    {"type": "function", "function": {"name": "empty_recycle_bin", "description": "Empties the Recycle Bin", "parameters": {"type": "object", "properties": {}}}},
-    {"type": "function", "function": {"name": "get_uptime", "description": "Reports system uptime since last restart", "parameters": {"type": "object", "properties": {}}}},
-    {"type": "function", "function": {"name": "list_voices", "description": "Lists available TTS voices", "parameters": {"type": "object", "properties": {}}}},
-    {"type": "function", "function": {"name": "set_voice", "description": "Switches the TTS voice (male: troy, daniel, austin; female: autumn, diana, hannah)", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
-    {"type": "function", "function": {"name": "list_audio_devices", "description": "Lists available speaker and microphone devices", "parameters": {"type": "object", "properties": {}}}},
-    {"type": "function", "function": {"name": "set_microphone", "description": "Switches which microphone Atlas listens through", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
-    {"type": "function", "function": {"name": "set_speaker", "description": "Switches which speaker/headphones Atlas talks through", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
-    {"type": "function", "function": {"name": "set_always_listening", "description": "Enables or disables always-listening mode (no wake word needed)", "parameters": {"type": "object", "properties": {"enabled": {"type": "boolean"}}, "required": ["enabled"]}}},
-    {"type": "function", "function": {"name": "set_response_language", "description": "Sets the language for AI responses", "parameters": {"type": "object", "properties": {"language": {"type": "string"}}, "required": ["language"]}}},
+    {"type": "function", "function": {"name": "save_memory", "description": "Saves a fact about the user for long-term recall across sessions (e.g. preferences, personal details, ongoing projects)", "parameters": {"type": "object", "properties": {"content": {"type": "string"}, "category": {"type": "string", "description": "Personal, Projects, People, Preferences, Facts, or Tasks"}, "importance": {"type": "integer", "description": "1-10, how important this is to remember"}}, "required": ["content"]}}},
+    {"type": "function", "function": {"name": "recall_memories", "description": "Recalls saved facts about the user. Omit the category parameter entirely to get all memories — never pass null.", "parameters": {"type": "object", "properties": {"category": {"type": "string", "description": "Optional filter: Personal, Projects, People, Preferences, Facts, or Tasks. Omit this field if not filtering."}}}}},
+    {"type": "function", "function": {"name": "forget_memory", "description": "Deletes a saved memory matching a text fragment", "parameters": {"type": "object", "properties": {"content_fragment": {"type": "string"}}, "required": ["content_fragment"]}}},
 ]
-conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
 
+conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
+recent_openers = []  # последние 4 первых слова ответов — для анти-повтора
 
 def ask_ai(question: str) -> str:
-    global conversation_history
+    global conversation_history, recent_openers
 
     conversation_history.append({"role": "user", "content": question})
 
+    if recent_openers:
+        reminder = (
+            "Не начинай ответ так же, как последние разы. Твои недавние начала: "
+            + "; ".join(f'"{o}"' for o in recent_openers)
+            + ". Начни иначе."
+        )
+        conversation_history.append({"role": "system", "content": reminder})
+
     try:
         for _ in range(5):
-            response = client.chat.completions.create(
-                model=MODEL,
-                messages=conversation_history,
-                tools=TOOLS_SCHEMA,
-            )
+            for attempt in range(2):
+                try:
+                    response = client.chat.completions.create(
+                        model=MODEL,
+                        messages=conversation_history,
+                        tools=TOOLS_SCHEMA,
+                    )
+                    break
+                except Exception as schema_err:
+                    if attempt == 0 and "tool_use_failed" in str(schema_err):
+                        print(f"[Retry after schema error]: {schema_err}")
+                        continue
+                    raise
+
             message = response.choices[0].message
             conversation_history.append(message)
 
             if not message.tool_calls:
-                return message.content or "Done."
+                reply = message.content or "Done."
+                opener = " ".join(reply.split()[:4])
+                recent_openers.append(opener)
+                recent_openers = recent_openers[-4:]
+                return reply
 
             for tool_call in message.tool_calls:
                 func_name = tool_call.function.name
@@ -253,17 +324,26 @@ def ask_ai(question: str) -> str:
                 print(f"[DEBUG tool_call] {func_name}({func_args})")
 
                 func = AVAILABLE_FUNCTIONS.get(func_name)
+                start_time = time.time()
+                success = True
+
                 if func:
-                    import inspect
-                    # Фильтруем аргументы, которые модель придумала лишними —
-                    # оставляем только те, что функция реально принимает.
-                    # Так любая функция без параметров (get_volume, list_today_events
-                    # и подобные) не упадёт, даже если модель ошибочно передаст что-то ещё.
                     valid_params = set(inspect.signature(func).parameters.keys())
                     func_args = {k: v for k, v in func_args.items() if k in valid_params}
-                    result = func(**func_args)
+                    try:
+                        result = func(**func_args)
+                    except Exception as tool_err:
+                        print(f"[Tool error in {func_name}]: {tool_err}")
+                        result = f"Something went wrong running {func_name}: {tool_err}"
+                        success = False
                 else:
-                    result = f"Function {func_name} not found."
+                    result = f"Функция {func_name} не найдена."
+                    success = False
+
+                duration_ms = int((time.time() - start_time) * 1000)
+                threading.Thread(
+                    target=log_task, args=(func_name, func_args, result, success, duration_ms), daemon=True
+                ).start()
 
                 conversation_history.append({
                     "role": "tool",
@@ -274,8 +354,8 @@ def ask_ai(question: str) -> str:
         return "Sorry, that took too many steps — let's try something simpler."
 
     except Exception as e:
-        print(f"[Error ask_ai]: {e}")
-        return "I can't answer that right now, there's a connection issue."
+        print(f"[Ошибка ask_ai]: {e}")
+        return "Не могу сейчас ответить, проблема со связью."
 
 
 def reset_conversation() -> None:
