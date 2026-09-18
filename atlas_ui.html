@@ -3,9 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <title>ATLAS</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
-
   :root {
     --bg: #060911;
     --panel: rgba(13, 20, 30, 0.7);
@@ -19,6 +21,8 @@
     --glow-sm: 0 0 12px 2px;
     --glow-md: 0 0 28px 6px;
     --glow-lg: 0 0 70px 12px, 0 0 160px 46px;
+    --nav-w: 230px;
+    --chat-w: 360px;
   }
   [data-theme="light"] {
     --bg: #eef3f7;
@@ -34,112 +38,268 @@
 
   * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Space Grotesk', sans-serif; }
   .mono { font-family: 'JetBrains Mono', monospace; }
-
   html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text-primary); }
-
   body {
     background-image:
-      radial-gradient(ellipse at 50% 45%, rgba(34,211,238,0.06) 0%, transparent 55%),
-      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-    background-size: auto, 42px 42px, 42px 42px;
+      radial-gradient(ellipse at 50% 40%, rgba(34,211,238,0.05) 0%, transparent 52%),
+      radial-gradient(ellipse at 50% 100%, rgba(0,0,0,0.55) 0%, transparent 60%),
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: auto, auto, 42px 42px, 42px 42px;
     position: relative;
   }
+  .bg-mountains { position: fixed; left: 0; right: 0; bottom: 0; height: 40vh; z-index: 0; opacity: 0.95; pointer-events: none; }
+  .bg-mountains svg { width: 100%; height: 100%; display: block; }
+  [data-theme="light"] .bg-mountains { display: none; }
 
-  .icon { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2;
-    stroke-linecap: round; stroke-linejoin: round; vertical-align: -2px; }
+  .bg-stars { position: fixed; inset: 0; z-index: 0; opacity: 0.55; pointer-events: none;
+    background-image:
+      radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,0.55) 0, transparent 60%),
+      radial-gradient(1px 1px at 28% 8%, rgba(255,255,255,0.4) 0, transparent 60%),
+      radial-gradient(1.4px 1.4px at 45% 22%, rgba(255,255,255,0.5) 0, transparent 60%),
+      radial-gradient(1px 1px at 62% 12%, rgba(255,255,255,0.35) 0, transparent 60%),
+      radial-gradient(1.4px 1.4px at 78% 28%, rgba(255,255,255,0.5) 0, transparent 60%),
+      radial-gradient(1px 1px at 88% 15%, rgba(255,255,255,0.4) 0, transparent 60%),
+      radial-gradient(1px 1px at 8% 40%, rgba(255,255,255,0.3) 0, transparent 60%),
+      radial-gradient(1px 1px at 93% 45%, rgba(255,255,255,0.35) 0, transparent 60%),
+      radial-gradient(1.4px 1.4px at 35% 5%, rgba(255,255,255,0.45) 0, transparent 60%),
+      radial-gradient(1px 1px at 55% 35%, rgba(255,255,255,0.25) 0, transparent 60%);
+  }
+  [data-theme="light"] .bg-stars { display: none; }
 
-  .corner { position: fixed; width: 34px; height: 34px; border-color: var(--accent); opacity: 0.45; z-index: 5; transition: transform .1s ease-out; }
-  .corner.tl { top: 14px; left: 14px; border-top: 2px solid; border-left: 2px solid; }
-  .corner.tr { top: 14px; right: 14px; border-top: 2px solid; border-right: 2px solid; }
-  .corner.bl { bottom: 14px; left: 14px; border-bottom: 2px solid; border-left: 2px solid; }
-  .corner.br { bottom: 14px; right: 14px; border-bottom: 2px solid; border-right: 2px solid; }
-
+  body::after {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 2;
+    background: radial-gradient(ellipse at 50% 45%, transparent 50%, rgba(0,0,0,0.5) 100%);
+  }
+  [data-theme="light"] body::after { background: radial-gradient(ellipse at 50% 45%, transparent 60%, rgba(0,0,0,0.08) 100%); }
+  .icon { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; }
   .glass { background: var(--panel); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--border); }
+  #particle-canvas { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
+  .scan-line { position: fixed; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0; z-index: 50; pointer-events: none; box-shadow: 0 0 20px 4px var(--accent); }
+  .scan-line.active { animation: scan-sweep 3s ease-in-out; }
+  @keyframes scan-sweep { 0% { top: 0; opacity: 0; } 5% { opacity: 0.8; } 95% { opacity: 0.8; } 100% { top: 100%; opacity: 0; } }
 
-  /* ---------- top-left: brand + quick actions ---------- */
-  .top-left { position: fixed; top: 26px; left: 32px; z-index: 10; display: flex; flex-direction: column; gap: 14px; }
-  .brand { display: flex; align-items: center; gap: 8px; }
-  .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: var(--glow-sm) var(--accent); }
-  .brand-name { font-size: 19px; font-weight: 800; letter-spacing: 0.16em; }
+  /* ---------- boot / shutdown (unchanged) ---------- */
+  #boot-overlay { position: fixed; inset: 0; z-index: 100; background: #000; display: flex; align-items: center; justify-content: center; transition: opacity 1s ease; }
+  #boot-overlay.hide { opacity: 0; pointer-events: none; }
+  .boot-title { font-size: 56px; font-weight: 800; letter-spacing: 0.3em; color: var(--accent); opacity: 0; transform: scale(0.85);
+    animation: boot-in 2.2s ease forwards; text-shadow: 0 0 40px rgba(34,211,238,0.5); }
+  @keyframes boot-in { 0% { opacity: 0; transform: scale(0.85); letter-spacing: 0.5em; } 60% { opacity: 1; transform: scale(1); letter-spacing: 0.3em; } 100% { opacity: 1; transform: scale(1); letter-spacing: 0.3em; } }
+  .boot-credit { position: fixed; bottom: 40px; right: 48px; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; color: var(--text-secondary); opacity: 0; animation: credit-in 1.5s ease 1.6s forwards; }
+  @keyframes credit-in { from { opacity: 0; transform: translateY(6px);} to { opacity: 0.7; transform: translateY(0);} }
+  #shutdown-overlay { position: fixed; inset: 0; z-index: 200; background: #000; display: none; align-items: center; justify-content: center; pointer-events: none; }
+  #shutdown-overlay.active { display: flex; }
+  .crt-flash { position: absolute; inset: 0; background: #eafcff; opacity: 0; }
+  .crt-flash.play { animation: crt-flash 0.15s ease forwards; }
+  @keyframes crt-flash { 0% { opacity: 0; } 30% { opacity: 0.9; } 100% { opacity: 0; } }
+  .crt-line { width: 100%; height: 5px; background: var(--accent); box-shadow: 0 0 24px 6px var(--accent); transform: scaleX(1); opacity: 0; }
+  .crt-line.play { animation: crt-line-in 0.15s ease 0.12s forwards, crt-line-collapse 0.4s cubic-bezier(.6,0,.9,.4) 0.3s forwards; }
+  @keyframes crt-line-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes crt-line-collapse { 0% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(0); opacity: 0; } }
 
-  .quick-actions { display: flex; gap: 8px; }
-  .pill { display: flex; align-items: center; gap: 7px; padding: 9px 15px; border-radius: 999px; font-size: 12px;
-          cursor: pointer; user-select: none; transition: all .15s cubic-bezier(.34,1.56,.64,1); }
-  .pill:hover { background: rgba(34,211,238,0.12) !important; border-color: var(--accent) !important; transform: translateY(-1px); }
-  .pill:active { transform: scale(0.93); }
+  /* ---------- app shell ---------- */
+  .app { position: fixed; inset: 0; z-index: 5; display: flex; }
 
-  /* ---------- top-right: settings ---------- */
-  .top-right { position: fixed; top: 26px; right: 32px; z-index: 20; }
-  #settings-panel { position: absolute; top: 46px; right: 0; width: 230px; padding: 16px; border-radius: 16px; display: none;
-    transform-origin: top right; }
-  #settings-panel.open { display: block; animation: panel-in .25s cubic-bezier(.34,1.56,.64,1); }
-  @keyframes panel-in { from { opacity: 0; transform: scale(0.92) translateY(-8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-  .settings-label { font-size: 9px; font-weight: 700; letter-spacing: 0.18em; color: var(--text-secondary); margin-bottom: 12px; }
-  .settings-row-label { font-size: 11px; font-weight: 600; color: var(--text-primary); margin: 12px 0 6px; letter-spacing: 0.02em; }
+  /* left nav */
+  .nav { width: var(--nav-w); flex-shrink: 0; height: 100%; padding: 22px 16px; display: flex; flex-direction: column; gap: 22px;
+    border-right: 1px solid var(--border); background: var(--panel); backdrop-filter: blur(16px); }
+  .nav-brand { display: flex; align-items: center; gap: 10px; padding: 0 4px; }
+  .nav-brand .dot { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--accent); box-shadow: var(--glow-sm) var(--accent);
+    display: flex; align-items: center; justify-content: center; }
+  .nav-brand .dot::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: var(--glow-sm) var(--accent); }
+  .nav-brand-text { line-height: 1.25; }
+  .nav-brand-name { font-size: 15px; font-weight: 700; letter-spacing: 0.22em; }
+  .nav-brand-sub { font-size: 9px; color: var(--text-secondary); letter-spacing: 0.06em; }
+
+  .nav-list { display: flex; flex-direction: column; gap: 4px; }
+  .nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 10px; font-size: 13px; font-weight: 500;
+    color: var(--text-secondary); cursor: pointer; user-select: none; background: none; border: none; text-align: left; width: 100%;
+    transition: all .15s ease; }
+  .nav-item:hover { background: rgba(34,211,238,0.06); color: var(--text-primary); }
+  .nav-item.active { background: rgba(34,211,238,0.12); color: var(--accent); font-weight: 700; }
+
+  .nav-status { margin-top: auto; padding: 12px 14px; border-radius: 14px; }
+  .nav-status-title { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; }
+  .nav-status-dot { width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px 2px #34d399; }
+  .nav-status-sub { font-size: 10px; color: var(--text-secondary); margin-top: 3px; }
+  .nav-spark { height: 26px; margin-top: 8px; }
+
+  /* main column */
+  .main { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+  .topbar { flex-shrink: 0; padding: 20px 26px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+  .topbar-title { font-size: 15px; font-weight: 700; letter-spacing: 0.18em; }
+  .topbar-title .accent { color: var(--accent); }
+  .topbar-sub { font-size: 9px; color: var(--text-secondary); letter-spacing: 0.14em; margin-top: 2px; }
+  .topbar-meta { display: flex; align-items: center; gap: 18px; font-size: 12px; color: var(--text-secondary); }
+  .topbar-meta .mono { font-weight: 600; }
+
+  .views { flex: 1; overflow-y: auto; padding: 22px 26px; }
+  .views::-webkit-scrollbar { width: 6px; }
+  .views::-webkit-scrollbar-thumb { background: rgba(34,211,238,0.25); border-radius: 8px; }
+  .view { display: none; }
+  .view.active { display: block; animation: view-in .25s ease both; }
+  @keyframes view-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* home: orb */
+  .orb-wrap { position: relative; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 14px 0 30px; }
+  .orb { position: relative; width: 340px; height: 340px; transition: transform .1s ease-out, filter .2s ease; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .orb-outer-ring { position: absolute; top: 50%; left: 50%; width: 340px; height: 340px; border-radius: 50%;
+    border: 1px solid var(--border); transform: translate(-50%,-50%); animation: spin 60s linear infinite; }
+  @keyframes spin { from { transform: translate(-50%,-50%) rotate(0deg); } to { transform: translate(-50%,-50%) rotate(360deg); } }
+  .orb-floor { position: absolute; left: 50%; bottom: -6px; width: 380px; height: 80px; transform: translateX(-50%); z-index: 1; pointer-events: none; }
+  .floor-glow { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(34,211,238,0.3), transparent 72%); filter: blur(4px); }
+  .floor-ring { position: absolute; left: 50%; top: 50%; border-radius: 50%; transform: translate(-50%,-50%) scaleY(0.22); }
+  .floor-ring.r1 { width: 360px; height: 360px; border: 1px solid rgba(34,211,238,0.22); }
+  .floor-ring.r2 { width: 270px; height: 270px; border: 1px solid rgba(34,211,238,0.16); }
+  .floor-ring.r3 { width: 180px; height: 180px; border: 1px solid rgba(34,211,238,0.11); }
+  #sphere-container { position: relative; z-index: 2; width: 300px; height: 300px; }
+  .core-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 4; text-align: center; pointer-events: none; }
+  .core-title { font-size: 22px; font-weight: 800; letter-spacing: 0.22em; color: var(--text-primary); text-shadow: 0 0 24px rgba(34,211,238,0.55); }
+  .core-state { font-size: 8px; font-weight: 600; letter-spacing: 0.24em; color: var(--text-secondary); margin-top: 6px; }
+  .subtitle { margin-top: 20px; max-width: 460px; text-align: center; font-size: 12px; color: var(--text-secondary); min-height: 18px; font-style: italic; }
+  .waveform { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 3px;
+    z-index: 3; opacity: 0; transition: opacity .3s ease; pointer-events: none; }
+  .waveform.active { opacity: 1; }
+  .waveform .bar { width: 3px; border-radius: 2px; background: var(--accent); transition: height .08s ease; }
+  .typing-cursor { display: inline-block; width: 2px; height: 13px; background: var(--accent); margin-left: 2px; vertical-align: middle; animation: cursor-blink 0.8s step-end infinite; }
+  @keyframes cursor-blink { 50% { opacity: 0; } }
+
+  /* card grid */
+  .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 4px; }
+  .card { border-radius: 14px; padding: 16px; cursor: pointer; transition: all .15s cubic-bezier(.2,.8,.2,1); }
+  .card:hover { border-color: var(--accent) !important; transform: translateY(-2px); }
+  .card:active { transform: scale(0.97); }
+  .card-label { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; color: var(--text-secondary); margin-bottom: 8px; }
+  .card-icon { color: var(--accent); margin-bottom: 10px; }
+  .card-title { font-size: 13px; font-weight: 700; }
+  .card-sub { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+
+  .section-title { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: var(--text-secondary);
+    margin: 26px 0 12px; }
+  .section-title:first-child { margin-top: 0; }
+
+  .row-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .panel { border-radius: 16px; padding: 16px; }
+
+  /* system status — conic-gradient gauges */
+  .stat-rings { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .gauge { --pct: 0; --gauge-color: var(--accent); position: relative; width: 58px; height: 58px; border-radius: 50%;
+    background: conic-gradient(var(--gauge-color) calc(var(--pct) * 1%), rgba(255,255,255,0.07) 0); margin: 0 auto; }
+  .gauge::before { content: ''; position: absolute; inset: 6px; border-radius: 50%; background: var(--panel-solid); }
+  .gauge-val { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+  .gauge-label { text-align: center; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; color: var(--text-secondary); margin-top: 6px; }
+
+  /* ---------- floating state chips (home hero) ---------- */
+  .state-chips { position: absolute; left: 4px; top: 26px; display: flex; flex-direction: column; gap: 11px; width: 186px; z-index: 5; }
+  .state-chip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 13px; opacity: 0.45; transition: all .3s ease; }
+  .state-chip.active { opacity: 1; border-color: var(--accent) !important; }
+  .state-chip-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: rgba(34,211,238,0.09); color: var(--accent); flex-shrink: 0; }
+  .state-chip-title { font-size: 8.5px; font-weight: 700; letter-spacing: 0.1em; color: var(--text-secondary); }
+  .state-chip-sub { font-size: 12px; font-weight: 700; margin-top: 1px; }
+
+  /* ---------- quote block (home hero) ---------- */
+  .quote-block { position: absolute; right: 4px; top: 34px; width: 210px; z-index: 5; }
+  .quote-block p { font-size: 13px; font-style: italic; line-height: 1.65; color: var(--text-secondary); }
+  .quote-line { width: 26px; height: 2px; background: var(--accent); margin-top: 12px; }
+
+  @media (max-width: 1180px) { .state-chips, .quote-block { display: none; } }
+
+  /* ---------- bottom ticker ---------- */
+  .bottom-ticker { margin-top: 14px; padding: 14px 20px; border-radius: 16px; display: flex; align-items: center; justify-content: space-between; }
+  .bt-brand { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 800; letter-spacing: 0.14em; }
+  .bt-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: var(--glow-sm) var(--accent); }
+  .bt-sub { font-size: 11px; color: var(--text-secondary); }
+  .bt-version { font-size: 10px; color: var(--text-secondary); letter-spacing: 0.08em; }
+
+  /* ---------- topbar extras ---------- */
+  .topbar-weather { display: flex; align-items: center; gap: 5px; }
+  .topbar-user { display: flex; align-items: center; gap: 9px; padding: 6px 12px 6px 6px; border-radius: 999px; }
+  .popup-wrap { position: relative; }
+  .popup-panel { position: absolute; top: 44px; right: 0; width: 300px; max-height: 440px; overflow-y: auto;
+    padding: 16px; border-radius: 16px; display: none; z-index: 60; }
+  .popup-panel.open { display: block; animation: panel-in .2s cubic-bezier(.2,.8,.2,1); }
+  @keyframes panel-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  .user-avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #0891b2); flex-shrink: 0; }
+  .user-name { font-size: 11px; font-weight: 700; line-height: 1.2; }
+  .user-plan { font-size: 9px; color: var(--accent); line-height: 1.2; }
+
+  .activity-item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); font-size: 12px; }
+  .activity-item:first-child { border-top: none; }
+  .activity-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  /* agenda */
+  .agenda-item { display: flex; gap: 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--border); font-size: 12px; }
+  .agenda-item:first-of-type { border-top: none; }
+  .agenda-time { font-size: 10px; color: var(--accent); font-weight: 700; width: 44px; flex-shrink: 0; }
+  .agenda-empty { font-size: 11px; color: var(--text-secondary); padding: 6px 0; }
+
+  /* quick access smaller icon buttons */
+  .qa-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .qa-btn { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 12px; cursor: pointer; transition: all .15s ease; }
+  .qa-btn:hover { border-color: var(--accent) !important; }
+  .qa-btn:active { transform: scale(0.96); }
+  .qa-title { font-size: 12px; font-weight: 700; }
+  .qa-sub { font-size: 9px; color: var(--text-secondary); }
+
+  /* generic search row (Files) */
+  .search-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .search-row input { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 11px;
+    padding: 10px 13px; font-size: 12px; color: var(--text-primary); outline: none; }
+  .search-row input:focus { border-color: var(--accent); }
+  .search-row button { background: var(--accent); color: #05131a; border: none; border-radius: 11px; padding: 0 18px;
+    font-size: 12px; font-weight: 700; cursor: pointer; }
+  .search-row button:active { transform: scale(0.94); }
+  .result-box { padding: 14px; border-radius: 12px; font-size: 12px; line-height: 1.6; white-space: pre-wrap; min-height: 40px; }
+
+  /* tools grid */
+  .tool-group-title { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: var(--text-secondary); margin: 18px 0 10px; }
+  .tool-group-title:first-child { margin-top: 0; }
+  .tool-chip { display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; border-radius: 999px; font-size: 11px;
+    margin: 0 8px 8px 0; cursor: pointer; transition: all .15s ease; }
+  .tool-chip:hover { border-color: var(--accent) !important; transform: translateY(-1px); }
+  .tool-chip:active { transform: scale(0.94); }
+
+  /* settings (moved inline, reuses original ids) */
+  .settings-label { font-size: 10px; font-weight: 700; letter-spacing: 0.14em; color: var(--text-secondary); margin-bottom: 10px; }
+  .settings-row-label { font-size: 11px; font-weight: 600; color: var(--text-primary); margin: 16px 0 7px; letter-spacing: 0.02em; }
   .theme-row { display: flex; gap: 6px; }
-  .theme-btn { flex: 1; padding: 7px; font-size: 11px; border-radius: 9px; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
-    cursor: pointer; color: var(--text-primary); transition: all .15s cubic-bezier(.34,1.56,.64,1); }
+  .theme-btn { flex: 1; padding: 8px; font-size: 11px; border-radius: 9px; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    cursor: pointer; color: var(--text-primary); transition: all .15s cubic-bezier(.2,.8,.2,1); }
   .theme-btn:active { transform: scale(0.93); }
   .theme-btn.active { background: var(--accent); color: #05131a; border-color: var(--accent); font-weight: 700; }
-  .dropdown { position: relative; margin-bottom: 10px; }
-  .dropdown-trigger {
-    width: 100%; padding: 7px 10px; font-size: 11px; border-radius: 9px;
-    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
-    color: var(--text-primary); cursor: pointer; display: flex;
-    justify-content: space-between; align-items: center;
-  }
-  .dropdown-list {
-    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50;
-    max-height: 180px; overflow-y: auto; border-radius: 9px;
-    background: var(--panel-solid); border: 1px solid var(--border);
-    display: none;
-  }
+  .dropdown { position: relative; margin-bottom: 4px; max-width: 320px; }
+  .dropdown-trigger { width: 100%; padding: 8px 11px; font-size: 11px; border-radius: 9px; background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border); color: var(--text-primary); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .dropdown-list { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50; max-height: 180px; overflow-y: auto;
+    border-radius: 9px; background: var(--panel-solid); border: 1px solid var(--border); display: none; }
   .dropdown-list.open { display: block; }
   .dropdown-item { padding: 8px 10px; font-size: 11px; cursor: pointer; color: var(--text-primary); transition: background .12s ease; }
   .dropdown-item:hover { background: rgba(34,211,238,0.12); }
   .dropdown-list::-webkit-scrollbar { width: 5px; }
-  .dropdown-list::-webkit-scrollbar-track { background: transparent; }
   .dropdown-list::-webkit-scrollbar-thumb { background: rgba(34,211,238,0.25); border-radius: 8px; }
   .swatch-row { display: flex; gap: 7px; }
-  .swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;
-    transition: all .15s cubic-bezier(.34,1.56,.64,1); }
+  .swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: all .15s cubic-bezier(.2,.8,.2,1); }
   .swatch:hover { transform: scale(1.15); }
-  .swatch:active { transform: scale(0.8); }
   .swatch.active { border-color: var(--text-primary); }
+  .settings-sub-tabs { display: flex; gap: 8px; margin: 26px 0 12px; }
+  .sub-tab-btn { padding: 7px 14px; font-size: 11px; border-radius: 999px; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    color: var(--text-secondary); cursor: pointer; }
+  .sub-tab-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(34,211,238,0.1); }
+  .sub-panel { display: none; }
+  .sub-panel.active { display: block; }
+  .list-item { padding: 10px 0; border-top: 1px solid var(--border); font-size: 12px; display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+  .list-item:first-child { border-top: none; }
 
-  /* ---------- center orb ---------- */
-  .orb-wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; }
-  .orb { position: relative; width: 440px; height: 440px; transition: transform .1s ease-out; }
-  .ring { position: absolute; top: 50%; left: 50%; border-radius: 50%; border: 1px solid var(--border); transform: translate(-50%,-50%); }
-  .ring-spin { animation: spin linear infinite; }
-  .ring-spin-rev { animation: spin-rev linear infinite; }
-  @keyframes spin { from { transform: translate(-50%,-50%) rotate(0deg); } to { transform: translate(-50%,-50%) rotate(360deg); } }
-  @keyframes spin-rev { from { transform: translate(-50%,-50%) rotate(360deg); } to { transform: translate(-50%,-50%) rotate(0deg); } }
-  .core { width: 200px; height: 200px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center;
-          box-shadow: var(--glow-lg) rgba(34,211,238,0.18);
-          animation: pulse 3.6s ease-in-out infinite; transition: filter .3s ease, box-shadow .4s ease; }
-  @keyframes pulse { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.025); } }
-  .core-title { font-size: 27px; font-weight: 800; letter-spacing: 0.16em; color: var(--accent); }
-  .core-state { font-size: 10px; font-weight: 600; letter-spacing: 0.24em; color: var(--text-secondary); margin-top: 6px; }
-  .subtitle { margin-top: 40px; max-width: 420px; text-align: center; font-size: 13px; color: var(--text-secondary); min-height: 20px; }
-
-  .status-ticker { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 600; letter-spacing: 0.16em;
-                    color: var(--text-secondary); opacity: 0.6; }
-
-  /* ---------- bottom-left: compact system readout ---------- */
-  .sys-panel { position: fixed; bottom: 26px; left: 32px; z-index: 10; width: 210px; padding: 13px 16px; border-radius: 14px; }
-  .sys-clock { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; letter-spacing: 0.05em; }
-  .sys-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
-  .sys-label { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: var(--text-secondary); width: 30px; }
-  .sys-bar-track { flex: 1; height: 4px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
-  .sys-bar-fill { height: 100%; border-radius: 3px; transition: width .5s ease; }
-  .sys-val { font-size: 10px; font-weight: 700; width: 30px; text-align: right; color: var(--text-primary); }
-
-  /* ---------- right sidebar: conversation ---------- */
-  .sidebar { position: fixed; top: 26px; right: 32px; bottom: 26px; width: 380px; z-index: 8;
-             border-radius: 18px; display: flex; flex-direction: column; overflow: hidden; }
-  .sidebar-header { padding: 16px 18px 10px; font-size: 10px; font-weight: 700; letter-spacing: 0.18em; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
+  /* right chat panel (persistent) */
+  .chat-panel { width: var(--chat-w); flex-shrink: 0; height: 100%; display: flex; flex-direction: column; border-left: 1px solid var(--border);
+    background: var(--panel); backdrop-filter: blur(16px); }
+  .chat-panel-header { padding: 16px 18px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+  .chat-panel-title { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; }
+  .chat-online-dot { width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px 2px #34d399; }
   .chat { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
   .chat::-webkit-scrollbar { width: 5px; }
   .chat::-webkit-scrollbar-thumb { background: rgba(34,211,238,0.25); border-radius: 8px; }
@@ -150,357 +310,579 @@
   .bubble-speaker { font-size: 9px; font-weight: 700; letter-spacing: 0.14em; margin-bottom: 4px; }
   .bubble.atlas .bubble-speaker { color: var(--accent); }
   .bubble.user .bubble-speaker { color: var(--text-secondary); }
-
+  .quick-actions-row { display: flex; gap: 6px; padding: 10px 16px 0; flex-wrap: wrap; }
+  .pill { display: flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px; font-size: 10.5px; cursor: pointer;
+    user-select: none; transition: all .15s cubic-bezier(.2,.8,.2,1); }
+  .pill:hover { background: rgba(34,211,238,0.12) !important; border-color: var(--accent) !important; }
+  .pill:active { transform: scale(0.93); }
   .input-row { padding: 12px; display: flex; gap: 8px; border-top: 1px solid var(--border); }
-  #cmd-input { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 11px;
-               padding: 10px 13px; font-size: 12px; color: var(--text-primary); outline: none; transition: border-color .15s ease; }
+  #cmd-input { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 11px; padding: 10px 13px;
+    font-size: 12px; color: var(--text-primary); outline: none; transition: border-color .15s ease; }
   #cmd-input:focus { border-color: var(--accent); }
   #cmd-input::placeholder { color: var(--text-secondary); }
-  .send-btn { background: var(--accent); color: #05131a; border: none; border-radius: 11px; padding: 0 18px;
-              font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s cubic-bezier(.34,1.56,.64,1); }
+  .send-btn { background: var(--accent); color: #05131a; border: none; border-radius: 11px; padding: 0 18px; font-size: 12px;
+    font-weight: 700; cursor: pointer; transition: all .15s cubic-bezier(.2,.8,.2,1); }
   .send-btn:hover { filter: brightness(1.1); }
   .send-btn:active { transform: scale(0.93); }
-
-  /* ---------- boot splash ---------- */
-  #boot-overlay {
-    position: fixed; inset: 0; z-index: 100; background: #000;
-    display: flex; align-items: center; justify-content: center;
-    transition: opacity 1s ease;
-  }
-  #boot-overlay.hide { opacity: 0; pointer-events: none; }
-  .boot-title {
-    font-size: 56px; font-weight: 800; letter-spacing: 0.3em; color: var(--accent);
-    opacity: 0; transform: scale(0.85);
-    animation: boot-in 2.2s ease forwards;
-    text-shadow: 0 0 40px rgba(34,211,238,0.5);
-  }
-  @keyframes boot-in {
-    0% { opacity: 0; transform: scale(0.85); letter-spacing: 0.5em; }
-    60% { opacity: 1; transform: scale(1); letter-spacing: 0.3em; }
-    100% { opacity: 1; transform: scale(1); letter-spacing: 0.3em; }
-  }
-  .boot-credit {
-    position: fixed; bottom: 40px; right: 48px; font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
-    color: var(--text-secondary); opacity: 0; animation: credit-in 1.5s ease 1.6s forwards;
-  }
-  @keyframes credit-in { from { opacity: 0; transform: translateY(6px);} to { opacity: 0.7; transform: translateY(0);} }
-
-  /* ---------- shutdown (CRT-style power-off) ---------- */
-  #shutdown-overlay {
-    position: fixed; inset: 0; z-index: 200; background: #000;
-    display: none; align-items: center; justify-content: center; pointer-events: none;
-  }
-  #shutdown-overlay.active { display: flex; }
-  .crt-flash { position: absolute; inset: 0; background: #eafcff; opacity: 0; }
-  .crt-flash.play { animation: crt-flash 0.15s ease forwards; }
-  @keyframes crt-flash { 0% { opacity: 0; } 30% { opacity: 0.9; } 100% { opacity: 0; } }
-  .crt-line { width: 100%; height: 5px; background: var(--accent); box-shadow: 0 0 24px 6px var(--accent); transform: scaleX(1); opacity: 0; }
-  .crt-line.play { animation: crt-line-in 0.15s ease 0.12s forwards, crt-line-collapse 0.4s cubic-bezier(.6,0,.9,.4) 0.3s forwards; }
-  @keyframes crt-line-in { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes crt-line-collapse { 0% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(0); opacity: 0; } }
-
-  /* ---------- scan sweep ---------- */
-  .scan-line { position: fixed; top: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    opacity: 0; z-index: 50; pointer-events: none; box-shadow: 0 0 20px 4px var(--accent); }
-  .scan-line.active { animation: scan-sweep 3s ease-in-out; }
-  @keyframes scan-sweep { 0% { top: 0; opacity: 0; } 5% { opacity: 0.8; } 95% { opacity: 0.8; } 100% { top: 100%; opacity: 0; } }
-
-  /* ---------- particles ---------- */
-  #particle-canvas { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
-
-  /* ---------- waveform ---------- */
-  .waveform { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    display: flex; align-items: center; gap: 3px; z-index: 3; opacity: 0;
-    transition: opacity .3s ease; pointer-events: none; }
-  .waveform.active { opacity: 1; }
-  .waveform .bar { width: 3px; border-radius: 2px; background: var(--accent); transition: height .08s ease; }
-
-  /* ---------- typing cursor ---------- */
-  .typing-cursor { display: inline-block; width: 2px; height: 13px; background: var(--accent);
-    margin-left: 2px; vertical-align: middle; animation: cursor-blink 0.8s step-end infinite; }
-  @keyframes cursor-blink { 50% { opacity: 0; } }
 </style>
 </head>
 <body data-theme="dark">
+<div class="bg-stars" aria-hidden="true"></div>
+<div class="bg-mountains" aria-hidden="true">
+  <svg viewBox="0 0 1600 420" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="mgrad1" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#0d1824"/>
+        <stop offset="1" stop-color="#060911"/>
+      </linearGradient>
+      <linearGradient id="mgrad2" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#070d16"/>
+        <stop offset="1" stop-color="#03050a"/>
+      </linearGradient>
+    </defs>
+    <path d="M0,420 L0,260 L140,190 L260,250 L410,110 L540,215 L690,80 L850,195 L990,130 L1140,225 L1290,140 L1440,235 L1600,175 L1600,420 Z" fill="url(#mgrad1)"/>
+    <path d="M0,420 L0,330 L190,265 L360,315 L520,230 L700,300 L880,235 L1060,310 L1240,245 L1420,305 L1600,270 L1600,420 Z" fill="url(#mgrad2)" opacity="0.9"/>
+  </svg>
+</div>
 <canvas id="particle-canvas"></canvas>
 <div class="scan-line" id="scan-line"></div>
 
-  <div id="boot-overlay">
-    <div class="boot-title">ATLAS</div>
-    <div class="boot-credit mono">PROJECT BY ALIM TSZYU</div>
-  </div>
+<div id="boot-overlay">
+  <div class="boot-title">ATLAS</div>
+  <div class="boot-credit mono">PROJECT BY ALIM TSZYU</div>
+</div>
+<div id="shutdown-overlay">
+  <div class="crt-flash" id="crt-flash"></div>
+  <div class="crt-line" id="crt-line"></div>
+</div>
 
-  <div id="shutdown-overlay">
-    <div class="crt-flash" id="crt-flash"></div>
-    <div class="crt-line" id="crt-line"></div>
-  </div>
+<div class="app">
 
-  <div class="corner tl"></div><div class="corner tr"></div>
-  <div class="corner bl"></div><div class="corner br"></div>
-
-  <div class="top-left">
-    <div class="brand"><div class="brand-dot"></div><span class="brand-name">ATLAS</span></div>
-    <div class="quick-actions">
-      <div class="pill glass" onclick="pywebview.api.push_to_talk()" style="width: fit-content;">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-        <span id="t-ptt">Нажми и говори</span>
-      </div>
-      <div class="pill glass" onclick="quickCmd('check the weather')">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M17.5 19a4.5 4.5 0 000-9 6 6 0 00-11.6 1.5A4 4 0 006 19h11.5z"/></svg>
-        <span id="t-weather">Погода</span>
-      </div>
-      <div class="pill glass" onclick="quickCmd('read me the news')">
-        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="12" y2="16"/></svg>
-        <span id="t-news">Новости</span>
-      </div>
-      <div class="pill glass" onclick="quickCmd('set a timer for 5 minutes')">
-        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 1h6"/></svg>
-        <span id="t-timer">Таймер 5м</span>
-      </div>
-      <div class="pill glass" onclick="quickCmd('do I have unread emails')">
-        <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 6l10 7 10-7"/></svg>
-        <span id="t-mail">Почта</span>
+  <!-- ==================== LEFT NAV ==================== -->
+  <aside class="nav">
+    <div class="nav-brand">
+      <div class="dot"></div>
+      <div class="nav-brand-text">
+        <div class="nav-brand-name">ATLAS</div>
+        <div class="nav-brand-sub" id="t-nav-sub">YOUR AI COMPANION</div>
       </div>
     </div>
-  </div>
 
-    <div class="top-right" style="display:flex; gap:8px;">
-    <div style="position:relative;">
-      <div class="pill glass" onclick="toggleMemory()">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M12 2a4 4 0 00-4 4v1a3 3 0 00-2 5.5V16a3 3 0 003 3h1a2 2 0 002-2v-1"/><path d="M12 2a4 4 0 014 4v1a3 3 0 012 5.5V16a3 3 0 01-3 3h-1a2 2 0 01-2-2v-1"/></svg>
-        <span id="t-memory-btn">Memory</span>
-      </div>
-      <div id="memory-panel" class="glass" style="position:absolute; top:46px; right:0; width:320px; max-height:420px; overflow-y:auto; padding:16px; border-radius:16px; display:none; z-index:30;"></div>
+    <nav class="nav-list" id="nav-list">
+      <button class="nav-item active" data-view="home"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span id="t-nav-home">Home</span></button>
+      <button class="nav-item" data-view="chat"><svg class="icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span id="t-nav-chat">Chat</span></button>
+      <button class="nav-item" data-view="files"><svg class="icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg><span id="t-nav-files">Files</span></button>
+      <button class="nav-item" data-view="projects"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg><span id="t-nav-projects">Projects</span></button>
+      <button class="nav-item" data-view="knowledge"><svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg><span id="t-nav-knowledge">Knowledge</span></button>
+      <button class="nav-item" data-view="tools"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span id="t-nav-tools">Tools</span></button>
+    </nav>
+
+    <div class="nav-status glass">
+      <div class="nav-status-title"><span class="nav-status-dot"></span><span id="t-sys-online">System Online</span></div>
+      <div class="nav-status-sub" id="t-sys-sub">All systems operational</div>
     </div>
+  </aside>
 
-    <div style="position:relative;">
-      <div class="pill glass" onclick="toggleTrace()">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-        <span id="t-trace-btn">Trace</span>
+  <!-- ==================== MAIN ==================== -->
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <div class="topbar-title"><span class="accent">ATLAS</span> <span id="t-top-title">AI ASSISTANT</span></div>
+        <div class="topbar-sub" id="t-top-sub">ADVANCED INTELLIGENCE PLATFORM</div>
       </div>
-      <div id="trace-panel" class="glass" style="position:absolute; top:46px; right:0; width:320px; max-height:420px; overflow-y:auto; padding:16px; border-radius:16px; display:none; z-index:30;"></div>
-    </div>
+      <div class="topbar-meta">
+        <span class="mono" id="topbar-date">—</span>
+        <span class="mono" id="topbar-clock">00:00:00</span>
+        <span class="topbar-weather" id="topbar-weather">—</span>
 
-    <div style="position:relative;">
-      <div class="pill glass" onclick="toggleSettings()">
-       <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-        <span id="t-settings-btn">Настройки</span>
-      </div>
-      <div id="settings-panel" class="glass">
-        <div class="settings-label" id="t-settings-title">НАСТРОЙКИ</div>
-
-        <div class="settings-row-label" id="t-theme">Тема</div>
-        <div class="theme-row">
-          <button class="theme-btn active" id="theme-dark" onclick="setTheme('dark')">Тёмная</button>
-          <button class="theme-btn" id="theme-light" onclick="setTheme('light')">Светлая</button>
+        <div class="popup-wrap">
+          <div class="pill glass" onclick="toggleMemoryPopup()">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 2a4 4 0 00-4 4v1a3 3 0 00-2 5.5V16a3 3 0 003 3h1a2 2 0 002-2v-1"/><path d="M12 2a4 4 0 014 4v1a3 3 0 012 5.5V16a3 3 0 01-3 3h-1a2 2 0 01-2-2v-1"/></svg>
+            <span id="t-memory-btn">Memory</span>
+          </div>
+          <div id="memory-popup" class="popup-panel glass">
+            <div class="settings-label" id="t-memory-title">MEMORY</div>
+            <div id="memory-list"></div>
+          </div>
         </div>
 
-        <div class="settings-row-label" id="t-language">Язык</div>
-        <div class="theme-row">
-          <button class="theme-btn" id="lang-en" onclick="setLanguage('en')">English</button>
-          <button class="theme-btn active" id="lang-ru" onclick="setLanguage('ru')">Русский</button>
+        <div class="popup-wrap">
+          <div class="pill glass" onclick="toggleTracePopup()">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            <span id="t-trace-btn">Trace</span>
+          </div>
+          <div id="trace-popup" class="popup-panel glass">
+            <div class="settings-label" id="t-trace-title">EXECUTION TRACE</div>
+            <div id="trace-list"></div>
+          </div>
         </div>
 
-        <div class="settings-row-label" id="t-mic">Микрофон</div>
-        <div class="dropdown" id="mic-dropdown"></div>
+        <div class="popup-wrap">
+          <div class="pill glass" onclick="toggleSettingsPopup()">
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          </div>
+          <div id="settings-popup" class="popup-panel glass" style="max-width:300px;">
+            <div class="settings-label" id="t-settings-title">SETTINGS</div>
 
-        <div class="settings-row-label" id="t-speaker">Динамик</div>
-        <div class="dropdown" id="speaker-dropdown"></div>
+            <div class="settings-row-label" id="t-theme">Тема</div>
+            <div class="theme-row">
+              <button class="theme-btn active" id="theme-dark" onclick="setTheme('dark')">Тёмная</button>
+              <button class="theme-btn" id="theme-light" onclick="setTheme('light')">Светлая</button>
+            </div>
 
-        <div class="settings-row-label" id="t-voice">Голос</div>
-        <div class="dropdown" id="voice-dropdown"></div>
+            <div class="settings-row-label" id="t-language">Язык</div>
+            <div class="theme-row">
+              <button class="theme-btn" id="lang-en" onclick="setLanguage('en')">English</button>
+              <button class="theme-btn active" id="lang-ru" onclick="setLanguage('ru')">Русский</button>
+            </div>
 
-        <div class="settings-row-label" id="t-always">Постоянное прослушивание</div>
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-          <input type="checkbox" id="always-listening-toggle" onchange="pywebview.api.set_always_listening_ui(this.checked)">
-          <span style="font-size:11px; color: var(--text-secondary);" id="t-always-desc">Отвечать без слова "Атлас"</span>
-        </label>
+            <div class="settings-row-label" id="t-mic">Микрофон</div>
+            <div class="dropdown" id="mic-dropdown"></div>
 
-        <div class="settings-row-label" id="t-accent">Цвет акцента</div>
-        <div class="swatch-row" id="swatches">
-          <div class="swatch active" style="background:#22d3ee" onclick="setAccent('#22d3ee', this)"></div>
-          <div class="swatch" style="background:#34d399" onclick="setAccent('#34d399', this)"></div>
-          <div class="swatch" style="background:#fb7185" onclick="setAccent('#fb7185', this)"></div>
-          <div class="swatch" style="background:#fbbf24" onclick="setAccent('#fbbf24', this)"></div>
-          <div class="swatch" style="background:#a78bfa" onclick="setAccent('#a78bfa', this)"></div>
+            <div class="settings-row-label" id="t-speaker">Динамик</div>
+            <div class="dropdown" id="speaker-dropdown"></div>
+
+            <div class="settings-row-label" id="t-voice">Голос</div>
+            <div class="dropdown" id="voice-dropdown"></div>
+
+            <div class="settings-row-label" id="t-always">Постоянное прослушивание</div>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+              <input type="checkbox" id="always-listening-toggle" onchange="pywebview.api.set_always_listening_ui(this.checked)">
+              <span style="font-size:11px; color: var(--text-secondary);" id="t-always-desc">Отвечать без слова "Атлас"</span>
+            </label>
+
+            <div class="settings-row-label" id="t-accent">Цвет акцента</div>
+            <div class="swatch-row" id="swatches">
+              <div class="swatch active" style="background:#22d3ee" onclick="setAccent('#22d3ee', this)"></div>
+              <div class="swatch" style="background:#34d399" onclick="setAccent('#34d399', this)"></div>
+              <div class="swatch" style="background:#fb7185" onclick="setAccent('#fb7185', this)"></div>
+              <div class="swatch" style="background:#fbbf24" onclick="setAccent('#fbbf24', this)"></div>
+              <div class="swatch" style="background:#a78bfa" onclick="setAccent('#a78bfa', this)"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="topbar-user glass">
+          <div class="user-avatar"></div>
+          <div><div class="user-name" id="t-user-name">User</div><div class="user-plan" id="t-user-plan">Premium</div></div>
         </div>
       </div>
-    </div>
-  </div>
-  </div>
-  <div class="orb-wrap">
-    <div class="orb" id="orb">
-      <svg class="ring ring-spin" style="width:440px;height:440px;animation-duration:40s;" viewBox="0 0 440 440">
-        <circle cx="220" cy="220" r="218" fill="none" stroke="var(--border)" stroke-width="1" stroke-dasharray="4 10"/>
-      </svg>
-      <svg class="ring ring-spin-rev" style="width:370px;height:370px;animation-duration:28s;" viewBox="0 0 370 370">
-        <circle cx="185" cy="185" r="183" fill="none" stroke="var(--border)" stroke-width="1"/>
-        <circle cx="185" cy="3" r="3" fill="var(--accent)"/>
-      </svg>
-      <svg class="ring ring-spin" style="width:300px;height:300px;animation-duration:18s;" viewBox="0 0 300 300">
-        <circle cx="150" cy="150" r="148" fill="none" stroke="var(--accent)" stroke-opacity="0.3" stroke-width="2" stroke-dasharray="1 14" stroke-linecap="round"/>
-      </svg>
-      <div class="ring core glass" style="background: var(--panel-solid);">
-        <div class="waveform" id="waveform"></div>
-        <div class="core-title">ATLAS</div>
-        <div class="core-state" id="state-label">ONLINE</div>
-      </div>
-    </div>
-    <div class="subtitle" id="subtitle"></div>
-  </div>
+    </header>
 
-  <div class="status-ticker mono" id="ticker">STATUS: NOMINAL · AWAITING INPUT</div>
+    <div class="views">
 
-  <div class="sys-panel glass">
-    <div class="sys-clock mono" id="clock">00:00:00</div>
-    <div class="sys-row">
-      <div class="sys-label mono">CPU</div>
-      <div class="sys-bar-track"><div class="sys-bar-fill" id="cpu-bar" style="width:0%; background: var(--accent);"></div></div>
-      <div class="sys-val mono" id="cpu-val">0%</div>
-    </div>
-    <div class="sys-row">
-      <div class="sys-label mono">RAM</div>
-      <div class="sys-bar-track"><div class="sys-bar-fill" id="ram-bar" style="width:0%; background: #fb7185;"></div></div>
-      <div class="sys-val mono" id="ram-val">0%</div>
-    </div>
-  </div>
+      <!-- ---------- HOME ---------- -->
+      <section class="view active" id="view-home">
+        <div class="orb-wrap">
+          <div class="state-chips">
+            <div class="state-chip glass" id="chip-understanding">
+              <div class="state-chip-icon"><svg class="icon" viewBox="0 0 24 24" style="width:15px;height:15px;"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M12 6v6l4 2"/></svg></div>
+              <div><div class="state-chip-title" id="t-chip-u-title">UNDERSTANDING</div><div class="state-chip-sub" id="t-chip-u-sub">Your goals</div></div>
+            </div>
+            <div class="state-chip glass" id="chip-analyzing">
+              <div class="state-chip-icon"><svg class="icon" viewBox="0 0 24 24" style="width:15px;height:15px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+              <div><div class="state-chip-title" id="t-chip-a-title">ANALYZING</div><div class="state-chip-sub" id="t-chip-a-sub">Your context</div></div>
+            </div>
+            <div class="state-chip glass active" id="chip-ready">
+              <div class="state-chip-icon"><svg class="icon" viewBox="0 0 24 24" style="width:15px;height:15px;"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+              <div><div class="state-chip-title" id="t-chip-r-title">READY</div><div class="state-chip-sub" id="t-chip-r-sub">To assist</div></div>
+            </div>
+          </div>
+          <div class="quote-block">
+            <p id="t-quote">"Intelligence isn't just about knowing more, but about helping you go further."</p>
+            <div class="quote-line"></div>
+          </div>
+          <div class="orb" id="orb" onclick="pywebview.api.push_to_talk()" title="Нажми, чтобы говорить">
+            <div class="orb-outer-ring"></div>
+            <div class="orb-floor">
+              <div class="floor-glow"></div>
+              <div class="floor-ring r1"></div>
+              <div class="floor-ring r2"></div>
+              <div class="floor-ring r3"></div>
+            </div>
+            <div id="sphere-container"></div>
+            <div class="waveform" id="waveform"></div>
+            <div class="core-overlay">
+              <div class="core-title">ATLAS</div>
+              <div class="core-state" id="state-label">ONLINE</div>
+            </div>
+          </div>
+          <div class="subtitle" id="subtitle" data-placeholder-en="How can I help you today?" data-placeholder-ru="Чем я могу помочь?">Чем я могу помочь?</div>
+        </div>
 
-  <div class="sidebar glass">
-    <div class="sidebar-header mono" id="t-conversation">ДИАЛОГ</div>
+        <div class="section-title" id="t-quick-access">QUICK ACCESS</div>
+        <div class="qa-grid">
+          <div class="qa-btn glass" onclick="switchView('files')">
+            <div class="card-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></div>
+            <div class="qa-title" id="t-qa-files">Files</div>
+            <div class="qa-sub" id="t-qa-files-sub">Search &amp; manage</div>
+          </div>
+          <div class="qa-btn glass" onclick="quickCmd('search google for ')">
+            <div class="card-icon"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+            <div class="qa-title" id="t-qa-web">Web search</div>
+            <div class="qa-sub" id="t-qa-web-sub">Ask anything</div>
+          </div>
+          <div class="qa-btn glass" onclick="switchView('knowledge')">
+            <div class="card-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></div>
+            <div class="qa-title" id="t-qa-notes">Notes</div>
+            <div class="qa-sub" id="t-qa-notes-sub">Ideas &amp; docs</div>
+          </div>
+          <div class="qa-btn glass" onclick="quickCmd('play music')">
+            <div class="card-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+            <div class="qa-title" id="t-qa-music">Music</div>
+            <div class="qa-sub" id="t-qa-music-sub">Play / pause</div>
+          </div>
+          <div class="qa-btn glass" onclick="quickCmd('what is today\'s weather')">
+            <div class="card-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M17.5 19a4.5 4.5 0 000-9 6 6 0 00-11.6 1.5A4 4 0 006 19h11.5z"/></svg></div>
+            <div class="qa-title" id="t-qa-weather">Weather</div>
+            <div class="qa-sub" id="t-qa-weather-sub">Current forecast</div>
+          </div>
+          <div class="qa-btn glass" onclick="toggleSettingsPopup()">
+            <div class="card-icon"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82"/></svg></div>
+            <div class="qa-title" id="t-qa-settings">Settings</div>
+            <div class="qa-sub" id="t-qa-settings-sub">Personalize</div>
+          </div>
+        </div>
+
+        <div class="row-3" style="margin-top: 26px; align-items: start;">
+          <div class="panel glass">
+            <div class="section-title" style="margin-top:0;" id="t-sys-status">SYSTEM STATUS</div>
+            <div class="stat-rings">
+              <div>
+                <div class="gauge" id="gauge-cpu" style="--gauge-color:#22d3ee;"><span class="gauge-val mono" id="home-cpu">0%</span></div>
+                <div class="gauge-label mono">CPU</div>
+              </div>
+              <div>
+                <div class="gauge" id="gauge-ram" style="--gauge-color:#fb7185;"><span class="gauge-val mono" id="home-ram">0%</span></div>
+                <div class="gauge-label mono">RAM</div>
+              </div>
+              <div>
+                <div class="gauge" id="gauge-bat" style="--gauge-color:#34d399;"><span class="gauge-val mono" id="home-bat">—</span></div>
+                <div class="gauge-label mono">BAT</div>
+              </div>
+              <div>
+                <div class="gauge" id="gauge-disk" style="--gauge-color:#a78bfa;"><span class="gauge-val mono" id="home-disk">0%</span></div>
+                <div class="gauge-label mono">DISK</div>
+              </div>
+            </div>
+            <div class="meta-row"><span id="t-uptime">Uptime</span><span id="home-uptime">—</span></div>
+          </div>
+          <div class="panel glass" style="grid-column: span 2;">
+            <div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center;">
+              <span id="t-agenda">TODAY'S AGENDA</span>
+              <span class="pill glass" style="padding:5px 10px;" onclick="loadAgenda()"><span id="t-refresh">Refresh</span></span>
+            </div>
+            <div id="agenda-box"><div class="agenda-empty" id="t-agenda-empty">Click refresh to load today's calendar.</div></div>
+          </div>
+        </div>
+
+        <div class="panel glass" style="margin-top: 14px;">
+          <div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center;">
+            <span id="t-recent">RECENT ACTIVITY</span>
+            <span class="pill glass" style="padding:5px 10px;" onclick="loadRecentActivity()"><span id="t-refresh3">Refresh</span></span>
+          </div>
+          <div id="recent-activity-box"><div class="agenda-empty" id="t-recent-empty">Click refresh to load recent actions.</div></div>
+        </div>
+
+        <div class="bottom-ticker glass">
+          <div class="bt-brand"><span class="bt-dot"></span>ATLAS</div>
+          <div class="bt-sub" id="t-bt-sub">Always here. Always with you.</div>
+          <div class="bt-version mono">v2.0</div>
+        </div>
+      </section>
+
+      <!-- ---------- CHAT (full view — mirrors panel, useful if chat panel ever hidden on narrow screens) ---------- -->
+      <section class="view" id="view-chat">
+        <div class="section-title" style="margin-top:0;" id="t-chat-hint-title">CHAT</div>
+        <div class="agenda-empty" id="t-chat-hint">The conversation lives in the panel on the right — this tab just keeps it in focus.</div>
+      </section>
+
+      <!-- ---------- FILES ---------- -->
+      <section class="view" id="view-files">
+        <div class="section-title" style="margin-top:0;" id="t-files-title">FILE SEARCH</div>
+        <div class="search-row">
+          <input id="file-query" type="text" placeholder="Имя файла или папки..." onkeydown="if(event.key==='Enter') locateFile()">
+          <button onclick="locateFile()" id="t-files-locate">Найти</button>
+          <button onclick="openFile()" id="t-files-open">Открыть</button>
+        </div>
+        <div class="result-box glass" id="file-result"></div>
+      </section>
+
+      <!-- ---------- PROJECTS ---------- -->
+      <section class="view" id="view-projects">
+        <div class="section-title" style="margin-top:0;" id="t-projects-title">PROJECTS</div>
+        <div class="panel glass">
+          <div class="agenda-empty" id="t-projects-empty">Раздел ещё не подключён к бэкенду — нет модуля, отслеживающего проекты (git-репозитории / VS Code папки). Скажи, что здесь должно быть, и подключим.</div>
+        </div>
+      </section>
+
+      <!-- ---------- KNOWLEDGE ---------- -->
+      <section class="view" id="view-knowledge">
+        <div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center;">
+          <span id="t-knowledge-title">NOTES</span>
+          <span class="pill glass" style="padding:5px 10px;" onclick="loadNotes()"><span id="t-refresh2">Refresh</span></span>
+        </div>
+        <div class="panel glass" id="notes-box"><div class="agenda-empty" id="t-knowledge-empty">Click refresh to load saved notes.</div></div>
+        <div class="agenda-empty" style="margin-top:14px;" id="t-knowledge-note">Полноценный Document Intelligence (PDF/DOCX/XLSX) — модуль 12 спецификации, пока не начат. Здесь пока только заметки.</div>
+      </section>
+
+      <!-- ---------- TOOLS ---------- -->
+      <section class="view" id="view-tools">
+        <div class="section-title" style="margin-top:0;" id="t-tools-title">AVAILABLE TOOLS</div>
+
+        <div class="tool-group-title" id="t-tools-system">System</div>
+        <span class="tool-chip glass" onclick="quickCmd('lock the screen')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Lock</span>
+        <span class="tool-chip glass" onclick="quickCmd('take a screenshot')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>Screenshot</span>
+        <span class="tool-chip glass" onclick="quickCmd('empty the recycle bin')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>Recycle bin</span>
+        <span class="tool-chip glass" onclick="quickCmd('check CPU and RAM usage')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>CPU/RAM</span>
+        <span class="tool-chip glass" onclick="quickCmd('what is the battery status')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><rect x="1" y="7" width="18" height="10" rx="2"/><line x1="23" y1="11" x2="23" y2="13"/></svg>Battery</span>
+
+        <div class="tool-group-title" id="t-tools-dev">Developer</div>
+        <span class="tool-chip glass" onclick="quickCmd('run git status')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 01-9 9"/></svg>Git status</span>
+        <span class="tool-chip glass" onclick="quickCmd('open VS Code')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>VS Code</span>
+        <span class="tool-chip glass" onclick="quickCmd('calculate 12 * 7')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="12" x2="8" y2="12"/><line x1="12" y1="12" x2="12" y2="12"/><line x1="16" y1="12" x2="16" y2="12"/></svg>Calculator</span>
+
+        <div class="tool-group-title" id="t-tools-info">Info &amp; Fun</div>
+        <span class="tool-chip glass" onclick="quickCmd('tell me a joke')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>Joke</span>
+        <span class="tool-chip glass" onclick="quickCmd('tell me a random fact')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 00-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0012 2z"/></svg>Random fact</span>
+        <span class="tool-chip glass" onclick="quickCmd('read me the news')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="12" y2="16"/></svg>News</span>
+        <span class="tool-chip glass" onclick="quickCmd('set a timer for 5 minutes')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 1h6"/></svg>Timer 5m</span>
+
+        <div class="tool-group-title" id="t-tools-net">Network</div>
+        <span class="tool-chip glass" onclick="quickCmd('what is my IP address')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20"/><path d="M12 2a15.3 15.3 0 000 20"/></svg>My IP</span>
+        <span class="tool-chip glass" onclick="quickCmd('check my internet speed')"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>Speed test</span>
+      </section>
+
+      <!-- ---------- SETTINGS ---------- -->
+    </div>
+  </main>
+
+  <!-- ==================== RIGHT CHAT PANEL (persistent) ==================== -->
+  <aside class="chat-panel">
+    <div class="chat-panel-header">
+      <div class="chat-panel-title"><span class="chat-online-dot"></span> ATLAS</div>
+    </div>
+    <div class="quick-actions-row">
+      <div class="pill glass" onclick="quickCmd('do I have unread emails')"><span id="t-mail">Почта</span></div>
+      <div class="pill glass" onclick="quickCmd('read me the news')"><span id="t-news">Новости</span></div>
+      <div class="pill glass" onclick="quickCmd('set a timer for 5 minutes')"><span id="t-timer">Таймер 5м</span></div>
+    </div>
     <div class="chat" id="chat"></div>
     <div class="input-row">
       <input id="cmd-input" type="text" placeholder="Введите команду..." onkeydown="if(event.key==='Enter') sendCommand()">
       <button class="send-btn" onclick="sendCommand()" id="t-send">Отправить</button>
     </div>
-  </div>
+  </aside>
+
+</div>
 
 <script>
+  window.addEventListener('pywebviewready', () => { populateAudioOptions(); loadRecentActivity(); loadAgenda(); });
+  window.addEventListener('load', () => { setTimeout(() => { document.getElementById('boot-overlay').classList.add('hide'); }, 3200); });
 
-  window.addEventListener('pywebviewready', () => {
-    populateAudioOptions();
-  });
-  window.addEventListener('load', () => {
-    setTimeout(() => { document.getElementById('boot-overlay').classList.add('hide'); }, 3200);
-  });
-
-  let currentLang = 'en';
+  let currentLang = 'ru';
   let shutdownStarted = false;
 
-  // ---------- scanning sweep ----------
   function triggerScan() {
     const el = document.getElementById('scan-line');
-    el.classList.remove('active');
-    void el.offsetWidth;
-    el.classList.add('active');
+    el.classList.remove('active'); void el.offsetWidth; el.classList.add('active');
   }
   setInterval(triggerScan, 15000);
   setTimeout(triggerScan, 4000);
 
-  // ---------- parallax ----------
   document.addEventListener('mousemove', (e) => {
     const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
     const dx = (e.clientX - cx) / cx, dy = (e.clientY - cy) / cy;
-    document.getElementById('orb').style.transform = `translate(${dx * 8}px, ${dy * 8}px)`;
-    document.querySelectorAll('.corner').forEach(c => {
-      c.style.transform = `translate(${dx * 4}px, ${dy * 4}px)`;
-    });
+    const orb = document.getElementById('orb');
+    if (orb) orb.style.transform = `translate(${dx * 6}px, ${dy * 6}px)`;
   });
 
-  // ---------- particles ----------
+  /* ---------- particles ---------- */
   const pCanvas = document.getElementById('particle-canvas');
   const pCtx = pCanvas.getContext('2d');
   function resizeCanvas() { pCanvas.width = window.innerWidth; pCanvas.height = window.innerHeight; }
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
-
   let particles = [];
   let currentState = 'idle';
-
   function spawnParticle(cx, cy) {
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 0.3 + Math.random() * 0.6;
-    particles.push({
-      x: cx + Math.cos(angle) * 110, y: cy + Math.sin(angle) * 110,
-      vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-      life: 1, size: 1 + Math.random() * 2,
-    });
+    const angle = Math.random() * Math.PI * 2, speed = 0.3 + Math.random() * 0.6;
+    particles.push({ x: cx + Math.cos(angle) * 90, y: cy + Math.sin(angle) * 90,
+      vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 1, size: 1 + Math.random() * 2 });
   }
-
   function updateParticles() {
     const orbEl = document.getElementById('orb');
-    const rect = orbEl.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
-
-    const spawnChance = currentState === 'listening' ? 0.6 : currentState === 'thinking' ? 0.3 : 0.12;
-    if (Math.random() < spawnChance) spawnParticle(cx, cy);
-
+    if (orbEl && orbEl.offsetParent !== null) {
+      const rect = orbEl.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+      const spawnChance = currentState === 'listening' ? 0.6 : currentState === 'thinking' ? 0.3 : 0.1;
+      if (Math.random() < spawnChance) spawnParticle(cx, cy);
+    }
     pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
     const color = currentState === 'listening' ? '#34d399' : currentState === 'thinking' ? '#fbbf24' : accent;
-
-    particles.forEach(p => {
-      if (currentState === 'thinking') {
-        p.vx += (cx - p.x) * 0.0006;
-        p.vy += (cy - p.y) * 0.0006;
-      }
-      p.x += p.vx; p.y += p.vy; p.life -= 0.006;
-    });
+    particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.006; });
     particles = particles.filter(p => p.life > 0);
-
     particles.forEach(p => {
-      pCtx.beginPath();
-      pCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      pCtx.fillStyle = color;
-      pCtx.globalAlpha = Math.max(p.life, 0);
-      pCtx.fill();
+      pCtx.beginPath(); pCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      pCtx.fillStyle = color; pCtx.globalAlpha = Math.max(p.life, 0); pCtx.fill();
     });
     pCtx.globalAlpha = 1;
     requestAnimationFrame(updateParticles);
   }
   requestAnimationFrame(updateParticles);
 
-  // ---------- waveform ----------
+  /* ---------- reactive core sphere (Three.js particle sphere) ---------- */
+  const sphereContainer = document.getElementById('sphere-container');
+  let latestSpeakAmplitude = 0;
+
+  const sphereScene = new THREE.Scene();
+  const sphereCamera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+  sphereCamera.position.z = 4.5;
+
+  const sphereRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  sphereRenderer.setSize(300, 300);
+  sphereRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  sphereContainer.appendChild(sphereRenderer.domElement);
+
+  const bgParticleCount = 300;
+  const bgGeometry = new THREE.BufferGeometry();
+  const bgPositions = new Float32Array(bgParticleCount * 3);
+  for (let i = 0; i < bgParticleCount; i++) {
+    bgPositions[i * 3] = (Math.random() - 0.5) * 9;
+    bgPositions[i * 3 + 1] = (Math.random() - 0.5) * 9;
+    bgPositions[i * 3 + 2] = (Math.random() - 0.5) * 7 - 2;
+  }
+  bgGeometry.setAttribute('position', new THREE.BufferAttribute(bgPositions, 3));
+  const bgMaterial = new THREE.PointsMaterial({ size: 0.025, color: 0x4a77ba, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending });
+  const bgSphereParticles = new THREE.Points(bgGeometry, bgMaterial);
+  sphereScene.add(bgSphereParticles);
+
+  const sphereParticleCount = 4500;
+  const sphereGeometry = new THREE.BufferGeometry();
+  const spherePositions = new Float32Array(sphereParticleCount * 3);
+  const sphereOriginalPositions = new Float32Array(sphereParticleCount * 3);
+  const sphereColors = new Float32Array(sphereParticleCount * 3);
+  const sphereRadius = 1.45;
+  const colorInner = new THREE.Color(0x00f0ff);
+  const colorOuter = new THREE.Color(0x0033ff);
+
+  for (let i = 0; i < sphereParticleCount; i++) {
+    const u = Math.random(), v = Math.random();
+    const theta = u * 2.0 * Math.PI;
+    const phi = Math.acos(2.0 * v - 1.0);
+    const r = sphereRadius + (Math.random() - 0.5) * 0.12;
+    const x = r * Math.sin(phi) * Math.cos(theta);
+    const y = r * Math.sin(phi) * Math.sin(theta);
+    const z = r * Math.cos(phi);
+    spherePositions[i * 3] = x; spherePositions[i * 3 + 1] = y; spherePositions[i * 3 + 2] = z;
+    sphereOriginalPositions[i * 3] = x; sphereOriginalPositions[i * 3 + 1] = y; sphereOriginalPositions[i * 3 + 2] = z;
+    const mixedColor = colorInner.clone().lerp(colorOuter, Math.random());
+    sphereColors[i * 3] = mixedColor.r; sphereColors[i * 3 + 1] = mixedColor.g; sphereColors[i * 3 + 2] = mixedColor.b;
+  }
+  sphereGeometry.setAttribute('position', new THREE.BufferAttribute(spherePositions, 3));
+  sphereGeometry.setAttribute('color', new THREE.BufferAttribute(sphereColors, 3));
+
+  function createSphereParticleTexture() {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+    const tctx = c.getContext('2d');
+    const grad = tctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.25, 'rgba(0,212,255,0.8)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    tctx.fillStyle = grad; tctx.beginPath(); tctx.arc(32, 32, 32, 0, Math.PI * 2); tctx.fill();
+    return new THREE.CanvasTexture(c);
+  }
+
+  const sphereParticleMaterial = new THREE.PointsMaterial({
+    size: 0.045, vertexColors: true, map: createSphereParticleTexture(),
+    transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const coreSphere = new THREE.Points(sphereGeometry, sphereParticleMaterial);
+  sphereScene.add(coreSphere);
+
+  let sphereScale = 1.0, sphereTargetScale = 1.0;
+  const sphereClock = new THREE.Clock();
+
+  function drawGlobe() {
+    requestAnimationFrame(drawGlobe);
+    const time = sphereClock.getElapsedTime();
+
+    // tint + target scale by real app state
+    if (currentState === 'speaking') {
+      sphereParticleMaterial.color.setHex(0xffffff);
+      sphereTargetScale = 1.0 + latestSpeakAmplitude * 0.22;
+    } else if (currentState === 'listening') {
+      sphereParticleMaterial.color.setHex(0x99ffcc);
+      sphereTargetScale = 0.88;
+      latestSpeakAmplitude *= 0.9;
+    } else if (currentState === 'thinking') {
+      sphereParticleMaterial.color.setHex(0xffd699);
+      sphereTargetScale = 1.0;
+      latestSpeakAmplitude *= 0.9;
+    } else {
+      sphereParticleMaterial.color.setHex(0xffffff);
+      sphereTargetScale = 1.0;
+      latestSpeakAmplitude *= 0.9;
+    }
+
+    sphereScale += (sphereTargetScale - sphereScale) * 0.05;
+    bgSphereParticles.rotation.y = time * 0.01;
+
+    let rotSpeed = 0.12;
+    if (currentState === 'speaking') rotSpeed = 0.35;
+    if (currentState === 'listening') rotSpeed = 0.04;
+    if (currentState === 'thinking') rotSpeed = 0.22;
+
+    coreSphere.rotation.y = time * rotSpeed;
+    coreSphere.rotation.x = Math.sin(time * 0.15) * 0.05;
+
+    const pos = coreSphere.geometry.attributes.position.array;
+    for (let i = 0; i < sphereParticleCount; i++) {
+      const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
+      const ox = sphereOriginalPositions[ix], oy = sphereOriginalPositions[iy], oz = sphereOriginalPositions[iz];
+      let wave = 0;
+      if (currentState === 'speaking') wave = Math.sin(ox * 3.5 + time * 7) * Math.cos(oy * 3.5 + time * 7) * (0.05 + latestSpeakAmplitude * 0.12);
+      else if (currentState === 'listening') wave = Math.sin(time * 1.5) * 0.015;
+      else wave = Math.sin(ox * 1.8 + time * 1.8) * 0.02;
+      const factor = sphereScale + wave;
+      pos[ix] = ox * factor; pos[iy] = oy * factor; pos[iz] = oz * factor;
+    }
+    coreSphere.geometry.attributes.position.needsUpdate = true;
+    sphereRenderer.render(sphereScene, sphereCamera);
+  }
+  requestAnimationFrame(drawGlobe);
+
+  /* ---------- waveform ---------- */
   const waveformBars = [];
   function buildWaveform() {
     const wf = document.getElementById('waveform');
-    for (let i = 0; i < 24; i++) {
-      const bar = document.createElement('div');
-      bar.className = 'bar';
-      bar.style.height = '6px';
-      wf.appendChild(bar);
-      waveformBars.push(bar);
+    for (let i = 0; i < 20; i++) {
+      const bar = document.createElement('div'); bar.className = 'bar'; bar.style.height = '5px';
+      wf.appendChild(bar); waveformBars.push(bar);
     }
   }
   buildWaveform();
-
   let wavePhase = 0;
   function updateWaveform(envelope, elapsed, duration) {
     const wf = document.getElementById('waveform');
-    if (!envelope || envelope.length === 0 || duration <= 0) {
-      wf.classList.remove('active');
-      return;
-    }
+    if (!envelope || envelope.length === 0 || duration <= 0) { wf.classList.remove('active'); return; }
     wf.classList.add('active');
     const idx = Math.min(envelope.length - 1, Math.floor((elapsed / duration) * envelope.length));
     const amplitude = envelope[idx] || 0.05;
+    latestSpeakAmplitude = amplitude;
     wavePhase += 0.35;
     waveformBars.forEach((bar, i) => {
       const variance = 0.5 + 0.5 * Math.abs(Math.sin(wavePhase + i * 0.5));
-      bar.style.height = Math.max(4, amplitude * 70 * variance) + 'px';
+      bar.style.height = Math.max(4, amplitude * 50 * variance) + 'px';
     });
   }
 
-  // ---------- typing effect ----------
   function typeText(el, text, scrollFn, speed = 18) {
-    let i = 0;
-    el.textContent = '';
-    const cursor = document.createElement('span');
-    cursor.className = 'typing-cursor';
-    el.appendChild(cursor);
+    let i = 0; el.textContent = '';
+    const cursor = document.createElement('span'); cursor.className = 'typing-cursor'; el.appendChild(cursor);
     const interval = setInterval(() => {
-      cursor.insertAdjacentText('beforebegin', text[i]);
-      i++;
+      cursor.insertAdjacentText('beforebegin', text[i]); i++;
       if (scrollFn) scrollFn();
       if (i >= text.length) { clearInterval(interval); cursor.remove(); }
     }, speed);
@@ -509,75 +891,130 @@
   function playShutdown() {
     if (shutdownStarted) return;
     shutdownStarted = true;
-    const overlay = document.getElementById('shutdown-overlay');
-    const flash = document.getElementById('crt-flash');
-    const line = document.getElementById('crt-line');
-    overlay.classList.add('active');
-    flash.classList.add('play');
-    line.classList.add('play');
+    document.getElementById('shutdown-overlay').classList.add('active');
+    document.getElementById('crt-flash').classList.add('play');
+    document.getElementById('crt-line').classList.add('play');
     setTimeout(() => { pywebview.api.confirm_quit(); }, 750);
   }
 
+  /* ---------- view switching ---------- */
+  function switchView(name) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === name));
+  }
+  document.getElementById('nav-list').addEventListener('click', (e) => {
+    const btn = e.target.closest('.nav-item');
+    if (btn) switchView(btn.dataset.view);
+  });
+
+  /* ---------- top-right popups (Memory / Trace / Settings) ---------- */
+  function closeAllPopups() {
+    document.querySelectorAll('.popup-panel').forEach(p => p.classList.remove('open'));
+  }
+  function toggleMemoryPopup() {
+    const panel = document.getElementById('memory-popup');
+    const wasOpen = panel.classList.contains('open');
+    closeAllPopups();
+    if (!wasOpen) { panel.classList.add('open'); loadMemory(); }
+  }
+  function toggleTracePopup() {
+    const panel = document.getElementById('trace-popup');
+    const wasOpen = panel.classList.contains('open');
+    closeAllPopups();
+    if (!wasOpen) { panel.classList.add('open'); loadTrace(); }
+  }
+  function toggleSettingsPopup() {
+    const panel = document.getElementById('settings-popup');
+    const wasOpen = panel.classList.contains('open');
+    closeAllPopups();
+    if (!wasOpen) { panel.classList.add('open'); populateAudioOptions(); }
+  }
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.popup-wrap')) closeAllPopups();
+  });
+
+  /* ---------- translations ---------- */
   const translations = {
     en: {
-      "t-ptt": "Push to talk", "t-weather": "Weather", "t-news": "News",
-      "t-timer": "Timer 5m", "t-mail": "Mail", "t-settings-btn": "Settings",
-      "t-memory-btn": "Memory", "t-trace-btn": "Trace",
-      "t-settings-title": "SETTINGS", "t-theme": "Theme", "t-language": "Language",
-      "t-mic": "Microphone", "t-speaker": "Speaker", "t-voice": "Voice",
-      "t-always": "Always listening", "t-always-desc": 'Respond without saying "Atlas"',
-      "t-accent": "Accent color", "t-conversation": "CONVERSATION", "t-send": "Send",
-        
-      
+      "t-nav-sub": "YOUR AI COMPANION", "t-nav-home": "Home", "t-nav-chat": "Chat", "t-nav-files": "Files",
+      "t-nav-projects": "Projects", "t-nav-knowledge": "Knowledge", "t-nav-tools": "Tools", "t-nav-settings": "Settings",
+      "t-sys-online": "System Online", "t-sys-sub": "All systems operational",
+      "t-top-title": "AI ASSISTANT", "t-top-sub": "ADVANCED INTELLIGENCE PLATFORM",
+      "t-quick-access": "QUICK ACCESS", "t-qa-files": "Files", "t-qa-files-sub": "Search & manage",
+      "t-qa-web": "Web search", "t-qa-web-sub": "Ask anything", "t-qa-notes": "Notes", "t-qa-notes-sub": "Ideas & docs",
+      "t-qa-music": "Music", "t-qa-music-sub": "Play / pause", "t-qa-weather": "Weather", "t-qa-weather-sub": "Current forecast",
+      "t-qa-settings": "Settings", "t-qa-settings-sub": "Personalize",
+      "t-sys-status": "SYSTEM STATUS", "t-uptime": "Uptime", "t-agenda": "TODAY'S AGENDA", "t-refresh": "Refresh", "t-refresh2": "Refresh",
+      "t-agenda-empty": "Click refresh to load today's calendar.",
+      "t-chat-hint-title": "CHAT", "t-chat-hint": "The conversation lives in the panel on the right — this tab just keeps it in focus.",
+      "t-files-title": "FILE SEARCH", "t-files-locate": "Locate", "t-files-open": "Open",
+      "t-projects-title": "PROJECTS", "t-projects-empty": "This section isn't wired up yet — there's no module tracking projects (git repos / VS Code folders). Tell me what should live here and we'll build it.",
+      "t-knowledge-title": "NOTES", "t-knowledge-empty": "Click refresh to load saved notes.",
+      "t-knowledge-note": "Full Document Intelligence (PDF/DOCX/XLSX) — spec module 12 — isn't started yet. This is just notes for now.",
+      "t-tools-title": "AVAILABLE TOOLS", "t-tools-system": "System", "t-tools-dev": "Developer", "t-tools-info": "Info & Fun", "t-tools-net": "Network",
+      "t-sub-prefs": "Preferences", "t-sub-memory": "Memory", "t-sub-trace": "Trace",
+      "t-theme": "Theme", "t-language": "Language", "t-mic": "Microphone", "t-speaker": "Speaker", "t-voice": "Voice",
+      "t-always": "Always listening", "t-always-desc": 'Respond without saying "Atlas"', "t-accent": "Accent color",
+      "t-memory-title": "MEMORY", "t-trace-title": "EXECUTION TRACE",
+      "t-ptt": "Push to talk", "t-mail": "Mail", "t-news": "News", "t-timer": "Timer 5m", "t-send": "Send",
+      "t-chip-u-title": "UNDERSTANDING", "t-chip-u-sub": "Your goals",
+      "t-chip-a-title": "ANALYZING", "t-chip-a-sub": "Your context",
+      "t-chip-r-title": "READY", "t-chip-r-sub": "To assist",
+      "t-quote": "\u201cIntelligence isn't just about knowing more, but about helping you go further.\u201d",
+      "t-recent": "RECENT ACTIVITY", "t-refresh3": "Refresh", "t-recent-empty": "Click refresh to load recent actions.",
+      "t-bt-sub": "Always here. Always with you.", "t-user-name": "User", "t-user-plan": "Premium",
     },
     ru: {
-      "t-ptt": "Нажми и говори", "t-weather": "Погода", "t-news": "Новости",
-      "t-timer": "Таймер 5м", "t-mail": "Почта", "t-settings-btn": "Настройки",
-      "t-memory-btn": "Память", "t-trace-btn": "Журнал",
-      "t-settings-title": "НАСТРОЙКИ", "t-theme": "Тема", "t-language": "Язык",
-      "t-mic": "Микрофон", "t-speaker": "Динамик", "t-voice": "Голос",
-      "t-always": "Постоянное прослушивание", "t-always-desc": 'Отвечать без слова "Атлас"',
-      "t-accent": "Цвет акцента", "t-conversation": "ДИАЛОГ", "t-send": "Отправить",
-      
+      "t-nav-sub": "ТВОЙ ИИ-СПУТНИК", "t-nav-home": "Главная", "t-nav-chat": "Чат", "t-nav-files": "Файлы",
+      "t-nav-projects": "Проекты", "t-nav-knowledge": "Знания", "t-nav-tools": "Инструменты", "t-nav-settings": "Настройки",
+      "t-sys-online": "Система онлайн", "t-sys-sub": "Всё работает штатно",
+      "t-top-title": "ИИ-АССИСТЕНТ", "t-top-sub": "ПЛАТФОРМА ИСКУССТВЕННОГО ИНТЕЛЛЕКТА",
+      "t-quick-access": "БЫСТРЫЙ ДОСТУП", "t-qa-files": "Файлы", "t-qa-files-sub": "Поиск и управление",
+      "t-qa-web": "Веб-поиск", "t-qa-web-sub": "Спроси что угодно", "t-qa-notes": "Заметки", "t-qa-notes-sub": "Идеи и документы",
+      "t-qa-music": "Музыка", "t-qa-music-sub": "Play / pause", "t-qa-weather": "Погода", "t-qa-weather-sub": "Текущий прогноз",
+      "t-qa-settings": "Настройки", "t-qa-settings-sub": "Персонализация",
+      "t-sys-status": "СТАТУС СИСТЕМЫ", "t-uptime": "Аптайм", "t-agenda": "ПОВЕСТКА ДНЯ", "t-refresh": "Обновить", "t-refresh2": "Обновить",
+      "t-agenda-empty": "Нажми «обновить», чтобы загрузить календарь на сегодня.",
+      "t-chat-hint-title": "ЧАТ", "t-chat-hint": "Диалог живёт в панели справа — эта вкладка просто держит его в фокусе.",
+      "t-files-title": "ПОИСК ФАЙЛОВ", "t-files-locate": "Найти", "t-files-open": "Открыть",
+      "t-projects-title": "ПРОЕКТЫ", "t-projects-empty": "Раздел ещё не подключён к бэкенду — нет модуля, отслеживающего проекты (git-репозитории / папки VS Code). Скажи, что здесь должно быть, и подключим.",
+      "t-knowledge-title": "ЗАМЕТКИ", "t-knowledge-empty": "Нажми «обновить», чтобы загрузить сохранённые заметки.",
+      "t-knowledge-note": "Полноценный Document Intelligence (PDF/DOCX/XLSX) — модуль 12 спецификации — пока не начат. Здесь пока только заметки.",
+      "t-tools-title": "ДОСТУПНЫЕ ИНСТРУМЕНТЫ", "t-tools-system": "Система", "t-tools-dev": "Разработка", "t-tools-info": "Инфо и развлечения", "t-tools-net": "Сеть",
+      "t-sub-prefs": "Настройки", "t-sub-memory": "Память", "t-sub-trace": "Журнал",
+      "t-theme": "Тема", "t-language": "Язык", "t-mic": "Микрофон", "t-speaker": "Динамик", "t-voice": "Голос",
+      "t-always": "Постоянное прослушивание", "t-always-desc": 'Отвечать без слова "Атлас"', "t-accent": "Цвет акцента",
+      "t-memory-title": "ПАМЯТЬ", "t-trace-title": "ЖУРНАЛ ВЫПОЛНЕНИЯ",
+      "t-ptt": "Говорить", "t-mail": "Почта", "t-news": "Новости", "t-timer": "Таймер 5м", "t-send": "Отправить",
+      "t-chip-u-title": "ПОНИМАНИЕ", "t-chip-u-sub": "Твои цели",
+      "t-chip-a-title": "АНАЛИЗ", "t-chip-a-sub": "Твой контекст",
+      "t-chip-r-title": "ГОТОВ", "t-chip-r-sub": "К работе",
+      "t-quote": "«Интеллект — это не только знать больше, но и помогать тебе двигаться дальше».",
+      "t-recent": "ПОСЛЕДНЯЯ АКТИВНОСТЬ", "t-refresh3": "Обновить", "t-recent-empty": "Нажми «обновить», чтобы загрузить последние действия.",
+      "t-bt-sub": "Всегда рядом. Всегда с тобой.", "t-user-name": "Пользователь", "t-user-plan": "Premium",
     },
   };
-  const themeBtnText = {
-    en: { dark: "Dark", light: "Light" },
-    ru: { dark: "Тёмная", light: "Светлая" },
-  };
+  const themeBtnText = { en: { dark: "Dark", light: "Light" }, ru: { dark: "Тёмная", light: "Светлая" } };
   const stateLabelsDict = {
     en: { idle: 'IDLE', listening: 'LISTENING', thinking: 'THINKING', speaking: 'SPEAKING' },
     ru: { idle: 'ОЖИДАНИЕ', listening: 'СЛУШАЮ', thinking: 'ОБРАБОТКА', speaking: 'ГОВОРЮ' },
-  };
-  const stateTickersDict = {
-    en: {
-      idle: 'STATUS: NOMINAL · AWAITING INPUT',
-      listening: 'STATUS: LISTENING · MICROPHONE ACTIVE',
-      thinking: 'STATUS: PROCESSING REQUEST',
-      speaking: 'STATUS: RESPONDING'
-    },
-    ru: {
-      idle: 'СТАТУС: В НОРМЕ · ОЖИДАНИЕ',
-      listening: 'СТАТУС: СЛУШАЮ · МИКРОФОН АКТИВЕН',
-      thinking: 'СТАТУС: ОБРАБОТКА ЗАПРОСА',
-      speaking: 'СТАТУС: ОТВЕЧАЮ'
-    },
   };
 
   function applyTranslations(lang) {
     currentLang = lang;
     const dict = translations[lang] || translations.en;
-    for (const id in dict) {
-      const el = document.getElementById(id);
-      if (el) el.textContent = dict[id];
-    }
+    for (const id in dict) { const el = document.getElementById(id); if (el) el.textContent = dict[id]; }
     document.getElementById('cmd-input').placeholder = lang === 'ru' ? 'Введите команду...' : 'Type a command...';
+    document.getElementById('file-query').placeholder = lang === 'ru' ? 'Имя файла или папки...' : 'File or folder name...';
     document.getElementById('theme-dark').textContent = themeBtnText[lang].dark;
     document.getElementById('theme-light').textContent = themeBtnText[lang].light;
+    const sub = document.getElementById('subtitle');
+    if (sub && !sub.dataset.userSet) sub.textContent = sub.dataset['placeholder' + (lang === 'ru' ? 'Ru' : 'En')];
   }
 
+  /* ---------- chat ---------- */
   let lastChatLen = 0;
-
   function sendCommand() {
     const input = document.getElementById('cmd-input');
     const text = input.value.trim();
@@ -587,17 +1024,35 @@
   }
   function quickCmd(text) { pywebview.api.send_text_command(text); }
 
+  function renderChat(history) {
+    if (history.length === lastChatLen) return;
+    const chat = document.getElementById('chat');
+    history.slice(lastChatLen).forEach(([speaker, text]) => {
+      const isUser = speaker === 'You';
+      const div = document.createElement('div');
+      div.className = 'bubble ' + (isUser ? 'user' : 'atlas');
+      const youLabel = currentLang === 'ru' ? 'ВЫ' : 'YOU';
+      const atlasLabel = currentLang === 'ru' ? 'АТЛАС' : 'ATLAS';
+      const speakerDiv = document.createElement('div');
+      speakerDiv.className = 'bubble-speaker mono';
+      speakerDiv.textContent = isUser ? youLabel : atlasLabel;
+      const textDiv = document.createElement('div');
+      div.appendChild(speakerDiv); div.appendChild(textDiv); chat.appendChild(div);
+      if (isUser) { textDiv.textContent = text; chat.scrollTop = chat.scrollHeight; }
+      else { typeText(textDiv, text, () => { chat.scrollTop = chat.scrollHeight; }); }
+    });
+    lastChatLen = history.length;
+  }
+
+  /* ---------- dropdowns (settings) ---------- */
   function buildDropdown(containerId, options, currentValue, onSelect) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
-
     const trigger = document.createElement('div');
     trigger.className = 'dropdown-trigger';
     trigger.innerHTML = `<span>${currentValue || options[0] || '—'}</span><span>▾</span>`;
-
     const list = document.createElement('div');
     list.className = 'dropdown-list';
-
     options.forEach(opt => {
       const item = document.createElement('div');
       item.className = 'dropdown-item' + (opt === currentValue ? ' selected' : '');
@@ -606,26 +1061,18 @@
         e.stopPropagation();
         trigger.querySelector('span').textContent = opt;
         list.classList.remove('open');
-        list.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('selected'));
-        item.classList.add('selected');
         onSelect(opt);
       };
       list.appendChild(item);
     });
-
     trigger.onclick = (e) => {
       e.stopPropagation();
       document.querySelectorAll('.dropdown-list').forEach(l => { if (l !== list) l.classList.remove('open'); });
       list.classList.toggle('open');
     };
-
-    container.appendChild(trigger);
-    container.appendChild(list);
+    container.appendChild(trigger); container.appendChild(list);
   }
-
-  document.addEventListener('click', () => {
-    document.querySelectorAll('.dropdown-list').forEach(l => l.classList.remove('open'));
-  });
+  document.addEventListener('click', () => { document.querySelectorAll('.dropdown-list').forEach(l => l.classList.remove('open')); });
 
   async function populateAudioOptions() {
     try {
@@ -638,70 +1085,6 @@
       document.getElementById('lang-ru').classList.toggle('active', opts.language === 'ru');
       applyTranslations(opts.language);
     } catch (e) { console.log(e); }
-  }
-
-  async function toggleMemory() {
-    const panel = document.getElementById('memory-panel');
-    const isOpen = panel.style.display === 'block';
-    document.getElementById('trace-panel').style.display = 'none';
-    if (isOpen) { panel.style.display = 'none'; return; }
-    panel.style.display = 'block';
-    panel.innerHTML = '<div class="settings-label">MEMORY</div>';
-    try {
-      const memories = await pywebview.api.get_memories();
-      if (memories.length === 0) {
-        panel.innerHTML += '<div style="font-size:11px; color: var(--text-secondary); padding: 8px 0;">Nothing saved yet.</div>';
-        return;
-      }
-      memories.forEach(m => {
-        const item = document.createElement('div');
-        item.style.cssText = 'padding:8px 0; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; gap:8px; align-items:flex-start;';
-        item.innerHTML = `<div><div style="font-size:9px; color: var(--accent); font-weight:700; letter-spacing:0.08em;">${m.category.toUpperCase()}</div>
-          <div style="font-size:12px; margin-top:2px;">${m.content}</div>
-          <div style="font-size:9px; color: var(--text-secondary); margin-top:2px;">${m.created_at}</div></div>
-          <div style="cursor:pointer; color: var(--text-secondary); font-size:14px;" onclick="deleteMemory(${m.id})">✕</div>`;
-        panel.appendChild(item);
-      });
-    } catch (e) { console.log(e); }
-  }
-
-  async function deleteMemory(id) {
-    await pywebview.api.delete_memory_ui(id);
-    toggleMemory();
-    toggleMemory();
-  }
-
-  async function toggleTrace() {
-    const panel = document.getElementById('trace-panel');
-    const isOpen = panel.style.display === 'block';
-    document.getElementById('memory-panel').style.display = 'none';
-    if (isOpen) { panel.style.display = 'none'; return; }
-    panel.style.display = 'block';
-    panel.innerHTML = '<div class="settings-label">EXECUTION TRACE</div>';
-    try {
-      const tasks = await pywebview.api.get_trace();
-      if (tasks.length === 0) {
-        panel.innerHTML += '<div style="font-size:11px; color: var(--text-secondary); padding: 8px 0;">No actions yet.</div>';
-        return;
-      }
-      tasks.forEach(t => {
-        const item = document.createElement('div');
-        item.style.cssText = 'padding:7px 0; border-bottom:1px solid var(--border); font-size:11px;';
-        const statusIcon = t.success ? '✓' : '✕';
-        const statusColor = t.success ? '#34d399' : '#fb7185';
-        item.innerHTML = `<span style="color:${statusColor}; font-weight:700;">${statusIcon}</span>
-          <span style="color: var(--text-primary); font-weight:600;"> ${t.tool_name}</span>
-          <span style="color: var(--text-secondary);"> · ${t.timestamp} · ${t.duration_ms}ms</span>`;
-        panel.appendChild(item);
-      });
-    } catch (e) { console.log(e); }
-  }
-  function toggleSettings() {
-    const panel = document.getElementById('settings-panel');
-    document.getElementById('memory-panel').style.display = 'none';
-    document.getElementById('trace-panel').style.display = 'none';
-    panel.classList.toggle('open');
-    if (panel.classList.contains('open')) populateAudioOptions();
   }
   function setTheme(t) {
     document.body.setAttribute('data-theme', t);
@@ -723,68 +1106,163 @@
     pywebview.api.set_accent(color);
   }
 
-  function renderChat(history) {
-    if (history.length === lastChatLen) return;
-    const chat = document.getElementById('chat');
-    history.slice(lastChatLen).forEach(([speaker, text]) => {
-      const isUser = speaker === 'You';
-      const div = document.createElement('div');
-      div.className = 'bubble ' + (isUser ? 'user' : 'atlas');
-      const youLabel = currentLang === 'ru' ? 'ВЫ' : 'YOU';
-      const atlasLabel = currentLang === 'ru' ? 'АТЛАС' : 'ATLAS';
+  /* ---------- memory / trace (now inline panels, not popovers) ---------- */
+  async function loadMemory() {
+    const box = document.getElementById('memory-list');
+    box.innerHTML = '';
+    try {
+      const memories = await pywebview.api.get_memories();
+      if (memories.length === 0) { box.innerHTML = `<div class="agenda-empty">${currentLang === 'ru' ? 'Пока ничего не сохранено.' : 'Nothing saved yet.'}</div>`; return; }
+      memories.forEach(m => {
+        const item = document.createElement('div');
+        item.className = 'list-item';
+        item.innerHTML = `<div><div style="font-size:9px; color: var(--accent); font-weight:700; letter-spacing:0.08em;">${m.category.toUpperCase()}</div>
+          <div style="margin-top:2px;">${m.content}</div>
+          <div style="font-size:9px; color: var(--text-secondary); margin-top:2px;">${m.created_at}</div></div>
+          <div style="cursor:pointer; color: var(--text-secondary); font-size:14px;" onclick="deleteMemory(${m.id})">✕</div>`;
+        box.appendChild(item);
+      });
+    } catch (e) { console.log(e); }
+  }
+  async function deleteMemory(id) { await pywebview.api.delete_memory_ui(id); loadMemory(); }
 
-      const speakerDiv = document.createElement('div');
-      speakerDiv.className = 'bubble-speaker mono';
-      speakerDiv.textContent = isUser ? youLabel : atlasLabel;
-      const textDiv = document.createElement('div');
-
-      div.appendChild(speakerDiv);
-      div.appendChild(textDiv);
-      chat.appendChild(div);
-
-      if (isUser) {
-        textDiv.textContent = text;
-        chat.scrollTop = chat.scrollHeight;
-      } else {
-        typeText(textDiv, text, () => { chat.scrollTop = chat.scrollHeight; });
-      }
-    });
-    lastChatLen = history.length;
+  async function loadTrace() {
+    const box = document.getElementById('trace-list');
+    box.innerHTML = '';
+    try {
+      const tasks = await pywebview.api.get_trace();
+      if (tasks.length === 0) { box.innerHTML = `<div class="agenda-empty">${currentLang === 'ru' ? 'Пока нет действий.' : 'No actions yet.'}</div>`; return; }
+      tasks.forEach(t => {
+        const item = document.createElement('div');
+        item.className = 'list-item';
+        const statusIcon = t.success ? '✓' : '✕';
+        const statusColor = t.success ? '#34d399' : '#fb7185';
+        item.innerHTML = `<span><span style="color:${statusColor}; font-weight:700;">${statusIcon}</span>
+          <span style="color: var(--text-primary); font-weight:600;"> ${t.tool_name}</span>
+          <span style="color: var(--text-secondary);"> · ${t.timestamp} · ${t.duration_ms}ms</span></span>`;
+        box.appendChild(item);
+      });
+    } catch (e) { console.log(e); }
   }
 
+  /* ---------- gauge helper (conic-gradient donut) ---------- */
+  function setGauge(id, percent) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const p = Math.max(0, Math.min(100, percent || 0));
+    el.style.setProperty('--pct', p);
+  }
+
+  /* ---------- home widgets ---------- */
+  async function loadAgenda() {
+    const box = document.getElementById('agenda-box');
+    box.innerHTML = `<div class="agenda-empty">${currentLang === 'ru' ? 'Загрузка...' : 'Loading...'}</div>`;
+    try {
+      const text = await pywebview.api.get_today_agenda();
+      box.innerHTML = `<div style="font-size:12px; white-space:pre-wrap; line-height:1.6;">${text}</div>`;
+    } catch (e) {
+      box.innerHTML = `<div class="agenda-empty">${currentLang === 'ru' ? 'Не удалось загрузить.' : 'Failed to load.'}</div>`;
+    }
+  }
+  async function loadNotes() {
+    const box = document.getElementById('notes-box');
+    box.innerHTML = `<div class="agenda-empty">${currentLang === 'ru' ? 'Загрузка...' : 'Loading...'}</div>`;
+    try {
+      const text = await pywebview.api.get_notes_ui();
+      box.innerHTML = `<div style="font-size:12px; white-space:pre-wrap; line-height:1.6;">${text}</div>`;
+    } catch (e) {
+      box.innerHTML = `<div class="agenda-empty">${currentLang === 'ru' ? 'Не удалось загрузить.' : 'Failed to load.'}</div>`;
+    }
+  }
+  async function loadRecentActivity() {
+    const box = document.getElementById('recent-activity-box');
+    box.innerHTML = `<div class="agenda-empty">${currentLang === 'ru' ? 'Загрузка...' : 'Loading...'}</div>`;
+    try {
+      const tasks = await pywebview.api.get_trace();
+      if (!tasks || tasks.length === 0) {
+        box.innerHTML = `<div class="agenda-empty">${currentLang === 'ru' ? 'Пока нет активности.' : 'No activity yet.'}</div>`;
+        return;
+      }
+      box.innerHTML = '';
+      tasks.slice(0, 8).forEach(t => {
+        const item = document.createElement('div');
+        item.className = 'activity-item';
+        const color = t.success ? '#34d399' : '#fb7185';
+        item.innerHTML = `<span class="activity-dot" style="background:${color};"></span>
+          <span style="flex:1;"><b>${t.tool_name}</b> <span style="color:var(--text-secondary);">· ${t.timestamp}</span></span>`;
+        box.appendChild(item);
+      });
+    } catch (e) {
+      box.innerHTML = `<div class="agenda-empty">${currentLang === 'ru' ? 'Не удалось загрузить.' : 'Failed to load.'}</div>`;
+    }
+  }
+
+  async function locateFile() {
+    const name = document.getElementById('file-query').value.trim();
+    if (!name) return;
+    const box = document.getElementById('file-result');
+    box.textContent = currentLang === 'ru' ? 'Ищу...' : 'Searching...';
+    try { box.textContent = await pywebview.api.locate_file_ui(name); }
+    catch (e) { box.textContent = String(e); }
+  }
+  async function openFile() {
+    const name = document.getElementById('file-query').value.trim();
+    if (!name) return;
+    const box = document.getElementById('file-result');
+    box.textContent = currentLang === 'ru' ? 'Открываю...' : 'Opening...';
+    try { box.textContent = await pywebview.api.open_file_ui(name); }
+    catch (e) { box.textContent = String(e); }
+  }
+
+  /* ---------- clock / date ---------- */
   function updateClock() {
     const now = new Date();
-    document.getElementById('clock').textContent = now.toLocaleTimeString('en-GB');
+    document.getElementById('topbar-clock').textContent = now.toLocaleTimeString('en-GB');
+    document.getElementById('topbar-date').textContent = now.toLocaleDateString(currentLang === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
   }
   setInterval(updateClock, 1000);
   updateClock();
 
+  /* ---------- main poll loop ---------- */
   async function pollState() {
     try {
       const s = await pywebview.api.get_state();
       currentState = s.state;
 
-      if (s.state === 'speaking') {
-        updateWaveform(s.speech_envelope, s.speech_elapsed, s.speech_duration);
-      } else {
-        document.getElementById('waveform').classList.remove('active');
-      }
+      if (s.state === 'speaking') updateWaveform(s.speech_envelope, s.speech_elapsed, s.speech_duration);
+      else document.getElementById('waveform').classList.remove('active');
 
       document.getElementById('state-label').textContent = stateLabelsDict[currentLang][s.state] || s.state.toUpperCase();
-      document.getElementById('subtitle').textContent = s.text.slice(0, 150);
-      document.getElementById('ticker').textContent = stateTickersDict[currentLang][s.state] || stateTickersDict[currentLang].idle;
+      const sub = document.getElementById('subtitle');
+      if (s.text) { sub.textContent = s.text.slice(0, 150); sub.dataset.userSet = '1'; }
 
-      document.getElementById('cpu-bar').style.width = s.cpu + '%';
-      document.getElementById('cpu-val').textContent = Math.round(s.cpu) + '%';
-      document.getElementById('ram-bar').style.width = s.ram + '%';
-      document.getElementById('ram-val').textContent = Math.round(s.ram) + '%';
+      document.getElementById('home-cpu').textContent = Math.round(s.cpu) + '%';
+      document.getElementById('home-ram').textContent = Math.round(s.ram) + '%';
+      setGauge('gauge-cpu', s.cpu);
+      setGauge('gauge-ram', s.ram);
+      if (s.battery_percent !== null && s.battery_percent !== undefined) {
+        document.getElementById('home-bat').textContent = Math.round(s.battery_percent) + '%' + (s.battery_charging ? ' ⚡' : '');
+        setGauge('gauge-bat', s.battery_percent);
+      } else {
+        document.getElementById('home-bat').textContent = '—';
+        setGauge('gauge-bat', 0);
+      }
+      document.getElementById('home-disk').textContent = Math.round(s.disk_percent) + '%';
+      setGauge('gauge-disk', s.disk_percent);
+      document.getElementById('home-uptime').textContent = s.uptime_hours + (currentLang === 'ru' ? ' ч' : 'h');
+
+      const chipMap = { listening: 'chip-understanding', thinking: 'chip-analyzing' };
+      const activeChip = chipMap[s.state] || 'chip-ready';
+      ['chip-understanding', 'chip-analyzing', 'chip-ready'].forEach(id => {
+        document.getElementById(id).classList.toggle('active', id === activeChip);
+      });
 
       renderChat(s.chat_history);
 
       const orb = document.getElementById('orb');
       const glowColor = s.state === 'listening' ? '#34d399' : s.state === 'thinking' ? '#fbbf24' :
                          s.state === 'speaking' ? s.accent_color : 'transparent';
-      orb.style.filter = glowColor === 'transparent' ? 'none' : `drop-shadow(0 0 22px ${glowColor})`;
+      orb.style.filter = glowColor === 'transparent' ? 'none' : `drop-shadow(0 0 18px ${glowColor})`;
 
       if (s.should_quit) { playShutdown(); return; }
     } catch (e) { console.log(e); }

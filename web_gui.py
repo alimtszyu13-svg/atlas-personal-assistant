@@ -73,6 +73,28 @@ class Api:
     def push_to_talk(self) -> None:
         from voice import trigger_push_to_talk
         trigger_push_to_talk()
+
+    def get_today_agenda(self) -> str:
+        try:
+            from calendar_control import list_today_events
+            return list_today_events()
+        except Exception as e:
+            return f"Calendar error: {e}"
+
+    def get_notes_ui(self) -> str:
+        try:
+            from notes import list_notes
+            return list_notes()
+        except Exception as e:
+            return f"Notes error: {e}"
+
+    def locate_file_ui(self, name: str) -> str:
+        from file_control import locate_file
+        return locate_file(name)
+
+    def open_file_ui(self, name: str) -> str:
+        from file_control import open_file
+        return open_file(name)
         
     def send_text_command(self, text: str) -> None:
         text = text.strip()
@@ -94,13 +116,27 @@ class Api:
         ненадёжным (зависание на середине анимации). Раз вся полезная
         работа (голос уже остановлен, фраза уже сказана) на этот момент
         сделана — жёсткий выход безопасен и предсказуем.
+
+        Перед выходом закрываем браузер Atlas'а (если был открыт) — иначе
+        Playwright не успевает корректно завершить свой Node-процесс до
+        os._exit(0), и в консоли остаётся некрасивый EPIPE crash-лог.
         """
         import os
+        try:
+            from browser_agent import browser_close
+            browser_close()
+        except Exception:
+            pass
         os._exit(0)
 
     def get_state(self) -> dict:
         speech_start = shared_state.get("speech_start_time", 0)
         speech_elapsed = time.time() - speech_start if speech_start else 0
+
+        battery = psutil.sensors_battery()
+        disk = psutil.disk_usage("/")
+        uptime_hours = round((time.time() - psutil.boot_time()) / 3600, 1)
+
         return {
             "state": shared_state.get("state", "idle"),
             "text": shared_state.get("text", ""),
@@ -109,6 +145,10 @@ class Api:
             "chat_history": shared_state.get("chat_history", [])[-30:],
             "cpu": psutil.cpu_percent(interval=None),
             "ram": psutil.virtual_memory().percent,
+            "battery_percent": battery.percent if battery else None,
+            "battery_charging": battery.power_plugged if battery else None,
+            "disk_percent": disk.percent,
+            "uptime_hours": uptime_hours,
             "should_quit": shared_state.get("should_quit", False),
             "speech_envelope": shared_state.get("speech_envelope", []),
             "speech_duration": shared_state.get("speech_duration", 0),
