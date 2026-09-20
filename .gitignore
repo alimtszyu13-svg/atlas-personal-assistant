@@ -1,10 +1,20 @@
-venv/
+# Личные/временные данные — не для git
+atlas_data.json
+atlasUITEST.html
+atlas_ui_backup.html
+browser_profile/
+temp_speech.mp3
+temp_speech.wav
+temp_stt.wav
+
+# Стандартная Python-гигиена
 __pycache__/
 *.pyc
+venv/
 .env
 credentials.json
 token.json
 build/
 dist/
-*.spec
 atlas.db
+Atlas.spec

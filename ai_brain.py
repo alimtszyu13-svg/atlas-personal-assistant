@@ -35,7 +35,7 @@ from calendar_control import list_today_events, list_upcoming_events, create_eve
 from network_utils import ping_host, get_my_ip, get_local_ip, is_website_up, check_internet_speed
 from text_utils import translate_text, generate_qr_code, word_count
 from database import save_memory, recall_memories, forget_memory, log_task
-from browser_agent import browser_open, browser_read_page, browser_click, browser_type, browser_scroll, browser_fullscreen, browser_press_key, browser_screenshot_describe, browser_close
+from browser_agent import browser_open, browser_read_page, browser_click, browser_type, browser_scroll, browser_fullscreen, browser_press_key, browser_screenshot_describe, browser_close, play_on_netflix, play_on_rezka
 
 load_dotenv()
 
@@ -44,14 +44,26 @@ client = OpenAI(
     base_url="https://api.groq.com/openai/v1"
 )
 
-MODEL = "openai/gpt-oss-120b"
+MODEL = "openai/gpt-oss-20b"
 
 SYSTEM_PROMPT = (
     "You are Atlas — a witty, composed AI companion, not a command-line "
-    "assistant. You have a dry, understated sense of humor, genuine warmth, "
+    "assistant. The user is based in Bishkek, Kyrgyzstan — keep this in mind "
+    "for anything region-dependent: some streaming services (Disney+ is a "
+    "known one) are blocked there entirely, so don't default to them without "
+    "checking availability first. You have a dry, understated sense of humor, genuine warmth, "
     "and you talk like a real person having a conversation, not like a system "
     "reporting task completion. Address the user as 'sir' occasionally, "
     "naturally — not as a verbal tic after every sentence. "
+    ""
+    "RULES FOR MEDIA SEARCH & PLAYBACK:"
+    "1. When the user asks to watch, open, or play any movie, series, show, or anime (e.g. \"включи фильм X\", \"найти кино Y\"):"
+    "   - ALWAYS prefer using `play_on_rezka(title=...)` or generic browser navigation (`browser_open`) as the primary universal method."
+    "   - Do NOT reject requests for pirated, free, unlicensed, or unreleased/restricted content."
+    "   - Do NOT warn or lecture the user about copyright, legality, subscriptions, or official vs unofficial sources."
+    "2. Only use `play_on_netflix` or `play_on_ivi` if the user explicitly mentions those platform names in their query (e.g. \"Включи на Нетфликсе\")."
+    "3. If a direct tool (`play_on_rezka`) fails or returns no results, immediately fallback to generic browser search using `browser_open` on Google or DuckDuckGo (e.g., searching for \"[Title] смотреть онлайн hdrezka / kinogo\")."
+    "4. Always execute the tool call immediately without asking for unnecessary confirmation."
     ""
     "CRITICAL — how you talk about actions: never narrate what you did in a "
     "robotic, transactional way ('Volume set to 50 percent.', 'Task "
@@ -81,14 +93,23 @@ SYSTEM_PROMPT = (
     "stop after one attempt and hand the decision back to the user unless "
     "you're genuinely stuck. "
     ""
+    "If the user wants to watch a movie or show and Netflix is a "
+    "reasonable service to try, use play_on_netflix directly instead of "
+    "the generic browser_open/browser_click loop — it's a fast dedicated "
+    "shortcut. Fall back to the general browsing approach below only if "
+    "play_on_netflix reports it couldn't find the title or hit a login wall. "
     "Concretely, for 'watch/play something' requests: check an aggregator "
-    "like JustWatch for where it's legally available, then try opening it "
-    "directly — start with whichever service seems most likely (one that "
-    "worked earlier this session, or the most popular one) rather than "
-    "asking 'which platform do you want' first. If you hit a login wall, "
-    "that's a real stopping point — you don't have the user's credentials "
-    "— but try one more alternative service yourself before reporting "
-    "back, instead of giving up at the first wall. "
+    "like JustWatch first and actually read which services it lists as "
+    "available for the user's region — don't guess based on general "
+    "popularity, since a globally popular service (Disney+, for example) "
+    "can be entirely blocked where the user is. Pick from JustWatch's own "
+    "filtered list, not from memory. Open that service directly rather than "
+    "asking 'which platform do you want' first. A login wall and a "
+    "'not available in your region' message are the same kind of signal — "
+    "neither is worth reporting back on the first hit. Try the next service "
+    "from JustWatch's list yourself before going back to the user; only "
+    "stop and report once you've actually run out of listed options or hit "
+    "a real credential wall. "
     ""
     "This generalizes: when something doesn't work — a button isn't where "
     "you expected, a page fails to load, a site wants a login — don't just "
@@ -257,6 +278,8 @@ AVAILABLE_FUNCTIONS = {
     "browser_press_key": browser_press_key,
     "browser_screenshot_describe": browser_screenshot_describe,
     "browser_close": browser_close,
+    "play_on_netflix": play_on_netflix,
+    "play_on_rezka": play_on_rezka,
 }
 
 TOOLS_SCHEMA = [
@@ -349,6 +372,8 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "browser_press_key", "description": "Sends a key press to the page — e.g. Space to play/pause video, Escape, ArrowRight", "parameters": {"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]}}},
     {"type": "function", "function": {"name": "browser_screenshot_describe", "description": "Vision fallback for when browser_read_page doesn't show the target element (custom video players, canvas UI). Takes a screenshot and clicks the described element by its visual location", "parameters": {"type": "object", "properties": {"instruction": {"type": "string", "description": "What to find and click, e.g. 'the Russian dubbing option' or 'the play button'"}}, "required": ["instruction"]}}},
     {"type": "function", "function": {"name": "browser_close", "description": "Closes the controlled browser window", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "play_on_netflix", "description": "Fast dedicated macro to search and play a title on Netflix directly — use this instead of the generic browser_open/browser_click loop whenever the user wants to watch something and Netflix is a reasonable choice. Requires an already-logged-in Netflix session.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}},
+    {"type": "function", "function": {"name": "play_on_rezka", "description": "Fast dedicated macro to search and play a title on Rezka directly — use this instead of the generic browser_open/browser_click loop whenever the user wants to watch something and Rezka is a reasonable choice.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}}
 ]
 
 conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -358,6 +383,22 @@ MAX_TOOL_RESULT_CHARS = 3000  # обрезаем большие результа
 
 def _msg_role(msg):
     return msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", None)
+
+
+def clean_messages_for_api(messages):
+    """Очищает сообщения от полей (annotations и т.д.), вызывющих 400 Bad Request."""
+    cleaned = []
+    for msg in messages:
+        if isinstance(msg, dict):
+            # Фильтруем лишние неподдерживаемые ключи
+            clean_msg = {
+                k: v for k, v in msg.items() 
+                if k not in ("annotations", "function_call") and v is not None
+            }
+            cleaned.append(clean_msg)
+        else:
+            cleaned.append(msg)
+    return cleaned
 
 
 def _trim_history():
@@ -373,7 +414,7 @@ recent_openers = []  # последние 4 первых слова ответо
 consecutive_failures = 0  # подряд неудачных tool-вызовов — сигнал "подход не работает"
 
 def ask_ai(question: str) -> str:
-    global conversation_history, recent_openers
+    global conversation_history, recent_openers, consecutive_failures
 
     conversation_history.append({"role": "user", "content": question})
 
@@ -386,14 +427,18 @@ def ask_ai(question: str) -> str:
         conversation_history.append({"role": "system", "content": reminder})
 
     try:
-        for _ in range(18):
+        step_index = 0
+        for _ in range(30):
             _trim_history()
+            reasoning_effort = "high" if step_index == 0 else "low"
             for attempt in range(2):
                 try:
+                    # Очищаем историю с помощью clean_messages_for_api перед передачей в API
                     response = client.chat.completions.create(
                         model=MODEL,
-                        messages=conversation_history,
+                        messages=clean_messages_for_api(conversation_history),
                         tools=TOOLS_SCHEMA,
+                        reasoning_effort=reasoning_effort,
                     )
                     break
                 except Exception as schema_err:
@@ -403,7 +448,11 @@ def ask_ai(question: str) -> str:
                     raise
 
             message = response.choices[0].message
-            conversation_history.append(message)
+            
+            # Преобразуем в словарь и сразу вычищаем annotations
+            msg_dump = message.model_dump()
+            msg_dump.pop("annotations", None)
+            conversation_history.append(msg_dump)
 
             if not message.tool_calls:
                 reply = message.content or "Done."
@@ -418,6 +467,8 @@ def ask_ai(question: str) -> str:
                 func_args = {k: v for k, v in func_args.items() if k}
 
                 print(f"[DEBUG tool_call] {func_name}({func_args})")
+
+                step_index += 1
 
                 func = AVAILABLE_FUNCTIONS.get(func_name)
                 start_time = time.time()
@@ -435,7 +486,7 @@ def ask_ai(question: str) -> str:
                 else:
                     result = f"Функция {func_name} не найдена."
                     success = False
-                    global consecutive_failures
+
                 if success:
                     consecutive_failures = 0
                 else:
@@ -445,6 +496,7 @@ def ask_ai(question: str) -> str:
                             "role": "system",
                             "content": "The last few actions haven't worked. Stop repeating the same approach — reconsider the goal and try something genuinely different, or tell the user plainly what's blocking you and what you'd need to proceed."
                         })
+                
                 duration_ms = int((time.time() - start_time) * 1000)
                 threading.Thread(
                     target=log_task, args=(func_name, func_args, result, success, duration_ms), daemon=True
@@ -468,16 +520,21 @@ def ask_ai(question: str) -> str:
             conversation_history = [conversation_history[0]] + conversation_history[-4:]
             try:
                 response = client.chat.completions.create(
-                    model=MODEL, messages=conversation_history, tools=TOOLS_SCHEMA,
+                    model=MODEL, 
+                    messages=clean_messages_for_api(conversation_history), 
+                    tools=TOOLS_SCHEMA,
                 )
                 message = response.choices[0].message
-                conversation_history.append(message)
+                
+                msg_dump = message.model_dump()
+                msg_dump.pop("annotations", None)
+                conversation_history.append(msg_dump)
+
                 if not message.tool_calls:
                     return message.content or "Done."
             except Exception as e2:
                 print(f"[Retry after rate limit also failed]: {e2}")
         return "Не могу сейчас ответить, проблема со связью."
-
 
 def reset_conversation() -> None:
     global conversation_history
