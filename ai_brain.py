@@ -3,6 +3,7 @@ import json
 import threading
 import time
 import inspect
+from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -35,7 +36,8 @@ from calendar_control import list_today_events, list_upcoming_events, create_eve
 from network_utils import ping_host, get_my_ip, get_local_ip, is_website_up, check_internet_speed
 from text_utils import translate_text, generate_qr_code, word_count
 from database import save_memory, recall_memories, forget_memory, log_task
-from browser_agent import browser_open, browser_read_page, browser_click, browser_type, browser_scroll, browser_fullscreen, browser_press_key, browser_screenshot_describe, browser_close, play_on_netflix, play_on_rezka
+from browser_agent import browser_open, browser_read_page, browser_click, browser_type, browser_scroll, browser_fullscreen, browser_press_key, browser_screenshot_describe, browser_close, next_episode, play_on_netflix, play_on_rezka, media_play_pause, media_seek, media_volume, media_player_fullscreen, change_rezka_quality, change_rezka_translator, select_rezka_episode, next_episode, skip_intro
+   
 
 load_dotenv()
 
@@ -280,6 +282,15 @@ AVAILABLE_FUNCTIONS = {
     "browser_close": browser_close,
     "play_on_netflix": play_on_netflix,
     "play_on_rezka": play_on_rezka,
+    "media_play_pause": media_play_pause,
+    "media_seek": media_seek,
+    "media_volume": media_volume,
+    "media_player_fullscreen": media_player_fullscreen,
+    "change_rezka_quality": change_rezka_quality,
+    "change_rezka_translator": change_rezka_translator,
+    "select_rezka_episode": select_rezka_episode,
+    "next_episode": next_episode,
+    "skip_intro": skip_intro,
 }
 
 TOOLS_SCHEMA = [
@@ -373,7 +384,17 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "browser_screenshot_describe", "description": "Vision fallback for when browser_read_page doesn't show the target element (custom video players, canvas UI). Takes a screenshot and clicks the described element by its visual location", "parameters": {"type": "object", "properties": {"instruction": {"type": "string", "description": "What to find and click, e.g. 'the Russian dubbing option' or 'the play button'"}}, "required": ["instruction"]}}},
     {"type": "function", "function": {"name": "browser_close", "description": "Closes the controlled browser window", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "play_on_netflix", "description": "Fast dedicated macro to search and play a title on Netflix directly — use this instead of the generic browser_open/browser_click loop whenever the user wants to watch something and Netflix is a reasonable choice. Requires an already-logged-in Netflix session.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}},
-    {"type": "function", "function": {"name": "play_on_rezka", "description": "Fast dedicated macro to search and play a title on Rezka directly — use this instead of the generic browser_open/browser_click loop whenever the user wants to watch something and Rezka is a reasonable choice.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}}
+    {"type": "function", "function": {"name": "play_on_rezka", "description": "Fast dedicated macro to search and play a title on Rezka directly — use this instead of the generic browser_open/browser_click loop whenever the user wants to watch something and Rezka is a reasonable choice.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}},
+    {"type": "function", "function": {"name": "media_play_pause", "description": "Toggles play or pause for the currently playing video/movie.", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "media_seek", "description": "Seeks the video forward or backward.", "parameters": {"type": "object", "properties": {"direction": {"type": "string", "enum": ["forward", "backward"]}}, "required": ["direction"]}}},
+    {"type": "function", "function": {"name": "media_volume", "description": "Adjusts the video volume. Use 'mute' to toggle sound on/off.", "parameters": {"type": "object", "properties": {"action": {"type": "string", "enum": ["up", "down", "mute"]}}, "required": ["action"]}}},
+    {"type": "function", "function": {"name": "media_player_fullscreen", "description": "Toggles the web video player into fullscreen mode.", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "change_rezka_quality", "description": "Changes the video quality on HDRezka (e.g., '1080p', '720p', '480p').", "parameters": {"type": "object", "properties": {"quality": {"type": "string", "description": "The desired quality, e.g. '1080p'"}}, "required": ["quality"]}}},
+    {"type": "function", "function": {"name": "change_rezka_translator", "description": "Changes the voiceover/translation (озвучка) on HDRezka (e.g., 'LostFilm', 'Кубик в кубе').", "parameters": {"type": "object", "properties": {"translator_name": {"type": "string"}}, "required": ["translator_name"]}}},
+    {"type": "function", "function": {"name": "select_rezka_episode", "description": "Selects a specific season and episode of a TV show on HDRezka.", "parameters": {"type": "object", "properties": {"season": {"type": "integer"}, "episode": {"type": "integer"}}, "required": ["season", "episode"]}}},
+    {"type": "function", "function": {"name": "next_episode", "description": "Plays the next episode of the currently watching TV show.", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "skip_intro", "description": "Clicks the 'Skip Intro' or 'Пропустить заставку' button on Netflix, Ivi, Rezka, etc.", "parameters": {"type": "object", "properties": {}}}},
+
 ]
 
 conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -409,6 +430,45 @@ def _trim_history():
     while trimmed and _msg_role(trimmed[0]) == "tool":
         trimmed = trimmed[1:]
     conversation_history = [conversation_history[0]] + trimmed
+def _context_snapshot(question: str) -> str:
+    parts = [datetime.now().strftime("%A %d.%m.%Y, %H:%M")]
+    title = ""
+    try:
+        import pygetwindow as gw
+        w = gw.getActiveWindow()
+        title = (w.title or "").strip() if w else ""
+        if title:
+            parts.append(f"active window: {title[:80]}")
+    except Exception as e:
+        print(f"[context] window read failed: {e}")
+
+    q = question.lower()
+    wants_selection = any(k in q for k in ("select", "highlight", "выдел"))
+    wants_clipboard = wants_selection or any(k in q for k in (
+        "это", "this", "that", "скопир", "copied", "буфер", "clipboard"))
+
+    # Ctrl+C имеет смысл, только если в фокусе окно с текстом, а не сам Atlas
+    if wants_selection and title and title.upper() != "ATLAS":
+        try:
+            import pyautogui
+            pyautogui.hotkey("ctrl", "c")
+            time.sleep(0.15)
+        except Exception as e:
+            print(f"[context] ctrl+c failed: {e}")
+
+    if wants_clipboard:
+        try:
+            import pyperclip
+            clip = pyperclip.paste().strip()
+            if clip:
+                parts.append(f"clipboard: {clip[:300]}")
+            else:
+                print("[context] clipboard is empty")
+        except Exception as e:
+            print(f"[context] clipboard read failed: {e}")
+
+    return ("Current context (use it to resolve vague references like "
+            "'this'/'это'/'selected text'): " + " | ".join(parts))
 
 recent_openers = []  # последние 4 первых слова ответов — для анти-повтора
 consecutive_failures = 0  # подряд неудачных tool-вызовов — сигнал "подход не работает"
@@ -426,9 +486,12 @@ def ask_ai(question: str) -> str:
         )
         conversation_history.append({"role": "system", "content": reminder})
 
+    context_msg = {"role": "system", "content": _context_snapshot(question)}
+    print(f"[DEBUG context] {context_msg['content']}")
+
     try:
         step_index = 0
-        for _ in range(30):
+        for _ in range(8):
             _trim_history()
             reasoning_effort = "high" if step_index == 0 else "low"
             for attempt in range(2):
@@ -436,7 +499,7 @@ def ask_ai(question: str) -> str:
                     # Очищаем историю с помощью clean_messages_for_api перед передачей в API
                     response = client.chat.completions.create(
                         model=MODEL,
-                        messages=clean_messages_for_api(conversation_history),
+                        messages=clean_messages_for_api(conversation_history) + [context_msg],
                         tools=TOOLS_SCHEMA,
                         reasoning_effort=reasoning_effort,
                     )

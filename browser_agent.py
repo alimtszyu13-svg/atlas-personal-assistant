@@ -126,16 +126,16 @@ def play_on_rezka(title: str) -> str:
 
     # 2. Переходим по первой найденной ссылке
     try:
-        # Ищем ссылку на результат в выдаче DDG
-        first_link = page.query_selector("a.result__snippet") or page.query_selector("a.result__url")
+        # Улучшенные селекторы DuckDuckGo
+        first_link = page.query_selector("a.result__snippet, a.result__url, a.result__a")
         if not first_link:
             return f"Не смог найти прямую ссылку на «{title}»."
         
         first_link.click()
         page.wait_for_timeout(4000) # Ждем, пока пройдет редирект и загрузится сам онлайн-кинотеатр
     except Exception as e:
-        print(f"[Rezka] Ошибка клика по результату поиска: {e}")
-        return "Ошибка при переходе на сайт."
+        print(f"[Rezka] Ошибка перехода: {e}")
+        return f"Ошибка перехода на сайт Резки: {e}"
 
     # 3. Обход Anubis/Cloudflare уже на самой странице фильма (если вылезет)
     print("[Rezka] Ожидание загрузки плеера...")
@@ -381,7 +381,232 @@ def play_on_netflix(title: str) -> str:
     page.keyboard.press("F11")
     return f"Запустил «{title}» на Netflix, на весь экран."
 
+def _focus_player_fallback(page, key_to_press):
+    """Страховочный захват фокуса перед нажатием горячей клавиши"""
+    try:
+        page.mouse.click(page.viewport_size['width'] / 2, page.viewport_size['height'] / 2)
+        page.wait_for_timeout(100)
+        page.keyboard.press(key_to_press)
+    except Exception:
+        pass
+
 @run_in_browser_thread
+def media_play_pause() -> str:
+    page = _ensure_browser()
+    try:
+        js = """() => {
+            const v = document.querySelector('video');
+            if (v) { v.paused ? v.play() : v.pause(); return true; }
+            return false;
+        }"""
+        if not page.evaluate(js):
+            _focus_player_fallback(page, "Space")
+    except Exception:
+        _focus_player_fallback(page, "Space")
+    return "Нажал Play/Pause."
+
+@run_in_browser_thread
+def media_seek(direction: str) -> str:
+    page = _ensure_browser()
+    offset = 15 if direction == "forward" else -15
+    try:
+        js = f"""() => {{
+            const v = document.querySelector('video');
+            if (v) {{ v.currentTime += {offset}; return true; }}
+            return false;
+        }}"""
+        if not page.evaluate(js):
+            key = "ArrowRight" if direction == "forward" else "ArrowLeft"
+            _focus_player_fallback(page, key)
+            page.wait_for_timeout(100)
+            page.keyboard.press(key)
+    except Exception:
+        pass
+    return f"Перемотал {'вперед' if direction == 'forward' else 'назад'}."
+
+@run_in_browser_thread
+def media_volume(action: str) -> str:
+    page = _ensure_browser()
+    try:
+        js = f"""() => {{
+            const v = document.querySelector('video');
+            if (v) {{
+                if ('{action}' === 'mute') {{ v.muted = !v.muted; }}
+                else if ('{action}' === 'up') {{ v.volume = Math.min(1, v.volume + 0.1); }}
+                else {{ v.volume = Math.max(0, v.volume - 0.1); }}
+                return true;
+            }}
+            return false;
+        }}"""
+        if not page.evaluate(js):
+            key = "m" if action == "mute" else ("ArrowUp" if action == "up" else "ArrowDown")
+            _focus_player_fallback(page, key)
+    except Exception:
+        pass
+    return f"Изменил громкость ({action})."
+
+@run_in_browser_thread
+def media_player_fullscreen() -> str:
+    page = _ensure_browser()
+    try:
+        js = """() => {
+            const v = document.querySelector('video');
+            if (v) {
+                if (document.fullscreenElement) { document.exitFullscreen(); }
+                else { const c = v.closest('.pjsip-container, .player, #player'); (c || v).requestFullscreen(); }
+                return true;
+            }
+            return false;
+        }"""
+        if not page.evaluate(js):
+            _focus_player_fallback(page, "f")
+    except Exception:
+        _focus_player_fallback(page, "f")
+    return "Переключил полноэкранный режим плеера."
+
+@run_in_browser_thread
+def change_rezka_quality(quality: str) -> str:
+    page = _ensure_browser()
+    try:
+        gear = page.query_selector(".pjsip-settings-icon, pjsip-settings-icon, #pjs-settings-icon")
+        if not gear: return "Не нашел кнопку настроек на плеере."
+        
+        gear.click()
+        page.wait_for_timeout(500)
+        
+        # Жесткий таймаут в 3 секунды, чтобы скрипт не завис навсегда
+        quality_element = page.get_by_text(quality, exact=False).first
+        if quality_element:
+            quality_element.click(timeout=3000)
+            return f"Качество изменено на {quality}."
+        
+        return f"Качество '{quality}' не найдено в списке доступных."
+    except Exception as e:
+        return f"Ошибка изменения качества: {e}"
+
+@run_in_browser_thread
+def change_rezka_translator(translator_name: str) -> str:
+    page = _ensure_browser()
+    try:
+        query = translator_name.lower()
+        if any(w in query for w in ["original", "оригинал", "англ", "english", "субтитры", "sub"]):
+            keywords = ["оригинал", "original", "eng", "english", "субтитры", "sub"]
+        else:
+            keywords = [query]
+
+        translators = page.query_selector_all(".b-translator__item")
+        for t in translators:
+            text = (t.inner_text() or "").lower()
+            if any(kw in text for kw in keywords):
+                t.click()
+                return f"Включил озвучку: {t.inner_text().strip()}."
+                
+        return f"Не нашел озвучку, подходящую под '{translator_name}'."
+    except Exception as e:
+        return f"Ошибка при смене озвучки: {e}"
+
+@run_in_browser_thread
+def select_rezka_episode(season: int, episode: int) -> str:
+    """Включает конкретный сезон и серию на HDRezka."""
+    page = _ensure_browser()
+    try:
+        # 1. Ищем и кликаем нужный сезон
+        season_elem = page.query_selector(f".b-simple_seasons__list_item[data-tab_id='{season}']")
+        if season_elem:
+            season_elem.click()
+            page.wait_for_timeout(800) # Ждем подгрузку списка серий
+        else:
+            return f"Не смог найти {season} сезон. Возможно, это фильм или сезон еще не вышел."
+
+        # 2. Ищем и кликаем нужную серию
+        episode_elem = page.query_selector(f".b-simple_episodes__list_item[data-season_id='{season}'][data-episode_id='{episode}']")
+        if episode_elem:
+            episode_elem.click()
+            return f"Успешно включил {season} сезон, {episode} серию."
+        
+        return f"Не нашел {episode} серию в {season} сезоне."
+    except Exception as e:
+        return f"Ошибка переключения серии: {e}"
+    
+@run_in_browser_thread
+def next_episode() -> str:
+    """Универсальная кнопка 'Следующая серия' для Netflix, Ivi, Rezka и других."""
+    page = _ensure_browser()
+    try:
+        url = page.url
+
+        # 1. Специфично для Netflix
+        if "netflix.com" in url:
+            nxt = page.query_selector("button[data-uia*='next-episode']")
+            if nxt:
+                nxt.click()
+                return "Включил следующую серию на Netflix."
+
+        # 2. Специфично для Ivi
+        if "ivi.ru" in url:
+            nxt = page.query_selector("button[aria-label*='Следующая'], [class*='next-episode']")
+            if nxt:
+                nxt.click()
+                return "Включил следующую серию на Ivi."
+
+        # 3. Универсальный плеер PlayerJS (почти все пиратские сайты: Rezka, Kinogo и т.д.)
+        next_btn = page.query_selector(".pjsip-next, #pjs-next-button")
+        if next_btn:
+            next_btn.click()
+            return "Включил следующую серию в плеере."
+        
+        # 4. Резервный поиск по боковому меню (как на Rezka)
+        js = """() => {
+            const active = document.querySelector('.b-simple_episodes__list_item.active');
+            if (active && active.nextElementSibling) {
+                active.nextElementSibling.click();
+                return true;
+            }
+            return false;
+        }"""
+        if page.evaluate(js):
+            return "Переключил на следующую серию через список."
+
+        return "Не смог определить, как включить следующую серию на этом сайте."
+    except Exception as e:
+        return f"Ошибка переключения эпизода: {e}"
+
+@run_in_browser_thread
+def skip_intro() -> str:
+    """Нажимает 'Пропустить заставку/интро' на Netflix, Ivi или Резке."""
+    page = _ensure_browser()
+    try:
+        url = page.url
+        
+        # 1. Точный селектор для Netflix
+        if "netflix.com" in url:
+            skip = page.query_selector("button[data-uia*='skip-intro']")
+            if skip:
+                skip.click()
+                return "Пропустил заставку на Netflix."
+        
+        # 2. Поиск любой кнопки с текстом "Пропустить" (работает на Ivi, Резке, Кинопоиске)
+        js = """() => {
+            const elements = Array.from(document.querySelectorAll('button, div, span, a'));
+            const skipBtn = elements.find(el => {
+                const text = (el.innerText || '').toLowerCase();
+                return text.includes('пропустить') || text.includes('skip');
+            });
+            if (skipBtn) { 
+                skipBtn.click(); 
+                return true; 
+            }
+            return false;
+        }"""
+        if page.evaluate(js):
+            return "Пропустил заставку."
+            
+        return "Кнопка 'Пропустить заставку' не найдена на экране."
+    except Exception as e:
+        return f"Ошибка пропуска заставки: {e}"
+
+    
+    
 def browser_close() -> str:
     """Closes the controlled browser window."""
     global _browser, _playwright, _page
