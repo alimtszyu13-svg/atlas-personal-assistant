@@ -18,3 +18,9 @@ build/
 dist/
 atlas.db
 Atlas.spec
+file_index.db
+temp_cache/
+*.bak
+*.bak2
+*.bak3
+*.bak4

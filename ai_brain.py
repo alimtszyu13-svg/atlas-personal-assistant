@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import threading
 import time
 import inspect
@@ -7,7 +8,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from system_control import open_app, close_app, open_youtube, open_url, search_google
+from system_control import open_app, close_app, open_youtube, open_url, search_google, play_on_spotify, play_on_youtube_music
 from info_services import get_weather, get_news
 from file_control import (
     open_file, create_folder, delete_file, locate_file,
@@ -36,8 +37,10 @@ from calendar_control import list_today_events, list_upcoming_events, create_eve
 from network_utils import ping_host, get_my_ip, get_local_ip, is_website_up, check_internet_speed
 from text_utils import translate_text, generate_qr_code, word_count
 from database import save_memory, recall_memories, forget_memory, log_task
-from browser_agent import browser_open, browser_read_page, browser_click, browser_type, browser_scroll, browser_fullscreen, browser_press_key, browser_screenshot_describe, browser_close, next_episode, play_on_netflix, play_on_rezka, media_play_pause, media_seek, media_volume, media_player_fullscreen, change_rezka_quality, change_rezka_translator, select_rezka_episode, next_episode, skip_intro
-   
+import tool_router
+from browser_agent import browser_open, browser_read_page, browser_click, browser_type, browser_scroll, browser_fullscreen, browser_press_key, browser_screenshot_describe, browser_close, next_episode, play_on_netflix, play_on_rezka, media_play_pause, media_seek, media_volume, media_player_fullscreen, change_rezka_quality, change_rezka_translator, select_rezka_episode, skip_intro   
+from deep_links import launch_steam_game, list_steam_games, open_deep_link  
+from file_search import search_file_content, open_found_file
 
 load_dotenv()
 
@@ -46,7 +49,9 @@ client = OpenAI(
     base_url="https://api.groq.com/openai/v1"
 )
 
-MODEL = "openai/gpt-oss-20b"
+MODEL_SMART = "openai/gpt-oss-120b"   # первый шаг — понять задачу и спланировать
+MODEL_FAST = "openai/gpt-oss-20b"     # дальше — просто исполнять шаги
+MODEL = MODEL_FAST                    # для запасного вызова в блоке rate limit
 
 SYSTEM_PROMPT = (
     "You are Atlas — a witty, composed AI companion, not a command-line "
@@ -87,6 +92,13 @@ SYSTEM_PROMPT = (
     "open with a short natural aside like 'give me a second' or 'let me "
     "check' (or the Russian equivalent), but only occasionally, never as a "
     "fixed tic before every single action. Most of the time just act. "
+    ""
+    "For any request needing 2+ actions, call update_plan FIRST: the goal in "
+    "the user's own terms, 2-6 concrete steps, and a done_when condition you "
+    "can actually observe. Revise the plan with update_plan when reality "
+    "differs from what you expected. Never tell the user something is done "
+    "unless a tool result in this conversation confirms done_when — if you "
+    "only searched, say you searched. "
     ""
     "You have real autonomy, and the user expects you to use it. When "
     "someone gives you a goal rather than a literal step-by-step "
@@ -129,6 +141,11 @@ SYSTEM_PROMPT = (
     "something fails or gets cancelled, stay calm and dryly funny rather than "
     "apologetic or clinical. "
     ""
+    "When the user is looking for a file but describes what is INSIDE it "
+    "rather than its name ('the file where I wrote about my algebra "
+    "textbook'), use search_file_content — locate_file only matches "
+    "filenames and will not find it. "
+    ""
     "You have a large toolkit: apps, files, weather, news, timers, system "
     "info, web search, email, system volume/brightness/lock/screenshot/"
     "processes, media playback, developer tools, jokes, facts, a number "
@@ -168,6 +185,11 @@ SYSTEM_PROMPT = (
     "browser_screenshot_describe as a fallback; it's slower and costs an "
     "extra model call, so don't reach for it first. "
     ""
+    "Prefer a native app or a direct deep link over browsing. For music use "
+    "play_on_spotify — never open open.spotify.com in the browser. Generally, "
+    "if a direct URL or app protocol gets there in one step, use it instead "
+    "of a multi-step browser session. "
+    ""
     "CRITICAL for speed: never browser_open a search engine itself "
     "(google.com/search, bing.com, duckduckgo.com) to type a query and click "
     "through results — that page is slow and heavy (JS, cookie banners, ads) "
@@ -188,9 +210,20 @@ SYSTEM_PROMPT = (
     "a payment/checkout flow (card number, CVV, 'place order', 'pay now') "
     "without the user explicitly confirming out loud first — the tools "
     "themselves will refuse these, but don't try to work around that refusal."
+    "If browser tools return errors like 'Execution context was destroyed' or if you cannot find the requested element in the DOM tree, do not repeat the same action. Instantly use browser_screenshot_describe."
 )
+current_plan = None
 
+
+def update_plan(goal: str, steps: list, done_when: str) -> str:
+    """Записывает или пересматривает план текущей многошаговой задачи."""
+    global current_plan
+    current_plan = {"goal": goal, "steps": steps, "done_when": done_when}
+    return f"План записан. Цель: {goal}. Готово когда: {done_when}"
 AVAILABLE_FUNCTIONS = {
+    "update_plan": update_plan,
+    "play_on_spotify": play_on_spotify,
+    "play_on_youtube_music": play_on_youtube_music,
     "open_app": open_app,
     "close_app": close_app,
     "open_youtube": open_youtube,
@@ -291,10 +324,18 @@ AVAILABLE_FUNCTIONS = {
     "select_rezka_episode": select_rezka_episode,
     "next_episode": next_episode,
     "skip_intro": skip_intro,
+    "launch_steam_game": launch_steam_game,
+    "list_steam_games": list_steam_games,
+    "open_deep_link": open_deep_link,
+    "search_file_content": search_file_content,
+    "open_found_file": open_found_file,
 }
 
 TOOLS_SCHEMA = [
+    {"type": "function", "function": {"name": "update_plan", "description": "Record the plan for a multi-step task before acting. Call this FIRST for anything needing 2+ actions. done_when must be an observable condition a tool result can confirm.", "parameters": {"type": "object", "properties": {"goal": {"type": "string"}, "steps": {"type": "array", "items": {"type": "string"}}, "done_when": {"type": "string"}}, "required": ["goal", "steps", "done_when"]}}},
     {"type": "function", "function": {"name": "open_app", "description": "Opens an application on the computer by name", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
+    {"type": "function", "function": {"name": "play_on_spotify", "description": "Opens the Spotify DESKTOP app straight at a search — instant, no browser needed. Always prefer this over browsing open.spotify.com for any music request.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}}}},
+    {"type": "function", "function": {"name": "play_on_youtube_music", "description": "Opens YouTube Music directly at a search query", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
     {"type": "function", "function": {"name": "close_app", "description": "Closes a running application by name", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
     {"type": "function", "function": {"name": "open_youtube", "description": "Opens YouTube search results for a query or video name", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
     {"type": "function", "function": {"name": "open_url", "description": "Opens a URL in the default browser", "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}},
@@ -381,7 +422,7 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "browser_scroll", "description": "Scrolls the page up or down", "parameters": {"type": "object", "properties": {"direction": {"type": "string", "description": "'up' or 'down'"}, "amount": {"type": "integer"}}}}},
     {"type": "function", "function": {"name": "browser_fullscreen", "description": "Toggles the browser window fullscreen (F11). For a video player's own fullscreen button, use browser_click on it instead", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "browser_press_key", "description": "Sends a key press to the page — e.g. Space to play/pause video, Escape, ArrowRight", "parameters": {"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]}}},
-    {"type": "function", "function": {"name": "browser_screenshot_describe", "description": "Vision fallback for when browser_read_page doesn't show the target element (custom video players, canvas UI). Takes a screenshot and clicks the described element by its visual location", "parameters": {"type": "object", "properties": {"instruction": {"type": "string", "description": "What to find and click, e.g. 'the Russian dubbing option' or 'the play button'"}}, "required": ["instruction"]}}},
+    {"type": "function", "function": {"name": "browser_screenshot_describe", "description": "EMERGENCY FALLBACK: Use this if `browser_read_page` doesn't show the target element or if DOM clicks keep failing (e.g., 'Execution context was destroyed'). Takes a screenshot and clicks the element based on your visual description (e.g., 'the red play button in the center').", "parameters": {"type": "object", "properties": {"instruction": {"type": "string"}}, "required": ["instruction"]}}},
     {"type": "function", "function": {"name": "browser_close", "description": "Closes the controlled browser window", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "play_on_netflix", "description": "Fast dedicated macro to search and play a title on Netflix directly — use this instead of the generic browser_open/browser_click loop whenever the user wants to watch something and Netflix is a reasonable choice. Requires an already-logged-in Netflix session.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}},
     {"type": "function", "function": {"name": "play_on_rezka", "description": "Fast dedicated macro to search and play a title on Rezka directly — use this instead of the generic browser_open/browser_click loop whenever the user wants to watch something and Rezka is a reasonable choice.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}},
@@ -394,12 +435,16 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "select_rezka_episode", "description": "Selects a specific season and episode of a TV show on HDRezka.", "parameters": {"type": "object", "properties": {"season": {"type": "integer"}, "episode": {"type": "integer"}}, "required": ["season", "episode"]}}},
     {"type": "function", "function": {"name": "next_episode", "description": "Plays the next episode of the currently watching TV show.", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "skip_intro", "description": "Clicks the 'Skip Intro' or 'Пропустить заставку' button on Netflix, Ivi, Rezka, etc.", "parameters": {"type": "object", "properties": {}}}},
-
+    {"type": "function", "function": {"name": "launch_steam_game", "description": "Launches an installed Steam game instantly by appid. Always use this instead of opening the Steam library and clicking.", "parameters": {"type": "object", "properties": {"game_name": {"type": "string"}}, "required": ["game_name"]}}},
+    {"type": "function", "function": {"name": "list_steam_games", "description": "Lists installed Steam games", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "open_deep_link", "description": "Opens a service directly at a target in one step: youtube, twitch, maps, github, wikipedia, spotify, steam, telegram, discord, settings. Much faster than a browser session.", "parameters": {"type": "object", "properties": {"service": {"type": "string"}, "query": {"type": "string"}}, "required": ["service"]}}},
+    {"type": "function", "function": {"name": "search_file_content", "description": "Finds files by what is written INSIDE them, not by filename. Use when the user forgot the file name but remembers the content: 'where is the file about the trip budget'. Reads txt, code, docx, xlsx, pptx, pdf.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
+    {"type": "function", "function": {"name": "open_found_file", "description": "Finds a file by its content and opens the best match immediately", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
 ]
 
 conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
 MAX_HISTORY_MESSAGES = 24  # система + N последних — не даём истории расти бесконечно
-MAX_TOOL_RESULT_CHARS = 3000  # обрезаем большие результаты (поиск, чтение страницы) перед добавлением в историю
+MAX_TOOL_RESULT_CHARS = 1500  # обрезаем большие результаты (поиск, чтение страницы) перед добавлением в историю
 
 
 def _msg_role(msg):
@@ -430,6 +475,15 @@ def _trim_history():
     while trimmed and _msg_role(trimmed[0]) == "tool":
         trimmed = trimmed[1:]
     conversation_history = [conversation_history[0]] + trimmed
+
+def _safe_tail(keep: int):
+    """Хвост истории без «осиротевших» tool-сообщений — без этого Groq
+    падает с HarmonyError: Tools should have a name."""
+    tail = conversation_history[-keep:]
+    while tail and _msg_role(tail[0]) == "tool":
+        tail = tail[1:]
+    return [conversation_history[0]] + tail
+
 def _context_snapshot(question: str) -> str:
     parts = [datetime.now().strftime("%A %d.%m.%Y, %H:%M")]
     title = ""
@@ -473,8 +527,46 @@ def _context_snapshot(question: str) -> str:
 recent_openers = []  # последние 4 первых слова ответов — для анти-повтора
 consecutive_failures = 0  # подряд неудачных tool-вызовов — сигнал "подход не работает"
 
+
+# Инструменты, которые только читают и ничего не меняют — их безопасно
+# запускать одновременно. Когда модель просит два поиска сразу, это экономит
+# несколько секунд. Всё остальное (клики, удаление, запуск) — строго по
+# очереди, чтобы не поломать порядок действий.
+READ_ONLY_TOOLS = {
+    "search_web", "get_weather", "get_news", "recall_memories",
+    "get_cpu_usage", "get_memory_usage", "get_battery_status",
+    "get_disk_usage", "get_uptime", "get_volume", "get_brightness",
+    "list_notes", "list_todos", "list_timers", "list_today_events",
+    "list_upcoming_events", "get_recent_emails", "get_unread_count",
+    "get_my_ip", "get_local_ip", "is_website_up", "ping_host",
+    "list_steam_games", "locate_file", "calculate", "convert_units",
+    "word_count", "translate_text", "list_voices", "list_audio_devices",
+}
+
+
+def _run_one_tool(func_name, func_args):
+    """Выполняет один инструмент, возвращает (результат, успех, мс)."""
+    func = AVAILABLE_FUNCTIONS.get(func_name)
+    start = time.time()
+    if not func:
+        return f"Функция {func_name} не найдена.", False, 0
+    try:
+        valid = set(inspect.signature(func).parameters.keys())
+        args = {k: v for k, v in func_args.items() if k in valid}
+        result = func(**args)
+        success = True
+    except Exception as tool_err:
+        print(f"[Tool error in {func_name}]: {tool_err}")
+        result = f"Something went wrong running {func_name}: {tool_err}"
+        success = False
+    ms = int((time.time() - start) * 1000)
+    print(f"[время] {func_name}: {ms / 1000:.2f}с")
+    return result, success, ms
+
+
 def ask_ai(question: str) -> str:
-    global conversation_history, recent_openers, consecutive_failures
+    global conversation_history, recent_openers, consecutive_failures, current_plan
+    current_plan = None
 
     conversation_history.append({"role": "user", "content": question})
 
@@ -487,26 +579,57 @@ def ask_ai(question: str) -> str:
         conversation_history.append({"role": "system", "content": reminder})
 
     context_msg = {"role": "system", "content": _context_snapshot(question)}
+    active_groups = tool_router.groups_for(question)
+    active_schema = tool_router.filter_schema(TOOLS_SCHEMA, active_groups)
+    print(f"[TOOLS] {len(active_schema)}/{len(TOOLS_SCHEMA)} — {sorted(active_groups)}")
     print(f"[DEBUG context] {context_msg['content']}")
 
     try:
         step_index = 0
-        for _ in range(8):
+        for _ in range(15):
             _trim_history()
+
+            # Подсказываем про скриншот только если браузерные инструменты
+            # реально в наборе. Иначе модель пытается вызвать недоступный
+            # инструмент, получает отказ и теряет десятки секунд.
+            if step_index == 2 and "browser" in active_groups:
+                conversation_history.append({
+                    "role": "system",
+                    "content": "WARNING: You have made multiple unsuccessful attempts using DOM/HTML tools. Stop guessing. IMMEDIATELY use the `browser_screenshot_describe` tool to visually analyze the screen and click the required element."
+                })
+
+            model = MODEL_SMART if step_index == 0 else MODEL_FAST
+            extra = [context_msg]
+            if current_plan:
+                extra.append({"role": "system", "content":
+                    "Active plan: " + json.dumps(current_plan, ensure_ascii=False)})
             reasoning_effort = "high" if step_index == 0 else "low"
-            for attempt in range(2):
+            for attempt in range(3):
                 try:
-                    # Очищаем историю с помощью clean_messages_for_api перед передачей в API
+                    _t0 = time.time()
                     response = client.chat.completions.create(
-                        model=MODEL,
-                        messages=clean_messages_for_api(conversation_history) + [context_msg],
-                        tools=TOOLS_SCHEMA,
+                        model=model,
+                        messages=clean_messages_for_api(conversation_history) + extra,
+                        tools=active_schema,
                         reasoning_effort=reasoning_effort,
                     )
+                    print(f"[время] модель ({model.split('/')[-1]}, шаг {step_index}): "
+                          f"{time.time() - _t0:.2f}с")
                     break
-                except Exception as schema_err:
-                    if attempt == 0 and "tool_use_failed" in str(schema_err):
-                        print(f"[Retry after schema error]: {schema_err}")
+                except Exception as api_err:
+                    err = str(api_err)
+                    low = err.lower()
+                    # Groq сам говорит, сколько ждать — просто ждём и повторяем
+                    if attempt < 2 and ("rate_limit" in low or "429" in err):
+                        wait = 2.0
+                        m_wait = re.search(r"try again in ([\d.]+)s", err)
+                        if m_wait:
+                            wait = float(m_wait.group(1)) + 0.5
+                        print(f"[Rate limit] жду {wait:.1f}с и повторяю")
+                        time.sleep(wait)
+                        continue
+                    if attempt < 2 and "tool_use_failed" in low:
+                        print(f"[Retry after schema error]: {api_err}")
                         continue
                     raise
 
@@ -524,13 +647,42 @@ def ask_ai(question: str) -> str:
                 recent_openers = recent_openers[-4:]
                 return reply
 
+            names = [tc.function.name for tc in message.tool_calls]
+            if len(names) > 1 and all(n in READ_ONLY_TOOLS for n in names):
+                import concurrent.futures
+                print(f"[параллельно] {names}")
+                parsed = []
+                for tc in message.tool_calls:
+                    a = json.loads(tc.function.arguments)
+                    parsed.append((tc, tc.function.name, {k: v for k, v in a.items() if k}))
+                with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+                    futures = [ex.submit(_run_one_tool, n, a) for _tc, n, a in parsed]
+                    outcomes = [f.result() for f in futures]
+                for (tc, n, a), (result, success, ms) in zip(parsed, outcomes):
+                    step_index += 1
+                    g = tool_router.group_of_tool(n)
+                    if g and g not in active_groups:
+                        active_groups.add(g)
+                        active_schema = tool_router.filter_schema(TOOLS_SCHEMA, active_groups)
+                    threading.Thread(target=log_task, args=(n, a, result, success, ms),
+                                     daemon=True).start()
+                    rs = str(result)
+                    if len(rs) > MAX_TOOL_RESULT_CHARS:
+                        rs = rs[:MAX_TOOL_RESULT_CHARS] + "\n...[обрезано]"
+                    conversation_history.append({"role": "tool",
+                                                 "tool_call_id": tc.id, "content": rs})
+                continue
+
             for tool_call in message.tool_calls:
                 func_name = tool_call.function.name
                 func_args = json.loads(tool_call.function.arguments)
                 func_args = {k: v for k, v in func_args.items() if k}
 
                 print(f"[DEBUG tool_call] {func_name}({func_args})")
-
+                g = tool_router.group_of_tool(func_name)
+                if g and g not in active_groups:
+                    active_groups.add(g)
+                    active_schema = tool_router.filter_schema(TOOLS_SCHEMA, active_groups)
                 step_index += 1
 
                 func = AVAILABLE_FUNCTIONS.get(func_name)
@@ -580,12 +732,12 @@ def ask_ai(question: str) -> str:
         print(f"[Ошибка ask_ai]: {e}")
         if "rate_limit" in str(e).lower() or "413" in str(e):
             print("[Rate limit] Обрезаю историю жёстче и пробую ещё раз")
-            conversation_history = [conversation_history[0]] + conversation_history[-4:]
+            conversation_history = _safe_tail(4)
             try:
                 response = client.chat.completions.create(
                     model=MODEL, 
                     messages=clean_messages_for_api(conversation_history), 
-                    tools=TOOLS_SCHEMA,
+                    tools=active_schema,
                 )
                 message = response.choices[0].message
                 
@@ -598,6 +750,12 @@ def ask_ai(question: str) -> str:
             except Exception as e2:
                 print(f"[Retry after rate limit also failed]: {e2}")
         return "Не могу сейчас ответить, проблема со связью."
+
+def remember_exchange(user_text: str, assistant_text: str) -> None:
+    """Записывает в историю то, что выполнил быстрый путь без модели —
+    иначе следующее "да, включи" не знает, о чём речь."""
+    conversation_history.append({"role": "user", "content": user_text})
+    conversation_history.append({"role": "assistant", "content": assistant_text})
 
 def reset_conversation() -> None:
     global conversation_history

@@ -2,6 +2,7 @@ import threading
 import time
 from datetime import datetime
 from ai_brain import ask_ai
+from fast_commands import try_fast_command
 from reminders import start_reminder_thread
 from web_gui import WebGUI
 from window_hotkey import start_window_toggle_hotkey
@@ -9,9 +10,12 @@ from ui_state import shared_state
 import random
 from selection_hotkey import start_selection_hotkeys
 from hotkeys import start_push_to_talk_hotkey
-from voice import speak, listen, wait_for_wake_word, _push_to_talk_event, get_response_language
+from voice import speak, speak_cached, speak_streaming, listen, wait_for_wake_word, _push_to_talk_event, get_response_language
 from database import init_db
 init_db()
+
+from file_search import build_index_background
+build_index_background()   # индекс строится в фоне, не задерживая запуск
 
 WAKE_RESPONSES = {
     "en": [
@@ -73,8 +77,29 @@ def _speak_and_update(text: str, interruptible: bool = True) -> None:
 
 def _process_command(command: str) -> None:
     shared_state["chat_history"].append(("You", command))
-    shared_state["state"] = "thinking"
     shared_state["text"] = command
+
+    # Быстрый путь: простая команда выполняется сразу, без LLM и без TTS
+    fast = try_fast_command(command)
+    if fast is not None:
+        print(f"[FAST] {command} -> {fast}")
+
+
+
+
+
+
+
+        from ai_brain import remember_exchange
+        import tool_router
+        remember_exchange(command, fast)
+        tool_router.note_topic(command)
+        shared_state["chat_history"].append(("Atlas", fast))
+        shared_state["state"] = "idle"
+        shared_state["text"] = ""
+        return
+
+    shared_state["state"] = "thinking"
 
     # Явно подсказываем модели язык ответа на каждом ходу — не полагаемся
     # на то, что она "запомнит" переключение из истории диалога, особенно
@@ -121,7 +146,7 @@ def _voice_loop():
         # той самой "повторяющейся" болтовнёй, которая надоедала.
         if trigger == "voice":
             lang = get_response_language()
-            _speak_and_update(random.choice(WAKE_RESPONSES[lang]), interruptible=False)
+            speak_cached(random.choice(WAKE_RESPONSES[lang]))
             
         shared_state["state"] = "listening"
         command = listen()

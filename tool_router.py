@@ -1,0 +1,204 @@
+"""
+Фильтр инструментов.
+
+Проблема: TOOLS_SCHEMA со ста инструментами уходит в модель на каждом запросе
+и съедает 5-6 тысяч токенов при лимите 8000 TPM. Отсюда постоянные ошибки 413.
+
+Решение: по ключевым словам запроса определяем, какие группы инструментов
+реально нужны, и отправляем только их. Для "включи музыку" незачем слать
+описания git-команд, QR-кодов и настроек микрофона.
+
+Фильтр выбирается один раз в начале ask_ai и держится до конца задачи
+(sticky), чтобы на пятом шаге не исчезли инструменты, нужные для продолжения.
+Плюс группа добавляется автоматически, если модель уже вызвала инструмент
+из неё.
+"""
+
+# Всегда доступны — дешёвые и нужны почти в любой задаче
+CORE = {
+    "update_plan", "search_web", "save_memory", "recall_memories",
+    "forget_memory", "get_weather",
+}
+
+GROUPS = {
+    "media": {
+        "play_on_netflix", "play_on_rezka", "media_play_pause", "media_seek",
+        "media_volume", "media_player_fullscreen", "change_rezka_quality",
+        "change_rezka_translator", "select_rezka_episode", "next_episode",
+        "skip_intro", "play_pause_media", "next_track", "previous_track",
+        "open_youtube", "play_on_spotify", "play_on_youtube_music",
+    },
+    "games": {
+        "launch_steam_game", "list_steam_games", "open_deep_link", "open_app",
+    },
+    "browser": {
+        "browser_open", "browser_read_page", "browser_click", "browser_type",
+        "browser_scroll", "browser_fullscreen", "browser_press_key",
+        "browser_screenshot_describe", "browser_close", "open_url",
+        "search_google",
+    },
+    "files": {
+        "open_file", "create_folder", "delete_file", "locate_file",
+        "rename_file", "copy_file", "move_file",
+    },
+    "system": {
+        "open_app", "close_app", "set_volume", "get_volume", "volume_up",
+        "volume_down", "mute_volume", "unmute_volume", "set_brightness",
+        "get_brightness", "lock_screen", "take_screenshot",
+        "list_top_processes", "kill_process", "empty_recycle_bin",
+        "get_uptime", "get_cpu_usage", "get_memory_usage",
+        "get_battery_status", "get_disk_usage", "open_deep_link",
+    },
+    "notes": {
+        "add_note", "list_notes", "delete_note", "add_todo", "list_todos",
+        "complete_todo", "delete_todo",
+    },
+    "calendar": {
+        "list_today_events", "list_upcoming_events", "create_event",
+        "delete_event", "set_timer", "list_timers",
+    },
+    "mail": {"get_recent_emails", "get_unread_count"},
+    "dev": {
+        "run_git_command", "open_vscode_project", "calculate", "convert_units",
+    },
+    "network": {
+        "ping_host", "get_my_ip", "get_local_ip", "is_website_up",
+        "check_internet_speed",
+    },
+    "text": {"translate_text", "generate_qr_code", "word_count"},
+    "settings": {
+        "set_theme", "list_voices", "set_voice", "list_audio_devices",
+        "set_microphone", "set_speaker", "set_response_language",
+        "list_elevenlabs_voices", "set_elevenlabs_voice",
+        "set_always_listening",
+    },
+    "fun": {"tell_joke", "random_fact", "start_number_game", "guess_number"},
+    "info": {"get_news"},
+}
+
+TRIGGERS = {
+    "media": (
+        "фильм", "кино", "сериал", "серия", "сезон", "эпизод", "смотр",
+        "плеер", "озвучк", "качеств", "субтитр", "заставк", "музык", "песн",
+        "трек", "громч", "тише", "пауз", "перемот", "netflix", "нетфликс",
+        "rezka", "резк", "youtube", "ютуб", "spotify", "спотиф", "movie", "series", "episode",
+        "season", "watch", "play", "music", "song", "track", "pause",
+        "volume", "skip", "subtitle",
+    ),
+    "browser": (
+        "сайт", "браузер", "открой", "страниц", "найди в интернете", "гугл",
+        "поиск", "вкладк", "ссылк", "кликн", "нажми на", "прокрут",
+        "site", "browser", "page", "open", "google", "search", "tab",
+        "link", "click", "scroll", "wikipedia", "википед",
+    ),
+    "files": (
+        "файл", "папк", "документ", "переименуй", "скопируй", "перемести",
+        "удали", "загрузк", "рабочий стол", "file", "folder", "document",
+        "rename", "copy", "move", "delete", "desktop", "download", "search_file_content", "open_found_file", "где файл", "содержим", "внутри файла", "писал про"
+    ),
+    "system": (
+        "приложени", "программ", "запусти", "закрой", "громкост", "яркост",
+        "заблокир", "скриншот", "снимок экрана", "процесс", "корзин",
+        "оператив", "диск", "батаре", "заряд", "процессор", "аптайм",
+        "app", "launch", "close", "quit", "brightness", "lock",
+        "screenshot", "process", "recycle", "cpu", "ram", "memory",
+        "disk", "battery", "uptime",
+    ),
+    "notes": (
+        "заметк", "запиши", "список дел", "задач", "тудушк", "напомнил",
+        "note", "todo", "task", "write down", "list",
+    ),
+    "calendar": (
+        "календар", "событи", "встреч", "расписан", "таймер", "будильник",
+        "напомни", "через", "завтра", "сегодня", "повестк",
+        "calendar", "event", "meeting", "schedule", "timer", "remind",
+        "tomorrow", "today", "agenda",
+    ),
+    "mail": ("почт", "писем", "письм", "имейл", "mail", "email", "inbox",
+             "unread", "непрочит"),
+    "dev": (
+        "git", "коммит", "репозитор", "вс код", "vs code", "vscode",
+        "посчитай", "вычисли", "сколько будет", "конверт", "переведи в",
+        "commit", "repo", "calculate", "convert",
+    ),
+    "network": (
+        "пинг", "ip", "интернет", "скорость", "сеть", "доступен ли",
+        "ping", "network", "speed", "online",
+    ),
+    "text": (
+        "переведи", "перевод", "qr", "сколько слов", "количество символов",
+        "translate", "translation", "word count",
+    ),
+    "settings": (
+        "тема", "голос", "язык", "микрофон", "динамик", "наушник",
+        "настройк", "прослушиван",
+        "theme", "voice", "language", "microphone", "speaker", "setting",
+        "listening",
+    ),
+    "games": (
+        "игр", "game", "steam", "стим", "epic", "эпик", "запусти",
+        "launch", "installed", "установлен",
+    ),
+    "fun": (
+        "шутк", "анекдот", "факт", "игра", "угада",
+        "joke", "fact", "game", "guess",
+    ),
+    "info": ("новост", "news", "headline"),
+}
+
+# Если ничего не совпало — скромный набор на каждый день
+DEFAULT_GROUPS = ("system", "notes", "calendar", "info")
+
+# Какой группе принадлежит инструмент (для sticky-логики)
+_TOOL_TO_GROUP = {}
+for _g, _names in GROUPS.items():
+    for _n in _names:
+        _TOOL_TO_GROUP[_n] = _g
+
+
+_last_groups = set()
+
+
+def _detect(q: str) -> set:
+    return {g for g, words in TRIGGERS.items() if any(w in q for w in words)}
+
+
+def note_topic(text: str) -> None:
+    """Запоминает тему реплики, даже если её выполнил быстрый путь без модели.
+    Нужно, чтобы следующее "да, включи" знало, о чём речь."""
+    global _last_groups
+    detected = _detect((text or "").lower())
+    if detected:
+        _last_groups = detected
+
+
+def groups_for(question: str) -> set:
+    """Определяет группы инструментов по тексту запроса. Короткие реплики
+    ("да, включи", "а громче?") наследуют тему предыдущей."""
+    global _last_groups
+    q = question.lower()
+    found = _detect(q)
+    if len(q.split()) <= 6 and _last_groups:
+        found |= _last_groups
+    if found:
+        _last_groups = set(found)
+    else:
+        found = set(DEFAULT_GROUPS)
+    # Медиа почти всегда требует браузера — плееры живут на страницах
+    if "media" in found:
+        found.add("browser")
+    return found
+
+
+def group_of_tool(tool_name: str):
+    """Группа, к которой относится инструмент (или None)."""
+    return _TOOL_TO_GROUP.get(tool_name)
+
+
+def filter_schema(full_schema: list, active_groups: set) -> list:
+    """Оставляет в схеме только инструменты из CORE и активных групп."""
+    allowed = set(CORE)
+    for g in active_groups:
+        allowed |= GROUPS.get(g, set())
+    return [t for t in full_schema
+            if t.get("function", {}).get("name") in allowed]

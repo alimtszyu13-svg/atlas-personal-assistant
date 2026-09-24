@@ -3,6 +3,7 @@ import sounddevice as sd
 import numpy as np
 import os
 import threading
+import re
 import wave
 import pygame
 from groq import Groq
@@ -28,6 +29,10 @@ SAMPLE_RATE = 16000
 INTERRUPT_WORDS = ("stop", "enough", "quiet", "стоп", "хватит", "тихо")
 WAKE_WORD = "atlas"
 _push_to_talk_event = threading.Event()
+# Ставится, когда пользователь сказал стоп-слово во время речи.
+# Нужен, чтобы потоковая озвучка выбросила недоигранные куски,
+# а не продолжала болтать после прерывания.
+_stop_speaking = threading.Event()
 
 _response_language = {"lang": "en"}  # "en" или "ru"
 
@@ -191,8 +196,10 @@ def _watch_for_interrupt(stop_event: threading.Event) -> None:
 
         text = _transcribe_audio(chunk).lower()
         if any(word in text for word in INTERRUPT_WORDS):
-            print("[Atlas]: (interrupted)")
+            print("[Atlas]: (прервано)")
+            _stop_speaking.set()
             pygame.mixer.music.stop()
+            return
 
 
 FALLBACK_VOICE = "en-US-GuyNeural"
@@ -274,7 +281,195 @@ def _generate_speech_silero(text: str, filename: str) -> None:
     model = _get_silero_model()
     model.save_wav(text=text, speaker=SILERO_SPEAKER, sample_rate=48000, audio_path=filename)
 
-def speak(text: str, interruptible: bool = True) -> None:
+# ---------------------------------------------------------------------------
+# Ускорение: кэш фраз, тайминги, потоковая озвучка
+# ---------------------------------------------------------------------------
+import hashlib
+import shutil as _shutil
+
+PHRASE_CACHE_DIR = "temp_cache"
+TIMING = True  # печатать, сколько заняла каждая стадия
+
+
+class _T:
+    """Замер времени стадии."""
+    def __init__(self, label):
+        self.label = label
+
+    def __enter__(self):
+        self.t0 = time.time()
+        return self
+
+    def __exit__(self, *exc):
+        if TIMING:
+            print(f"[время] {self.label}: {time.time() - self.t0:.2f}с")
+
+
+def _cache_path(text: str, ext: str) -> str:
+    os.makedirs(PHRASE_CACHE_DIR, exist_ok=True)
+    lang = _response_language["lang"]
+    key = hashlib.md5(f"{lang}:{TTS_VOICE}:{text}".encode("utf-8")).hexdigest()[:16]
+    return os.path.join(PHRASE_CACHE_DIR, f"{lang}_{key}{ext}")
+
+
+def _find_cached(text: str):
+    for ext in (".wav", ".mp3"):
+        p = _cache_path(text, ext)
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def _play_file(path: str, interruptible: bool = False) -> None:
+    """Проигрывает готовый файл и держит интерфейс в курсе."""
+    pygame.mixer.music.load(path)
+    pygame.mixer.music.play()
+    duration = pygame.mixer.Sound(path).get_length()
+    shared_state["speech_envelope"] = _compute_envelope(path, duration)
+    shared_state["speech_duration"] = duration
+    shared_state["speech_start_time"] = time.time()
+
+    stop_event = threading.Event()
+    listener = None
+    if interruptible:
+        listener = threading.Thread(target=_watch_for_interrupt,
+                                    args=(stop_event,), daemon=True)
+        listener.start()
+    while pygame.mixer.music.get_busy():
+        pygame.time.wait(50)
+    stop_event.set()
+    if listener is not None:
+        listener.join(timeout=2)
+    pygame.mixer.music.unload()
+
+
+def speak_cached(text: str, interruptible: bool = False) -> None:
+    """Для повторяющихся коротких реплик — отклик на имя, приветствие,
+    прощание. Первый раз генерируем и кладём в кэш, дальше играем с диска:
+    мгновенно и, для русского, без расхода символов ElevenLabs."""
+    path = _find_cached(text)
+    if path:
+        print(f"[Atlas]: {text}  (из кэша)")
+        try:
+            shared_state["state"] = "speaking"
+            shared_state["text"] = text
+            _play_file(path, interruptible)
+            shared_state["state"] = "idle"
+            return
+        except Exception as e:
+            print(f"[cache play error]: {e}")
+    speak(text, interruptible=interruptible, cache_as=text)
+
+
+def _split_sentences(text: str):
+    """Режет ответ на фразы, чтобы начать говорить первую, пока
+    генерируются остальные."""
+    parts = re.split(r"(?<=[.!?\u2026])\s+", text.strip())
+    out, buf = [], ""
+    for p in parts:
+        if not p:
+            continue
+        if len(buf) + len(p) < 90:
+            buf = (buf + " " + p).strip()
+        else:
+            if buf:
+                out.append(buf)
+            buf = p
+    if buf:
+        out.append(buf)
+    return out or [text]
+
+
+def _generate_any(text: str, filename: str) -> None:
+    """Генерация речи в указанный файл — тот же каскад, что в speak()."""
+    if _response_language["lang"] == "ru":
+        try:
+            _generate_speech_elevenlabs(text, filename)
+            return
+        except Exception as e:
+            print(f"[ElevenLabs error]: {e}, пробую Silero")
+        try:
+            wav = filename.rsplit(".", 1)[0] + ".wav"
+            _generate_speech_silero(text, wav)
+            if wav != filename:
+                _shutil.move(wav, filename)
+            return
+        except Exception as e:
+            print(f"[Silero error]: {e}, пробую Edge-TTS")
+        async def _gen():
+            communicate = edge_tts.Communicate(text, RUSSIAN_TTS_VOICE)
+            await communicate.save(filename)
+        asyncio.run(_gen())
+        return
+
+    try:
+        _generate_speech(text, filename)
+    except Exception as e:
+        print(f"[TTS] Groq недоступен ({e}), пробую Edge-TTS")
+        _generate_speech_fallback(text, filename)
+
+
+def speak_streaming(text: str, interruptible: bool = True) -> None:
+    """Длинный ответ: озвучиваем первое предложение сразу, остальные
+    готовим параллельно. Начало слышно на секунды раньше."""
+    chunks = _split_sentences(text)
+    if len(chunks) < 2:
+        speak(text, interruptible=interruptible)
+        return
+
+    print(f"[Atlas]: {text}")
+    _stop_speaking.clear()
+    _maybe_play_ambient(text)
+    ready = {}
+    lock = threading.Lock()
+    ext = ".mp3" if _response_language["lang"] == "ru" else ".wav"
+
+    def _gen(i, chunk):
+        fn = f"temp_stream_{i}{ext}"
+        try:
+            _generate_any(chunk, fn)
+            with lock:
+                ready[i] = fn
+        except Exception as e:
+            print(f"[stream gen {i}]: {e}")
+            with lock:
+                ready[i] = None
+
+    threads = [threading.Thread(target=_gen, args=(i, c), daemon=True)
+               for i, c in enumerate(chunks)]
+    for t in threads:
+        t.start()
+
+    for i in range(len(chunks)):
+        # прервали на предыдущем куске — остальное не произносим
+        if _stop_speaking.is_set():
+            break
+        threads[i].join(timeout=30)
+        fn = ready.get(i)
+        if not fn or not os.path.exists(fn):
+            continue
+        try:
+            _vary_pitch(fn)
+            _play_file(fn, interruptible)
+        except Exception as e:
+            print(f"[stream play {i}]: {e}")
+        finally:
+            try:
+                os.remove(fn)
+            except Exception:
+                pass
+
+    # убираем куски, которые уже сгенерировались, но озвучивать их не нужно
+    for fn in list(ready.values()):
+        if fn and os.path.exists(fn):
+            try:
+                os.remove(fn)
+            except Exception:
+                pass
+
+
+def speak(text: str, interruptible: bool = True, cache_as: str = None) -> None:
+    _stop_speaking.clear()
     print(f"[Atlas]: {text}")
     _maybe_play_ambient(text)
 
@@ -318,6 +513,11 @@ def speak(text: str, interruptible: bool = True) -> None:
         if listener is not None:
             listener.join(timeout=2)
         pygame.mixer.music.unload()
+        if cache_as:
+            try:
+                _shutil.copy(filename, _cache_path(cache_as, os.path.splitext(filename)[1]))
+            except Exception as e:
+                print(f"[cache save]: {e}")
         os.remove(filename)
         return
 
@@ -356,40 +556,94 @@ def speak(text: str, interruptible: bool = True) -> None:
         listener.join(timeout=2)
 
     pygame.mixer.music.unload()
+    if cache_as:
+        try:
+            _shutil.copy(filename, _cache_path(cache_as, os.path.splitext(filename)[1]))
+        except Exception as e:
+            print(f"[cache save]: {e}")
     os.remove(filename)
 
-def listen(max_duration: int = 8, silence_limit: float = 1.2) -> str:
-    print("Listening...")
+def _listen_once(max_duration: float, silence_limit: float):
+    """Один заход записи: ждём речь, пишем до паузы. Возвращает аудио или
+    None, если человек так и не заговорил."""
     chunk_duration = 0.1
     chunk_size = int(SAMPLE_RATE * chunk_duration)
     silence_threshold = 300
 
     frames = []
     silent_chunks = 0
-    max_silent_chunks = int(silence_limit / chunk_duration)
+    max_silent = int(silence_limit / chunk_duration)
     total_chunks = int(max_duration / chunk_duration)
 
-    stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype='int16')
+    stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16")
     stream.start()
+    started = False
+    try:
+        for _ in range(total_chunks):
+            chunk, _overflow = stream.read(chunk_size)
+            frames.append(chunk)
+            volume = np.sqrt(np.mean(chunk.astype(np.float32) ** 2))
+            if volume > silence_threshold:
+                started = True
+                silent_chunks = 0
+            elif started:
+                silent_chunks += 1
+            if started and silent_chunks > max_silent:
+                break
+    finally:
+        stream.stop()
+        stream.close()
 
-    started_speaking = False
-    for _ in range(total_chunks):
-        chunk, _ = stream.read(chunk_size)
-        frames.append(chunk)
-        volume = np.sqrt(np.mean(chunk.astype(np.float32) ** 2))
-        if volume > silence_threshold:
-            started_speaking = True
-            silent_chunks = 0
-        elif started_speaking:
-            silent_chunks += 1
-        if started_speaking and silent_chunks > max_silent_chunks:
+    if not started:
+        return None
+    return np.concatenate(frames)
+
+
+def _wait_for_continuation(window: float = 0.9):
+    """Короткое окно после паузы: если человек продолжил мысль, ловим её.
+    Именно это мешало договорить — Atlas считал первую же паузу концом
+    фразы и убегал выполнять."""
+    chunk_duration = 0.1
+    chunk_size = int(SAMPLE_RATE * chunk_duration)
+    checks = int(window / chunk_duration)
+
+    stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16")
+    stream.start()
+    try:
+        for _ in range(checks):
+            chunk, _overflow = stream.read(chunk_size)
+            volume = np.sqrt(np.mean(chunk.astype(np.float32) ** 2))
+            if volume > 320:          # заговорил снова
+                return True
+    finally:
+        stream.stop()
+        stream.close()
+    return False
+
+
+def listen(max_duration: int = 10, silence_limit: float = 1.1) -> str:
+    """Слушает команду. После паузы недолго ждёт продолжения — чтобы можно
+    было договорить мысль, а не выпаливать её на одном дыхании."""
+    print("Listening...")
+
+    audio = _listen_once(max_duration, silence_limit)
+    if audio is None:
+        return ""
+
+    parts = [audio]
+    # до двух продолжений: хватает на длинную мысль, но не даёт слушать вечно
+    for _ in range(2):
+        if not _wait_for_continuation():
             break
+        print("   (продолжаешь — слушаю дальше)")
+        more = _listen_once(max_duration, silence_limit)
+        if more is None:
+            break
+        parts.append(more)
 
-    stream.stop()
-    stream.close()
-
-    recording = np.concatenate(frames)
-    text = _transcribe_audio(recording)
+    recording = np.concatenate(parts) if len(parts) > 1 else parts[0]
+    with _T("распознавание"):
+        text = _transcribe_audio(recording)
 
     if text == "":
         print("Didn't catch that, try again.")
@@ -397,7 +651,6 @@ def listen(max_duration: int = 8, silence_limit: float = 1.2) -> str:
 
     print(f"[You]: {text}")
     return text
-
 try:
     from pygame._sdl2 import audio as sdl2_audio
 except ImportError:
