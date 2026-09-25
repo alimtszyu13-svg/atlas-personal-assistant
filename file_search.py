@@ -525,8 +525,10 @@ def start_file_watcher() -> None:
                         pending["__rescan__"] = time.time()
                     return
                 for p in (e.src_path, getattr(e, "dest_path", "")):
+                    name = os.path.basename(p).lower() if p else ""
                     if p and os.path.splitext(p)[1].lower() in READABLE \
-                            and not os.path.basename(p).startswith("~$"):
+                            and not name.startswith("~$") \
+                            and name not in ("desktop.ini", "thumbs.db"):
                         pending[p] = time.time()
 
     def _flusher():

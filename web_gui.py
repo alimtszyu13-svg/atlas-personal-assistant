@@ -57,8 +57,10 @@ class Api:
         set_microphone(name)
 
     def set_speaker_ui(self, name: str) -> None:
-        from voice import set_speaker
+        from voice import set_speaker, output_is_headphones
+        shared_state["speaker_name"] = name
         set_speaker(name)
+        print(f"[audio] вывод: {name} → {'наушники' if output_is_headphones() else 'колонки'}")
 
     def set_always_listening_ui(self, enabled: bool) -> None:
         from listening_mode import set_always_listening

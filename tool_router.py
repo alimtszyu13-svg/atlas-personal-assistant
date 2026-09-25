@@ -235,22 +235,49 @@ def semantic_tools(question: str, full_schema: list, k: int = SEMANTIC_TOP_K) ->
     return {names[j] for j in _np.argsort(-sims)[:k] if sims[j] >= SEMANTIC_MIN_SIM}
 
 
+SEMANTIC_KEYWORD_K = 25     # из групп по ключевым словам — только инструменты из топ-25 по смыслу
+_used_groups = set()        # группы инструментов, реально вызванных в прошлом ходе
+
+
+def mark_used(tool_name: str) -> None:
+    """Модель вызвала инструмент — его группа пригодится следующей реплике («50» после игры)."""
+    g = _TOOL_TO_GROUP.get(tool_name)
+    if g:
+        _used_groups.add(g)
+
+
+def _semantic_ranking(question: str, full_schema: list) -> list:
+    from file_search import _embed
+    if _tool_index["mat"] is None:
+        _build_tool_index(full_schema)
+    q = _re.sub(r"^\s*\([^)]*\)\s*", "", question)
+    sims = _tool_index["mat"] @ _embed([q])[0]
+    return [(_tool_index["names"][j], float(sims[j])) for j in _np.argsort(-sims)]
+
+
 def smart_schema(question: str, full_schema: list, groups: set) -> list:
-    """CORE + группы, явно названные в запросе + топ-K инструментов по смыслу.
-    Набор «на каждый день» (DEFAULT_GROUPS) больше не шлём целиком —
-    его заменяет смысловой выбор."""
+    """CORE
+     + топ-8 инструментов по смыслу
+     + из групп по ключевым словам — только близкие по смыслу
+       («play the game» не тянет весь браузер и плееры)
+     + группы, реально использованные в прошлом ходе."""
+    global _used_groups
     allowed = set(CORE)
-    if set(groups) != set(DEFAULT_GROUPS):          # группы нашлись по ключевым словам
+    for g in _used_groups:
+        allowed |= GROUPS.get(g, set())
+    _used_groups = set()
+    try:
+        ranking = _semantic_ranking(question, full_schema)
+        allowed |= {n for n, s in ranking[:SEMANTIC_TOP_K] if s >= SEMANTIC_MIN_SIM}
+        if set(groups) != set(DEFAULT_GROUPS):
+            near = {n for n, _ in ranking[:SEMANTIC_KEYWORD_K]}
+            for g in groups:
+                allowed |= GROUPS.get(g, set()) & near
+    except Exception as e:
+        print(f"[router] семантика недоступна ({e}) — беру группы по ключевым словам")
         for g in groups:
             allowed |= GROUPS.get(g, set())
-    try:
-        allowed |= semantic_tools(question, full_schema)
-    except Exception as e:
-        print(f"[router] семантика недоступна ({e}) — беру группы по умолчанию")
-        for g in DEFAULT_GROUPS:
-            allowed |= GROUPS.get(g, set())
     return [t for t in full_schema if t["function"]["name"] in allowed]
-
 
 def add_group(active_schema: list, full_schema: list, group) -> list:
     """Модель вызвала инструмент из новой группы — добавляем её инструменты."""
@@ -259,3 +286,9 @@ def add_group(active_schema: list, full_schema: list, group) -> list:
              if t["function"]["name"] in GROUPS.get(group, set())
              and t["function"]["name"] not in have]
     return active_schema + extra
+
+def register_tool(name: str, group: str) -> None:
+    """Навык из реестра → в свою группу; смысловой индекс пересоберётся."""
+    GROUPS.setdefault(group, set()).add(name)
+    _TOOL_TO_GROUP[name] = group
+    _tool_index["mat"] = None

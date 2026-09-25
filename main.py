@@ -91,6 +91,9 @@ def _process_command(command: str) -> None:
     # Быстрый путь: простая команда выполняется сразу, без LLM и без TTS
     fast = try_fast_command(command)
     if fast is not None:
+        spoken = isinstance(fast, tuple)      # ("speak", текст) — результат озвучить
+        if spoken:
+            fast = fast[1]
         print(f"[FAST] {command} -> {fast}")
 
 
@@ -103,8 +106,11 @@ def _process_command(command: str) -> None:
         import tool_router
         remember_exchange(command, fast)
         tool_router.note_topic(command)
-        shared_state["chat_history"].append(("Atlas", fast))
-        shared_state["state"] = "idle"
+        if spoken:
+            _speak_and_update(fast)           # сам добавит в чат и вернёт idle
+        else:
+            shared_state["chat_history"].append(("Atlas", fast))
+            shared_state["state"] = "idle"
         shared_state["text"] = ""
         return
 
@@ -138,6 +144,51 @@ SHUTDOWN_RESPONSES = {
     "en": ["Shutting down.", "Signing off, sir.", "Going dark. See you soon, sir.", "Powering down now."],
     "ru": ["До свидания, сэр.", "Отключаюсь, сэр.", "Ухожу в тень. До скорого, сэр.", "Выключаюсь."],
 }
+
+
+def _wake_chime() -> None:
+    """Короткий сигнал «слушаю»."""
+    try:
+        import winsound
+        winsound.Beep(880, 90)
+    except Exception:
+        pass
+
+
+def _cache_phrase(phrase: str) -> None:
+    """Генерирует фразу в кеш, не проигрывая её."""
+    import shutil
+    from voice import _generate_any, _cache_path
+    ext = ".mp3" if get_response_language() == "ru" else ".wav"
+    tmp = f"temp_wake{ext}"
+    try:
+        _generate_any(phrase, tmp)
+        shutil.move(tmp, _cache_path(phrase, ext))
+    except Exception as e:
+        print(f"[wake cache] {e}")
+
+
+def _warm_wake_phrases() -> None:
+    """При старте заранее кешируем отклики на имя, чтобы они играли мгновенно."""
+    from voice import _find_cached
+    for p in WAKE_RESPONSES[get_response_language()]:
+        if not _find_cached(p):
+            _cache_phrase(p)
+
+
+def _wake_reply_async() -> None:
+    """Отклик на имя голосом, но без ожидания: фраза играет, а микрофон уже слушает."""
+    import pygame
+    from voice import _find_cached
+    phrase = random.choice(WAKE_RESPONSES[get_response_language()])
+    path = _find_cached(phrase)
+    if path:
+        print(f"[Atlas]: {phrase}")
+        pygame.mixer.Sound(path).play()           # отдельный канал, не блокирует
+    else:
+        _wake_chime()                             # фразы ещё нет в кеше — сигнал и кешируем
+        threading.Thread(target=_cache_phrase, args=(phrase,), daemon=True).start()
+
 def _voice_loop():
     start_reminder_thread(_speak_and_update)
     lang = get_response_language()
@@ -150,8 +201,12 @@ def _voice_loop():
         shared_state["text"] = ""
 
         print(f"[DEBUG] always_listening={shared_state.get('always_listening')}")
+        follow_up = shared_state.pop("follow_up", False)
         if shared_state.get("always_listening"):
             trigger = "always"
+        elif follow_up:
+            trigger = "followup"          # Atlas задал вопрос / идёт игра — слушаем без имени
+            print("(жду ответа без имени)")
         else:
             trigger = wait_for_wake_word()
         print(f"[DEBUG] trigger={trigger}")
@@ -160,14 +215,19 @@ def _voice_loop():
         # услышал своё имя вслух. Push-to-talk и always-listening — уже
         # осознанные действия пользователя, лишняя реплика тут была бы
         # той самой "повторяющейся" болтовнёй, которая надоедала.
-        if trigger == "voice":
-            lang = get_response_language()
-            speak_cached(random.choice(WAKE_RESPONSES[lang]))
+        from voice import wake_has_command
+        if trigger == "voice" and not wake_has_command():
+            from voice import output_is_headphones
+            if output_is_headphones():
+                _wake_reply_async()          # наушники: говорим и сразу слушаем
+            else:
+                lang = get_response_language()
+                speak_cached(random.choice(WAKE_RESPONSES[lang]))   # колонки: сначала договорить
             
         shared_state["state"] = "listening"
         command = listen()
 
-        if len(command.strip()) < MIN_COMMAND_LENGTH:
+        if len(command.strip()) < MIN_COMMAND_LENGTH and not re.search(r"\d", command):
             continue  # мусорное/пустое распознавание — не тратим вызов ask_ai
 
         SHUTDOWN_PHRASES = {
@@ -185,6 +245,11 @@ def _voice_loop():
             shared_state["should_quit"] = True
             break
         _process_command(command)
+
+        # Режим продолжения: вопрос в конце ответа или активная игра
+        from skills.fun import game_active
+        last = shared_state["chat_history"][-1][1] if shared_state["chat_history"] else ""
+        shared_state["follow_up"] = str(last).rstrip().endswith("?") or game_active()
         
 start_push_to_talk_hotkey("f9")
 import keyboard
@@ -192,6 +257,12 @@ from ai_brain import cancel_current_task
 keyboard.add_hotkey("f8", cancel_current_task)
 print("(cancel hotkey active: f8)")
 start_selection_hotkeys()
+
+
+from voice import output_device_name, output_is_headphones
+print(f"[audio] вывод: {output_device_name()} → "
+      f"{'наушники' if output_is_headphones() else 'колонки'}")
+threading.Thread(target=_warm_wake_phrases, daemon=True).start()
 
 voice_thread = threading.Thread(target=_voice_loop, daemon=True)
 voice_thread.start()

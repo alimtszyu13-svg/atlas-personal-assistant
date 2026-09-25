@@ -257,12 +257,23 @@ def _transcribe_audio(recording: np.ndarray) -> str:
                     language="ru"
                 )
             else:
-                result = groq_client.audio.translations.create(
+                # без перевода: Whisper сам определит язык, а модель поймёт и русский
+                result = groq_client.audio.transcriptions.create(
                     file=(temp_path, f.read()),
-                    model=STT_MODEL
+                    model="whisper-large-v3-turbo",
                 )
         text = result.text.strip()
-        if not re.search(r"[^\W\d_]", text):       # ни одной буквы: «...», «?!»
+        if not re.search(r"[^\W_]", text):         # ни буквы, ни цифры: «...», «?!»
+            print(f"[Whisper] пустая фраза отброшена: {text!r}")
+            return ""
+        if re.sub(r"[^\w\s]", "", text.lower()).strip() in _WHISPER_JUNK:
+            print(f"[Whisper] выдуманная фраза отброшена: {text!r}")
+            return ""
+        return text
+    except Exception as e:
+        print(f"[STT error]: {e}")
+        text = result.text.strip()
+        if not re.search(r"[^\W_]", text):         # ни буквы, ни цифры: «...», «?!»
             print(f"[Whisper] пустая фраза отброшена: {text!r}")
             return ""
         if re.sub(r"[^\w\s]", "", text.lower()).strip() in _WHISPER_JUNK:
@@ -276,23 +287,54 @@ def _transcribe_audio(recording: np.ndarray) -> str:
         os.remove(temp_path)
 
 
+WAKE_CONF = 0.9                      # ниже — «атлас» из шума, не будим
+_wake_leftover = {"audio": None}     # команда, сказанная на одном дыхании с именем
+
+
+def wake_has_command() -> bool:
+    a = _wake_leftover.get("audio")
+    return a is not None and len(a) > SAMPLE_RATE * 0.4
+
+
 def wait_for_wake_word() -> str:
-    """Ждёт «Атлас» локально через Vosk. 'manual' — если нажали push-to-talk."""
+    """Ждёт «Атлас» локально (Vosk). Срабатывает только по окончательному
+    результату с высокой уверенностью — «атлас», промелькнувший в шуме, не будит.
+    Если после имени в той же фразе звучала речь («Атлас, какая погода»),
+    её звук сохраняется и уходит в распознавание как команда."""
     import json
+    from collections import deque
     print("(waiting for wake word 'Атлас' — локально)")
     rec = _vosk_recognizer(WAKE_WORDS_LOCAL)
-    with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=4000,
+    rec.SetWords(True)
+    block = 4000                     # 0.25 с
+    ring = deque(maxlen=40)          # последние 10 с звука: (номер первого сэмпла, кусок)
+    fed = 0
+    _wake_leftover["audio"] = None
+    with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=block,
                            dtype="int16", channels=1) as stream:
         while True:
             if _push_to_talk_event.is_set():
                 _push_to_talk_event.clear()
                 return "manual"
-            data, _overflow = stream.read(4000)          # 0.25 с звука
-            if rec.AcceptWaveform(bytes(data)):
-                text = json.loads(rec.Result()).get("text", "")
-            else:
-                text = json.loads(rec.PartialResult()).get("partial", "")
-            if "атлас" in text.split():
+            data, _overflow = stream.read(block)
+            chunk = np.frombuffer(bytes(data), dtype=np.int16)
+            ring.append((fed, chunk))
+            fed += len(chunk)
+            if not rec.AcceptWaveform(bytes(data)):
+                continue
+            words = json.loads(rec.Result()).get("result", [])
+            for i, w in enumerate(words):
+                if w["word"] != "атлас":
+                    continue
+                if w["conf"] < WAKE_CONF:
+                    print(f"[wake] отклонено: атлас ({w['conf']:.2f})")
+                    continue
+                print(f"[wake] атлас ({w['conf']:.2f})")
+                if i < len(words) - 1:            # после имени звучала речь — это команда
+                    start = int(w["end"] * SAMPLE_RATE)
+                    parts = [c[max(0, start - s):] for s, c in ring if s + len(c) > start]
+                    if parts:
+                        _wake_leftover["audio"] = np.concatenate(parts).reshape(-1, 1)
                 return "voice"
 
 
@@ -319,7 +361,8 @@ def _watch_for_interrupt(stop_event: threading.Event) -> None:
             repeated = n_stop >= 2 or (n_stop and now - last_stop < STOP_REPEAT_WINDOW)
             if n_stop:
                 last_stop = now
-            if n_stop and ("атлас" in sure or repeated):
+            # в наушниках эха нет — хватает одного «стоп»; в колонки — нужна защита от эха
+            if n_stop and ("атлас" in sure or repeated or output_is_headphones()):
                 print("[Atlas]: (прервано)")
                 _stop_speaking.set()
                 pygame.mixer.music.stop()
@@ -755,10 +798,22 @@ def _wait_for_continuation(window: float = 0.9):
     return False
 
 
-def listen(max_duration: int = 10, silence_limit: float = 1.6) -> str:
+LISTEN_CONTINUATIONS = 0   # VAD сам ждёт паузу; лишнее окно добавляло ~1 с к каждой фразе
+
+
+def listen(max_duration: int = 15, silence_limit: float = 1.2) -> str:
     """Слушает команду. После паузы недолго ждёт продолжения — чтобы можно
     было договорить мысль, а не выпаливать её на одном дыхании."""
     print("Listening...")
+    left = _wake_leftover.get("audio")
+    _wake_leftover["audio"] = None
+    if left is not None and len(left) > SAMPLE_RATE * 0.4:
+        print("   (команда сказана вместе с именем)")
+        with _T("распознавание"):
+            text = _transcribe_audio(left)
+        if text:
+            print(f"[You]: {text}")
+            return text
 
     audio = _listen_once(max_duration, silence_limit)
     if audio is None:
@@ -766,7 +821,7 @@ def listen(max_duration: int = 10, silence_limit: float = 1.6) -> str:
 
     parts = [audio]
     # до двух продолжений: хватает на длинную мысль, но не даёт слушать вечно
-    for _ in range(2):
+    for _ in range(LISTEN_CONTINUATIONS):
         if not _wait_for_continuation():
             break
         print("   (продолжаешь — слушаю дальше)")
@@ -1105,3 +1160,37 @@ def _load_voice_prefs() -> None:
             pass
 
 _load_voice_prefs()
+
+# ---------------------------------------------------------------------------
+# Наушники или колонки: от этого зависит, слышит ли микрофон голос Atlas
+# ---------------------------------------------------------------------------
+# Режим вывода: "auto" — по имени устройства; "headphones" / "speakers" — вручную,
+# если автоопределение ошибается
+AUDIO_OUTPUT_MODE = "auto"
+
+_HEADPHONE_HINTS = (
+    "headset", "headphone", "earphone", "earbud", "buds", "airpods",
+    "hands-free", "handsfree", "наушник", "гарнитур",
+    # игровые гарнитуры: Windows часто называет их выход просто «Динамики»
+    "hyperx", "cloud", "arctis", "steelseries", "kraken", "blackshark", "barracuda",
+    "razer", "logitech g", "astro", "corsair", "hs50", "hs60", "hs70", "void",
+    "jbl quantum", "sennheiser", "epos", "beyerdynamic", "audio-technica",
+)
+
+
+def output_device_name() -> str:
+    name = shared_state.get("speaker_name")
+    if not name:
+        try:
+            name = sd.query_devices(kind="output")["name"]
+        except Exception:
+            name = ""
+    return name
+
+
+def output_is_headphones() -> bool:
+    if AUDIO_OUTPUT_MODE == "headphones":
+        return True
+    if AUDIO_OUTPUT_MODE == "speakers":
+        return False
+    return any(h in output_device_name().lower() for h in _HEADPHONE_HINTS)

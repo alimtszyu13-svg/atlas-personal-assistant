@@ -157,6 +157,13 @@ NOT_AN_APP = (
 
 def try_fast_command(text: str):
     t = text.lower().strip().strip('«»"\'“”„').rstrip(".!?").strip()
+        # Угадай число: во время игры число из фразы сразу идёт в guess_number —
+    # без модели, мгновенно и без выдуманных подсказок
+    from skills.fun import game_active, guess_number
+    if game_active():
+        m = re.search(r"\b(\d{1,3})\b", t)
+        if m:
+            return ("speak", guess_number(int(m.group(1))))   # ответ игры нужно услышать
     if not t:
         return None
 

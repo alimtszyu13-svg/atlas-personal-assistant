@@ -27,7 +27,6 @@ from system_advanced import (
 )
 from media_control import play_pause_media, next_track, previous_track
 from dev_tools import run_git_command, open_vscode_project, calculate, convert_units
-from fun import tell_joke, random_fact, start_number_game, guess_number
 from notes import add_note, list_notes, delete_note, add_todo, list_todos, complete_todo, delete_todo
 from voice import (
     list_voices, set_voice, list_audio_devices, set_microphone, set_speaker,
@@ -84,6 +83,8 @@ SYSTEM_PROMPT = (
     "Never claim something is done unless a tool result confirms it. If a request is ambiguous "
     "('turn it off' with no clear target) or no tool fits, ask one short clarifying question. "
     "If a tool says cancelled or not found, relay that calmly, don't invent reasons. "
+    "Anything with state (games, timers, notes) must go through its tool every time — "
+    "never guess a tool's answer. "
     ""
     "TOOLS. Use them instead of saying you can't. Current facts → search_web. Local files by "
     "content, screenshots or pictures → search_file_content (never the browser for local files). "
@@ -244,10 +245,6 @@ AVAILABLE_FUNCTIONS = {
     "open_vscode_project": open_vscode_project,
     "calculate": calculate,
     "convert_units": convert_units,
-    "tell_joke": tell_joke,
-    "random_fact": random_fact,
-    "start_number_game": start_number_game,
-    "guess_number": guess_number,
     "add_note": add_note,
     "list_notes": list_notes,
     "delete_note": delete_note,
@@ -356,10 +353,6 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "open_vscode_project", "description": "Opens a project folder in VS Code", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}},
     {"type": "function", "function": {"name": "calculate", "description": "Evaluates a basic math expression", "parameters": {"type": "object", "properties": {"expression": {"type": "string"}}, "required": ["expression"]}}},
     {"type": "function", "function": {"name": "convert_units", "description": "Converts a value between common units (km/mi, kg/lb, celsius/fahrenheit, m/ft)", "parameters": {"type": "object", "properties": {"value": {"type": "number"}, "from_unit": {"type": "string"}, "to_unit": {"type": "string"}}, "required": ["value", "from_unit", "to_unit"]}}},
-    {"type": "function", "function": {"name": "tell_joke", "description": "Tells a random joke", "parameters": {"type": "object", "properties": {}}}},
-    {"type": "function", "function": {"name": "random_fact", "description": "Shares a random interesting fact", "parameters": {"type": "object", "properties": {}}}},
-    {"type": "function", "function": {"name": "start_number_game", "description": "Starts a number guessing game between 1 and 100", "parameters": {"type": "object", "properties": {}}}},
-    {"type": "function", "function": {"name": "guess_number", "description": "Submits a guess in the active number guessing game", "parameters": {"type": "object", "properties": {"guess": {"type": "integer"}}, "required": ["guess"]}}},
     {"type": "function", "function": {"name": "add_note", "description": "Saves a short note", "parameters": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}}},
     {"type": "function", "function": {"name": "list_notes", "description": "Lists all saved notes", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "delete_note", "description": "Deletes a note by its number", "parameters": {"type": "object", "properties": {"index": {"type": "integer"}}, "required": ["index"]}}},
@@ -518,9 +511,24 @@ READ_ONLY_TOOLS = {
     "list_steam_games", "locate_file", "calculate", "convert_units",
     "word_count", "translate_text", "list_voices", "list_audio_devices",
     "word_count", "translate_text", "list_voices", "list_audio_devices",
+    "search_file_content", "word_count", "translate_text", "list_voices", "list_audio_devices",
     "search_file_content",
 }
 
+
+
+# --- Навыки из реестра (@skill): схема, функция, группа — всё из одного места ---
+from core.skills import load_skills
+
+for _name, _s in load_skills().items():
+    AVAILABLE_FUNCTIONS[_name] = _s["fn"]
+    # если инструмент есть и в старом ручном списке — берём версию из реестра
+    TOOLS_SCHEMA[:] = [t for t in TOOLS_SCHEMA if t["function"]["name"] != _name]
+    TOOLS_SCHEMA.append(_s["schema"])
+    if _s["read_only"]:
+        READ_ONLY_TOOLS.add(_name)
+    tool_router.register_tool(_name, _s["group"])
+print(f"[skills] навыков из реестра: {len(load_skills())}")
 
 def _run_one_tool(func_name, func_args):
     """Выполняет один инструмент, возвращает (результат, успех, мс)."""
@@ -579,7 +587,8 @@ def ask_ai(question: str, speech=None) -> str:
     context_msg = {"role": "system", "content": _context_snapshot(question)}
     active_groups = tool_router.groups_for(question)
     active_schema = tool_router.smart_schema(question, TOOLS_SCHEMA, active_groups)
-    first_effort = _effort_for(question, active_groups)
+    first_effort = _effort_for(
+        question, {tool_router.group_of_tool(t["function"]["name"]) for t in active_schema})
     print(f"[TOOLS] {len(active_schema)}/{len(TOOLS_SCHEMA)} — "
           f"{sorted(t['function']['name'] for t in active_schema)}")
     print(f"[DEBUG context] {context_msg['content']}")
@@ -640,8 +649,10 @@ def ask_ai(question: str, speech=None) -> str:
                         if _cancel_event.wait(wait):
                             raise TaskCancelled()
                         continue
-                    if attempt < 2 and "tool_use_failed" in low:
+                    if attempt < 2 and ("tool_use_failed" in low
+                                        or "tool call validation" in low):
                         print(f"[Retry after schema error]: {api_err}")
+                        model = MODEL_SMART      # у 120b сбой разметки случается реже
                         continue
                     raise
 
@@ -673,6 +684,7 @@ def ask_ai(question: str, speech=None) -> str:
                 for (tc, n, a), (result, success, ms) in zip(parsed, outcomes):
                     step_index += 1
                     g = tool_router.group_of_tool(n)
+                    tool_router.mark_used(n)
                     if g and g not in active_groups:
                         active_groups.add(g)
                         active_schema = tool_router.add_group(active_schema, TOOLS_SCHEMA, g)
@@ -693,6 +705,7 @@ def ask_ai(question: str, speech=None) -> str:
 
                 print(f"[DEBUG tool_call] {func_name}({func_args})")
                 g = tool_router.group_of_tool(func_name)
+                tool_router.mark_used(func_name)
                 if g and g not in active_groups:
                     active_groups.add(g)
                     active_schema = tool_router.filter_schema(TOOLS_SCHEMA, active_groups)
