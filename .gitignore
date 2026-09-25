@@ -24,3 +24,10 @@ temp_cache/
 *.bak2
 *.bak3
 *.bak4
+file_index2.db
+file_index2.db-wal
+file_index2.db-shm
+voice_prefs.json
+models/
+temp_live_*
+test_*.wav

@@ -4,6 +4,7 @@ import re
 import threading
 import time
 import inspect
+import concurrent.futures
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -30,7 +31,8 @@ from fun import tell_joke, random_fact, start_number_game, guess_number
 from notes import add_note, list_notes, delete_note, add_todo, list_todos, complete_todo, delete_todo
 from voice import (
     list_voices, set_voice, list_audio_devices, set_microphone, set_speaker,
-    set_response_language, list_elevenlabs_voices, set_elevenlabs_voice
+    set_response_language, list_elevenlabs_voices, set_elevenlabs_voice,
+    _stop_speaking
 )
 from listening_mode import set_always_listening
 from calendar_control import list_today_events, list_upcoming_events, create_event, delete_event
@@ -38,15 +40,17 @@ from network_utils import ping_host, get_my_ip, get_local_ip, is_website_up, che
 from text_utils import translate_text, generate_qr_code, word_count
 from database import save_memory, recall_memories, forget_memory, log_task
 import tool_router
+from core import llm_gateway
 from browser_agent import browser_open, browser_read_page, browser_click, browser_type, browser_scroll, browser_fullscreen, browser_press_key, browser_screenshot_describe, browser_close, next_episode, play_on_netflix, play_on_rezka, media_play_pause, media_seek, media_volume, media_player_fullscreen, change_rezka_quality, change_rezka_translator, select_rezka_episode, skip_intro   
 from deep_links import launch_steam_game, list_steam_games, open_deep_link  
-from file_search import search_file_content, open_found_file
+from file_search import search_file_content, open_found_file, open_search_result
 
 load_dotenv()
 
 client = OpenAI(
     api_key=os.getenv("GROQ_API_KEY"),
-    base_url="https://api.groq.com/openai/v1"
+    base_url="https://api.groq.com/openai/v1",
+    max_retries=0,   # повторы и ожидания делает гейтвей и наш цикл — прозрачно, с логом
 )
 
 MODEL_SMART = "openai/gpt-oss-120b"   # первый шаг — понять задачу и спланировать
@@ -211,9 +215,97 @@ SYSTEM_PROMPT = (
     "without the user explicitly confirming out loud first — the tools "
     "themselves will refuse these, but don't try to work around that refusal."
     "If browser tools return errors like 'Execution context was destroyed' or if you cannot find the requested element in the DOM tree, do not repeat the same action. Instantly use browser_screenshot_describe."
+    " If a request is ambiguous (e.g. 'turn it off' with no clear target) or no tool can do it, "
+    "ask one short clarifying question instead of claiming it's done."
 )
 current_plan = None
 
+_cancel_event = threading.Event()
+_model_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+
+
+class TaskCancelled(Exception):
+    pass
+
+
+def cancel_current_task() -> str:
+    """Прерывает текущую задачу модели: цикл инструментов, ожидание лимита, запрос."""
+    _cancel_event.set()
+    return "Cancelling."
+
+
+def _check_cancel():
+    if _cancel_event.is_set():
+        raise TaskCancelled()
+
+
+def _call_model(**kwargs):
+    """Запрос к модели, который можно бросить: ждём ответ и каждые 0.2с проверяем отмену."""
+    fut = _model_pool.submit(client.chat.completions.create, **kwargs)
+    while True:
+        try:
+            return fut.result(timeout=0.2)
+        except concurrent.futures.TimeoutError:
+            _check_cancel()
+
+from types import SimpleNamespace as _NS
+
+
+def _call_model_stream(on_text, **kwargs):
+    """Потоковый запрос: текст отдаётся в on_text по мере генерации,
+    вызовы инструментов собираются из кусков. Возвращает сообщение-dict."""
+    stream = client.chat.completions.create(stream=True, **kwargs)
+    content, calls, usage = "", {}, None
+    for chunk in stream:
+        _check_cancel()
+        # Groq кладёт расход токенов в последний кусок: usage или x_groq.usage
+        u = getattr(chunk, "usage", None)
+        if u is None:
+            xg = (getattr(chunk, "model_extra", None) or {}).get("x_groq")
+            u = xg.get("usage") if isinstance(xg, dict) else getattr(xg, "usage", None)
+        if u is not None:
+            usage = u
+        if not chunk.choices:
+            continue
+        d = chunk.choices[0].delta
+        if d.content:
+            content += d.content
+            on_text(d.content)
+        for tc in (d.tool_calls or []):
+            c = calls.setdefault(tc.index, {"id": "", "type": "function",
+                                            "function": {"name": "", "arguments": ""}})
+            if tc.id:
+                c["id"] = tc.id
+            if tc.function and tc.function.name:
+                c["function"]["name"] += tc.function.name
+            if tc.function and tc.function.arguments:
+                c["function"]["arguments"] += tc.function.arguments
+    msg = {"role": "assistant", "content": content or None}
+    if calls:
+        for c in calls.values():
+            c["function"]["arguments"] = c["function"]["arguments"] or "{}"
+        msg["tool_calls"] = [calls[i] for i in sorted(calls)]
+    return msg, usage
+
+
+def _as_message(d: dict):
+    """dict → объект с теми же полями, что у ответа SDK (остальной код не меняем)."""
+    tcs = [_NS(id=t["id"], function=_NS(name=t["function"]["name"],
+                                        arguments=t["function"]["arguments"]))
+           for t in d.get("tool_calls", [])]
+    return _NS(content=d.get("content"), tool_calls=tcs or None,
+               model_dump=lambda: dict(d))
+
+def _drop_dangling_tool_calls():
+    """После отмены в хвосте истории могут остаться вызовы без ответов —
+    Groq на такую историю отвечает ошибкой. Срезаем их."""
+    while conversation_history:
+        last = conversation_history[-1]
+        role = _msg_role(last)
+        if role == "tool" or (role == "assistant" and isinstance(last, dict) and last.get("tool_calls")):
+            conversation_history.pop()
+        else:
+            break
 
 def update_plan(goal: str, steps: list, done_when: str) -> str:
     """Записывает или пересматривает план текущей многошаговой задачи."""
@@ -230,6 +322,7 @@ AVAILABLE_FUNCTIONS = {
     "open_url": open_url,
     "search_google": search_google,
     "open_file": open_file,
+    "open_search_result": open_search_result,
     "create_folder": create_folder,
     "delete_file": delete_file,
     "locate_file": locate_file,
@@ -340,10 +433,11 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "open_youtube", "description": "Opens YouTube search results for a query or video name", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
     {"type": "function", "function": {"name": "open_url", "description": "Opens a URL in the default browser", "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}},
     {"type": "function", "function": {"name": "search_google", "description": "Opens Google search results for a query", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
-    {"type": "function", "function": {"name": "open_file", "description": "Finds a file or folder by name and opens it", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "open_file", "description": "Opens a file or folder by its exact NAME. Not for searching by content or by what is shown in a picture — use search_file_content for that.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "open_search_result", "description": "Opens the N-th file from the most recent search_file_content results (1 = first). Use for 'open the second one' after a file search.", "parameters": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}}},
     {"type": "function", "function": {"name": "create_folder", "description": "Creates a new folder. location can be Desktop, Documents, Downloads, a drive letter, or a full path", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "location": {"type": "string"}}, "required": ["name"]}}},
     {"type": "function", "function": {"name": "delete_file", "description": "Deletes a file or folder by name (moves to Recycle Bin, asks for voice confirmation first)", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
-    {"type": "function", "function": {"name": "locate_file", "description": "Finds a file or folder and reports where it is, without opening it", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "locate_file", "description": "Finds a file or folder ONLY by its NAME and reports where it is. If the user describes what is inside the file or what it is about, use search_file_content instead.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
     {"type": "function", "function": {"name": "rename_file", "description": "Renames a file or folder (asks for voice confirmation first)", "parameters": {"type": "object", "properties": {"old_name": {"type": "string"}, "new_name": {"type": "string"}}, "required": ["old_name", "new_name"]}}},
     {"type": "function", "function": {"name": "copy_file", "description": "Copies a file or folder to a destination, keeping the original (asks for voice confirmation first)", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "destination": {"type": "string"}}, "required": ["name"]}}},
     {"type": "function", "function": {"name": "move_file", "description": "Moves a file or folder to a destination (asks for voice confirmation first)", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "destination": {"type": "string"}}, "required": ["name"]}}},
@@ -438,7 +532,7 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {"name": "launch_steam_game", "description": "Launches an installed Steam game instantly by appid. Always use this instead of opening the Steam library and clicking.", "parameters": {"type": "object", "properties": {"game_name": {"type": "string"}}, "required": ["game_name"]}}},
     {"type": "function", "function": {"name": "list_steam_games", "description": "Lists installed Steam games", "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "open_deep_link", "description": "Opens a service directly at a target in one step: youtube, twitch, maps, github, wikipedia, spotify, steam, telegram, discord, settings. Much faster than a browser session.", "parameters": {"type": "object", "properties": {"service": {"type": "string"}, "query": {"type": "string"}}, "required": ["service"]}}},
-    {"type": "function", "function": {"name": "search_file_content", "description": "Finds files by what is written INSIDE them, not by filename. Use when the user forgot the file name but remembers the content: 'where is the file about the trip budget'. Reads txt, code, docx, xlsx, pptx, pdf.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
+    {"type": "function", "function": {"name": "search_file_content", "description": "Finds files by meaning or words INSIDE them (not filename). Understands paraphrases: 'trip budget' finds 'travel expenses'. Also finds screenshots, images and scanned PDFs by the text visible in them (OCR). Use when the user remembers the content but not the name. Never use browser tools to look for local files.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
     {"type": "function", "function": {"name": "open_found_file", "description": "Finds a file by its content and opens the best match immediately", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
 ]
 
@@ -541,6 +635,8 @@ READ_ONLY_TOOLS = {
     "get_my_ip", "get_local_ip", "is_website_up", "ping_host",
     "list_steam_games", "locate_file", "calculate", "convert_units",
     "word_count", "translate_text", "list_voices", "list_audio_devices",
+    "word_count", "translate_text", "list_voices", "list_audio_devices",
+    "search_file_content",
 }
 
 
@@ -563,10 +659,30 @@ def _run_one_tool(func_name, func_args):
     print(f"[время] {func_name}: {ms / 1000:.2f}с")
     return result, success, ms
 
+_COMPLEX_HINTS = (
+    "сравни", "compare", "проанализ", "analy", "исслед", "research",
+    "составь", "план", "plan", "напиши", "write", "объясни", "explain",
+    "почему", "why", "потом", "затем", "then", "найди и", "find and",
+)
 
-def ask_ai(question: str) -> str:
+
+def _effort_for(question: str, groups: set) -> str:
+    """high — только для сложных многошаговых задач, иначе low (быстрее в разы)."""
+    q = question.lower()
+    if any(h in q for h in _COMPLEX_HINTS) or "browser" in groups or len(q.split()) > 20:
+        return "high"
+    return "low"
+
+def ask_ai(question: str, speech=None) -> str:
     global conversation_history, recent_openers, consecutive_failures, current_plan
+
+    def on_text(delta):
+        if speech is not None:
+            if _stop_speaking.is_set():
+                raise TaskCancelled()   # сказали «стоп» — прекращаем и генерацию
+            speech.feed(delta)
     current_plan = None
+    _cancel_event.clear()
 
     conversation_history.append({"role": "user", "content": question})
 
@@ -580,13 +696,16 @@ def ask_ai(question: str) -> str:
 
     context_msg = {"role": "system", "content": _context_snapshot(question)}
     active_groups = tool_router.groups_for(question)
-    active_schema = tool_router.filter_schema(TOOLS_SCHEMA, active_groups)
-    print(f"[TOOLS] {len(active_schema)}/{len(TOOLS_SCHEMA)} — {sorted(active_groups)}")
+    active_schema = tool_router.smart_schema(question, TOOLS_SCHEMA, active_groups)
+    first_effort = _effort_for(question, active_groups)
+    print(f"[TOOLS] {len(active_schema)}/{len(TOOLS_SCHEMA)} — "
+          f"{sorted(t['function']['name'] for t in active_schema)}")
     print(f"[DEBUG context] {context_msg['content']}")
 
     try:
         step_index = 0
         for _ in range(15):
+            _check_cancel()
             _trim_history()
 
             # Подсказываем про скриншот только если браузерные инструменты
@@ -603,18 +722,28 @@ def ask_ai(question: str) -> str:
             if current_plan:
                 extra.append({"role": "system", "content":
                     "Active plan: " + json.dumps(current_plan, ensure_ascii=False)})
-            reasoning_effort = "high" if step_index == 0 else "low"
+            reasoning_effort = first_effort if step_index == 0 else "low"
             for attempt in range(3):
                 try:
                     _t0 = time.time()
-                    response = client.chat.completions.create(
+                    msgs = llm_gateway.fit(
+                        clean_messages_for_api(conversation_history) + extra, active_schema)
+                    est = llm_gateway.estimate(msgs) + llm_gateway.estimate(active_schema)
+                    other = MODEL_FAST if model == MODEL_SMART else MODEL_SMART
+                    model = llm_gateway.reserve_any([model, other], est, _check_cancel)
+                    response, usage = _call_model_stream(on_text,
                         model=model,
-                        messages=clean_messages_for_api(conversation_history) + extra,
+                        messages=msgs,
                         tools=active_schema,
                         reasoning_effort=reasoning_effort,
                     )
-                    print(f"[время] модель ({model.split('/')[-1]}, шаг {step_index}): "
-                          f"{time.time() - _t0:.2f}с")
+                    llm_gateway.record(
+                        model, est, usage,
+                        llm_gateway.chars(msgs) + llm_gateway.chars(active_schema),
+                        fallback=llm_gateway.estimate(response)
+                                 + (600 if reasoning_effort == "high" else 150))
+                    print(f"[время] модель ({model.split('/')[-1]}, шаг {step_index}, "
+                          f"{reasoning_effort}): {time.time() - _t0:.2f}с")
                     break
                 except Exception as api_err:
                     err = str(api_err)
@@ -626,14 +755,15 @@ def ask_ai(question: str) -> str:
                         if m_wait:
                             wait = float(m_wait.group(1)) + 0.5
                         print(f"[Rate limit] жду {wait:.1f}с и повторяю")
-                        time.sleep(wait)
+                        if _cancel_event.wait(wait):
+                            raise TaskCancelled()
                         continue
                     if attempt < 2 and "tool_use_failed" in low:
                         print(f"[Retry after schema error]: {api_err}")
                         continue
                     raise
 
-            message = response.choices[0].message
+            message = _as_message(response)
             
             # Преобразуем в словарь и сразу вычищаем annotations
             msg_dump = message.model_dump()
@@ -663,7 +793,7 @@ def ask_ai(question: str) -> str:
                     g = tool_router.group_of_tool(n)
                     if g and g not in active_groups:
                         active_groups.add(g)
-                        active_schema = tool_router.filter_schema(TOOLS_SCHEMA, active_groups)
+                        active_schema = tool_router.add_group(active_schema, TOOLS_SCHEMA, g)
                     threading.Thread(target=log_task, args=(n, a, result, success, ms),
                                      daemon=True).start()
                     rs = str(result)
@@ -674,6 +804,7 @@ def ask_ai(question: str) -> str:
                 continue
 
             for tool_call in message.tool_calls:
+                _check_cancel()
                 func_name = tool_call.function.name
                 func_args = json.loads(tool_call.function.arguments)
                 func_args = {k: v for k, v in func_args.items() if k}
@@ -728,6 +859,14 @@ def ask_ai(question: str) -> str:
                 })
         return "Sorry, that took too many steps — let's try something simpler."
 
+    except TaskCancelled:
+        print("[ask_ai] прервано пользователем")
+        _drop_dangling_tool_calls()
+        conversation_history.append({"role": "assistant",
+                                     "content": "[Task was cancelled by the user.]"})
+        from voice import get_response_language
+        return "Хорошо, остановился." if get_response_language() == "ru" else "Alright, stopped."
+    
     except Exception as e:
         print(f"[Ошибка ask_ai]: {e}")
         if "rate_limit" in str(e).lower() or "413" in str(e):

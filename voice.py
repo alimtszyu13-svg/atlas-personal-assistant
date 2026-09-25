@@ -27,6 +27,43 @@ STT_MODEL = "whisper-large-v3"
 
 SAMPLE_RATE = 16000
 INTERRUPT_WORDS = ("stop", "enough", "quiet", "стоп", "хватит", "тихо")
+# Локальное распознавание (Vosk): слышит только эти слова — быстро и без интернета
+WAKE_WORDS_LOCAL = ("атлас",)
+INTERRUPT_WORDS_LOCAL = ("стоп", "хватит", "тихо", "замолчи")
+INTERRUPT_CONF = 0.85   # минимальная уверенность Vosk в каждом слове
+STOP_REPEAT_WINDOW = 4.0   # два «стоп» в пределах стольких секунд = прерывание
+VOSK_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "models", "vosk-model-small-ru-0.22")
+_vosk_model = None
+
+
+def _vosk_recognizer(words):
+    """Распознаватель, которому разрешено слышать только words (остальное — [unk])."""
+    global _vosk_model
+    import json
+    from vosk import Model, KaldiRecognizer, SetLogLevel
+    if _vosk_model is None:
+        SetLogLevel(-1)
+        _vosk_model = Model(VOSK_MODEL_PATH)
+    return KaldiRecognizer(_vosk_model, SAMPLE_RATE,
+                           json.dumps(list(words) + ["[unk]"], ensure_ascii=False))# Локальное распознавание (Vosk): слышит только эти слова — быстро и без интернета
+WAKE_WORDS_LOCAL = ("атлас",)
+INTERRUPT_WORDS_LOCAL = ("стоп", "хватит", "тихо", "замолчи")
+VOSK_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "models", "vosk-model-small-ru-0.22")
+_vosk_model = None
+
+
+def _vosk_recognizer(words):
+    """Распознаватель, которому разрешено слышать только words (остальное — [unk])."""
+    global _vosk_model
+    import json
+    from vosk import Model, KaldiRecognizer, SetLogLevel
+    if _vosk_model is None:
+        SetLogLevel(-1)
+        _vosk_model = Model(VOSK_MODEL_PATH)
+    return KaldiRecognizer(_vosk_model, SAMPLE_RATE,
+                           json.dumps(list(words) + ["[unk]"], ensure_ascii=False))
 WAKE_WORD = "atlas"
 _push_to_talk_event = threading.Event()
 # Ставится, когда пользователь сказал стоп-слово во время речи.
@@ -53,19 +90,62 @@ def get_response_language() -> str:
 def trigger_push_to_talk() -> None:
     """Вызывается извне (горячая клавиша или кнопка интерфейса) —
     мгновенно 'будит' Атласа, минуя произнесение имени вслух."""
+    import traceback
+    src = " / ".join(f"{os.path.basename(f.filename)}:{f.name}"
+                     for f in traceback.extract_stack()[-5:-1])
+    print(f"[PTT] вызван ← {src}")
     _push_to_talk_event.set()
 
 
-def _generate_speech(text: str, filename: str) -> None:
-    """Генерирует аудио через Groq TTS (Orpheus)."""
-    response = groq_client.audio.speech.create(
-        model=TTS_MODEL,
-        voice=TTS_VOICE,
-        input=text,
-        response_format="wav"
-    )
-    response.write_to_file(filename)
+KOKORO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "kokoro")
+KOKORO_VOICE = "bm_lewis"      # британский мужской — ближе всего к Джарвису
+KOKORO_SPEED = 1.05
+_kokoro = None
+_kokoro_lock = threading.Lock()
 
+
+def _generate_speech_kokoro(text: str, filename: str) -> None:
+    """Английская речь локально: без интернета и без суточных лимитов."""
+    global _kokoro
+    import soundfile as sf
+    with _kokoro_lock:
+        if _kokoro is None:
+            from kokoro_onnx import Kokoro
+            _kokoro = Kokoro(os.path.join(KOKORO_DIR, "kokoro-v1.0.onnx"),
+                             os.path.join(KOKORO_DIR, "voices-v1.0.bin"))
+        samples, sr = _kokoro.create(text, voice=KOKORO_VOICE,
+                                     speed=KOKORO_SPEED, lang="en-gb")
+    sf.write(filename, samples, sr)
+
+def _generate_speech(text: str, filename: str) -> None:
+    """Английская речь по выбору в настройках: Fish, Groq или Kokoro.
+    Kokoro работает всегда — на него уходим, если облачный голос недоступен."""
+    vid = _fish_choice["en"]
+    if vid and FISH_API_KEY:
+        try:
+            _generate_speech_fish(text, filename, vid)
+            return
+        except Exception as e:
+            print(f"[Fish error]: {e}, пробую Kokoro")
+    if _en_engine["name"] == "groq" and time.time() >= _groq_tts_until["t"]:
+        try:
+            response = groq_client.audio.speech.create(
+                model=TTS_MODEL, voice=TTS_VOICE, input=text, response_format="wav")
+            response.write_to_file(filename)
+            return
+        except Exception as e:
+            msg = str(e)
+            if "429" in msg:
+                wait = 1800.0
+                m = re.search(r"try again in (?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?", msg)
+                if m and any(m.groups()):
+                    h, mi, s = (float(x) if x else 0.0 for x in m.groups())
+                    wait = h * 3600 + mi * 60 + s
+                _groq_tts_until["t"] = time.time() + wait
+                print(f"[TTS] лимит голоса Groq исчерпан — Kokoro на ~{int(wait // 60)} мин")
+            else:
+                print(f"[TTS] Groq недоступен ({e}), пробую Kokoro")
+    _generate_speech_kokoro(text, filename)
 
 def _vary_pitch(filename: str) -> None:
     """Лёгкая случайная вариация скорости/высоты голоса (±4%) — трюк с
@@ -120,8 +200,41 @@ def _maybe_play_ambient(text: str) -> None:
     except Exception as e:
         print(f"[ambient sound error]: {e}")
 
+_vad_model = None
+
+
+def _get_vad():
+    global _vad_model
+    if _vad_model is None:
+        from silero_vad import load_silero_vad
+        _vad_model = load_silero_vad(onnx=True)
+    return _vad_model
+
+
+def _has_speech(recording, min_speech_s: float = 0.3) -> bool:
+    """Silero VAD: есть ли в записи человеческая речь, а не шум.
+    Без этой проверки Whisper на тишине «слышит» фразы вроде 'Thank you.'"""
+    try:
+        import torch
+        from silero_vad import get_speech_timestamps
+        audio = torch.from_numpy(recording.flatten().astype("float32") / 32768.0)
+        ts = get_speech_timestamps(audio, _get_vad(), sampling_rate=SAMPLE_RATE)
+        speech = sum(t["end"] - t["start"] for t in ts) / SAMPLE_RATE
+        return speech >= min_speech_s
+    except Exception as e:
+        print(f"[VAD] недоступен ({e}) — пропускаю проверку")
+        return True
+
+
+_WHISPER_JUNK = {
+    "продолжение следует", "субтитры сделал dimatorzok", "спасибо за просмотр",
+    "thanks for watching", "thank you for watching", "subtitles by the amara.org community",
+}
 
 def _transcribe_audio(recording: np.ndarray) -> str:
+    if not _has_speech(recording):
+        print("[VAD] речи нет — Whisper не вызываю")
+        return ""
     """
     В английском режиме: переводит речь на ЛЮБОМ языке в английский текст
     (endpoint /audio/translations). В русском режиме: распознаёт речь как есть,
@@ -140,7 +253,7 @@ def _transcribe_audio(recording: np.ndarray) -> str:
             if _response_language["lang"] == "ru":
                 result = groq_client.audio.transcriptions.create(
                     file=(temp_path, f.read()),
-                    model=STT_MODEL,
+                    model="whisper-large-v3-turbo",
                     language="ru"
                 )
             else:
@@ -148,7 +261,14 @@ def _transcribe_audio(recording: np.ndarray) -> str:
                     file=(temp_path, f.read()),
                     model=STT_MODEL
                 )
-        return result.text.strip()
+        text = result.text.strip()
+        if not re.search(r"[^\W\d_]", text):       # ни одной буквы: «...», «?!»
+            print(f"[Whisper] пустая фраза отброшена: {text!r}")
+            return ""
+        if re.sub(r"[^\w\s]", "", text.lower()).strip() in _WHISPER_JUNK:
+            print(f"[Whisper] выдуманная фраза отброшена: {text!r}")
+            return ""
+        return text
     except Exception as e:
         print(f"[STT error]: {e}")
         return ""
@@ -157,50 +277,53 @@ def _transcribe_audio(recording: np.ndarray) -> str:
 
 
 def wait_for_wake_word() -> str:
-    """Возвращает 'manual', если разбудили push-to-talk'ом, или 'voice', если услышал имя."""
-    print("(waiting for wake word 'Atlas'...)")
-    while True:
-        if _push_to_talk_event.is_set():
-            _push_to_talk_event.clear()
-            return "manual"
-
-        recording = sd.rec(int(2.5 * SAMPLE_RATE), samplerate=SAMPLE_RATE,
-                            channels=1, dtype='int16')
-        sd.wait()
-
-        if _push_to_talk_event.is_set():
-            _push_to_talk_event.clear()
-            return "manual"
-
-        volume = np.sqrt(np.mean(recording.astype(np.float32) ** 2))
-        if volume < 250:
-            continue
-
-        text = _transcribe_audio(recording).lower()
-        if WAKE_WORD in text:
-            return "voice"
+    """Ждёт «Атлас» локально через Vosk. 'manual' — если нажали push-to-talk."""
+    import json
+    print("(waiting for wake word 'Атлас' — локально)")
+    rec = _vosk_recognizer(WAKE_WORDS_LOCAL)
+    with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=4000,
+                           dtype="int16", channels=1) as stream:
+        while True:
+            if _push_to_talk_event.is_set():
+                _push_to_talk_event.clear()
+                return "manual"
+            data, _overflow = stream.read(4000)          # 0.25 с звука
+            if rec.AcceptWaveform(bytes(data)):
+                text = json.loads(rec.Result()).get("text", "")
+            else:
+                text = json.loads(rec.PartialResult()).get("partial", "")
+            if "атлас" in text.split():
+                return "voice"
 
 
 def _watch_for_interrupt(stop_event: threading.Event) -> None:
-    while pygame.mixer.music.get_busy() and not stop_event.is_set():
-        chunk = sd.rec(int(1.5 * SAMPLE_RATE), samplerate=SAMPLE_RATE,
-                        channels=1, dtype='int16')
-        sd.wait()
-
-        if stop_event.is_set():
-            break
-
-        volume = np.sqrt(np.mean(chunk.astype(np.float32) ** 2))
-        if volume < 250:
-            continue
-
-        text = _transcribe_audio(chunk).lower()
-        if any(word in text for word in INTERRUPT_WORDS):
-            print("[Atlas]: (прервано)")
-            _stop_speaking.set()
-            pygame.mixer.music.stop()
-            return
-
+    """Прерывание речи по фразе «Атлас, стоп». Одно стоп-слово Vosk иногда
+    «слышит» в собственном голосе Atlas из колонок, а имя + стоп подряд — нет."""
+    import json
+    rec = _vosk_recognizer(INTERRUPT_WORDS_LOCAL + WAKE_WORDS_LOCAL)
+    rec.SetWords(True)                      # нужна уверенность по каждому слову
+    last_stop = 0.0
+    with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=4000,
+                           dtype="int16", channels=1) as stream:
+        while pygame.mixer.music.get_busy() and not stop_event.is_set():
+            data, _overflow = stream.read(4000)
+            if not rec.AcceptWaveform(bytes(data)):
+                continue
+            heard = [(w["word"], round(w["conf"], 2))
+                     for w in json.loads(rec.Result()).get("result", [])]
+            if heard:
+                print(f"[vosk] слышу: {heard}")
+            sure = [w for w, c in heard if c >= INTERRUPT_CONF]
+            n_stop = sum(1 for w in sure if w in INTERRUPT_WORDS_LOCAL)
+            now = time.time()
+            repeated = n_stop >= 2 or (n_stop and now - last_stop < STOP_REPEAT_WINDOW)
+            if n_stop:
+                last_stop = now
+            if n_stop and ("атлас" in sure or repeated):
+                print("[Atlas]: (прервано)")
+                _stop_speaking.set()
+                pygame.mixer.music.stop()
+                return
 
 FALLBACK_VOICE = "en-US-GuyNeural"
 
@@ -308,7 +431,7 @@ class _T:
 def _cache_path(text: str, ext: str) -> str:
     os.makedirs(PHRASE_CACHE_DIR, exist_ok=True)
     lang = _response_language["lang"]
-    key = hashlib.md5(f"{lang}:{TTS_VOICE}:{text}".encode("utf-8")).hexdigest()[:16]
+    key = hashlib.md5(f"{lang}:{TTS_VOICE}:{KOKORO_VOICE}:{_fish_choice[lang]}:{text}".encode("utf-8")).hexdigest()[:16]
     return os.path.join(PHRASE_CACHE_DIR, f"{lang}_{key}{ext}")
 
 
@@ -384,7 +507,7 @@ def _generate_any(text: str, filename: str) -> None:
     """Генерация речи в указанный файл — тот же каскад, что в speak()."""
     if _response_language["lang"] == "ru":
         try:
-            _generate_speech_elevenlabs(text, filename)
+            _generate_ru_primary(text, filename)
             return
         except Exception as e:
             print(f"[ElevenLabs error]: {e}, пробую Silero")
@@ -476,7 +599,7 @@ def speak(text: str, interruptible: bool = True, cache_as: str = None) -> None:
     if _response_language["lang"] == "ru":
         filename = "temp_speech.mp3"
         try:
-            _generate_speech_elevenlabs(text, filename)
+            _generate_ru_primary(text, filename)
         except Exception as e:
             print(f"[ElevenLabs error]: {e}, falling back to Silero")
             filename = "temp_speech.wav"
@@ -563,40 +686,51 @@ def speak(text: str, interruptible: bool = True, cache_as: str = None) -> None:
             print(f"[cache save]: {e}")
     os.remove(filename)
 
-def _listen_once(max_duration: float, silence_limit: float):
-    """Один заход записи: ждём речь, пишем до паузы. Возвращает аудио или
-    None, если человек так и не заговорил."""
-    chunk_duration = 0.1
-    chunk_size = int(SAMPLE_RATE * chunk_duration)
-    silence_threshold = 300
+LISTEN_START_TIMEOUT = 8.0     # сколько ждать начала речи после нажатия / имени
 
-    frames = []
-    silent_chunks = 0
-    max_silent = int(silence_limit / chunk_duration)
-    total_chunks = int(max_duration / chunk_duration)
 
-    stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16")
+def _listen_once(max_duration: float, silence_limit: float,
+                 start_timeout: float = LISTEN_START_TIMEOUT):
+    """Одна фраза. Начало и конец речи определяет Silero VAD, а не порог
+    громкости, — поэтому работает и с тихим микрофоном, и при шуме.
+    Возвращает аудио или None, если за start_timeout никто не заговорил."""
+    import torch
+    from collections import deque
+    from silero_vad import VADIterator
+
+    block = 512                                   # 32 мс — размер, который ждёт VAD
+    vad = VADIterator(_get_vad(), sampling_rate=SAMPLE_RATE, threshold=0.5,
+                      min_silence_duration_ms=int(silence_limit * 1000),
+                      speech_pad_ms=100)
+    preroll = deque(maxlen=10)                    # ~0.3 с до начала речи — не теряем первый слог
+    frames, started = [], False
+    t0 = time.time()
+
+    stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=block)
     stream.start()
-    started = False
     try:
-        for _ in range(total_chunks):
-            chunk, _overflow = stream.read(chunk_size)
-            frames.append(chunk)
-            volume = np.sqrt(np.mean(chunk.astype(np.float32) ** 2))
-            if volume > silence_threshold:
+        while True:
+            chunk, _overflow = stream.read(block)
+            if started:
+                frames.append(chunk)
+            else:
+                preroll.append(chunk)
+            ev = vad(torch.from_numpy(chunk.flatten().astype("float32") / 32768.0))
+            if ev and "start" in ev and not started:
                 started = True
-                silent_chunks = 0
-            elif started:
-                silent_chunks += 1
-            if started and silent_chunks > max_silent:
+                frames.extend(preroll)
+            if ev and "end" in ev and started:
+                break                              # пауза дольше silence_limit — фраза закончена
+            if not started and time.time() - t0 > start_timeout:
+                break                              # так и не заговорили
+            if started and len(frames) * block / SAMPLE_RATE > max_duration:
                 break
     finally:
         stream.stop()
         stream.close()
+        vad.reset_states()
 
-    if not started:
-        return None
-    return np.concatenate(frames)
+    return np.concatenate(frames) if started else None
 
 
 def _wait_for_continuation(window: float = 0.9):
@@ -621,7 +755,7 @@ def _wait_for_continuation(window: float = 0.9):
     return False
 
 
-def listen(max_duration: int = 10, silence_limit: float = 1.1) -> str:
+def listen(max_duration: int = 10, silence_limit: float = 1.6) -> str:
     """Слушает команду. После паузы недолго ждёт продолжения — чтобы можно
     было договорить мысль, а не выпаливать её на одном дыхании."""
     print("Listening...")
@@ -754,3 +888,220 @@ def _compute_envelope(filename: str, duration: float, buckets: int = 40) -> list
 
     random.seed(len(filename) + int(duration * 100))
     return [round(0.25 + 0.65 * abs(random.random() - 0.5) * 2, 2) for _ in range(buckets)]
+
+# ---------------------------------------------------------------------------
+# Потоковая речь: фразы поступают по мере генерации ответа моделью
+# ---------------------------------------------------------------------------
+import queue as _queue
+
+
+class SpeechStream:
+    """Принимает текст кусками, режет на фразы и озвучивает по порядку:
+    пока играет фраза N, синтезируется N+1."""
+    MIN_CHARS = 40          # короче не режем — иначе речь рваная
+    _END = object()
+
+    def __init__(self, interruptible: bool = True):
+        self.interruptible = interruptible
+        self.buf = ""
+        self.spoken_any = False
+        self.n = 0
+        self.texts = _queue.Queue()
+        self.files = _queue.Queue()
+        self.ext = ".mp3" if _response_language["lang"] == "ru" else ".wav"
+        _stop_speaking.clear()
+        self.play_t = threading.Thread(target=self._play_loop, daemon=True)
+        threading.Thread(target=self._gen_loop, daemon=True).start()
+        self.play_t.start()
+
+    def feed(self, delta: str) -> None:
+        """Новый кусок текста от модели."""
+        self.buf += delta
+        while True:
+            m = re.search(r"[.!?\u2026](?=\s)", self.buf[self.MIN_CHARS:])
+            if not m:
+                break
+            cut = self.MIN_CHARS + m.end()
+            self._push(self.buf[:cut])
+            self.buf = self.buf[cut:]
+
+    def finish(self) -> None:
+        """Отдать остаток и дождаться конца речи."""
+        self._push(self.buf)
+        self.buf = ""
+        self.texts.put(self._END)
+        self.play_t.join()
+
+    def _push(self, text: str) -> None:
+        text = re.sub(r"^\s*(?:[-*•]|#+|\d+\.)\s+", "", text, flags=re.M)
+        text = text.replace("**", "").strip()
+        if text and not _stop_speaking.is_set():
+            self.spoken_any = True
+            self.texts.put(text)
+
+    def _gen_loop(self):
+        while True:
+            text = self.texts.get()
+            if text is self._END or _stop_speaking.is_set():
+                self.files.put(self._END)
+                return
+            fn = f"temp_live_{self.n}{self.ext}"
+            self.n += 1
+            try:
+                _generate_any(text, fn)
+                self.files.put((text, fn))
+            except Exception as e:
+                print(f"[live tts]: {e}")
+
+    def _play_loop(self):
+        while True:
+            item = self.files.get()
+            if item is self._END:
+                shared_state["state"] = "idle"
+                return
+            text, fn = item
+            try:
+                if not _stop_speaking.is_set():
+                    print(f"[Atlas ▶] {text}")
+                    shared_state["state"] = "speaking"
+                    shared_state["text"] = text
+                    _vary_pitch(fn)
+                    _play_file(fn, self.interruptible)
+            except Exception as e:
+                print(f"[live play]: {e}")
+            finally:
+                try:
+                    os.remove(fn)
+                except Exception:
+                    pass
+
+# ---------------------------------------------------------------------------
+# Выбор голоса: Kokoro / ElevenLabs + голоса Fish Audio из .env
+# ---------------------------------------------------------------------------
+KOKORO_VOICES = ["bm_lewis", "bm_george", "bm_daniel", "bm_fable", "am_michael", "am_adam"]
+FISH_API_KEY = os.getenv("FISH_API_KEY")
+VOICE_PREFS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_prefs.json")
+
+
+def _parse_fish(env_name: str) -> dict:
+    """'Jarvis:id1,Other:id2' → {'Fish · Jarvis': 'id1', ...}"""
+    out = {}
+    for item in (os.getenv(env_name) or "").split(","):
+        if ":" in item:
+            name, vid = item.split(":", 1)
+            out[f"Fish · {name.strip()}"] = vid.strip()
+    return out
+
+
+FISH_VOICES = {"en": _parse_fish("FISH_VOICES_EN"), "ru": _parse_fish("FISH_VOICES_RU")}
+_fish_choice = {"en": None, "ru": None}   # ID выбранного Fish-голоса или None
+_en_engine = {"name": "groq"}             # "groq" (основной) или "kokoro"
+_groq_tts_until = {"t": 0.0}              # до какого времени лимит голоса Groq исчерпан
+_fish = None
+
+
+def _generate_speech_fish(text: str, filename: str, voice_id: str) -> None:
+    global _fish
+    from fishaudio import FishAudio
+    from fishaudio.types import TTSConfig
+    if _fish is None:
+        _fish = FishAudio(api_key=FISH_API_KEY)
+    fmt = "mp3" if filename.endswith(".mp3") else "wav"
+    audio = _fish.tts.convert(text=text, config=TTSConfig(reference_id=voice_id, format=fmt))
+    data = audio if isinstance(audio, (bytes, bytearray)) else b"".join(audio)
+    with open(filename, "wb") as f:
+        f.write(data)
+
+
+def _generate_ru_primary(text: str, filename: str) -> None:
+    """Русский: Fish, если выбран в настройках, иначе ElevenLabs."""
+    vid = _fish_choice["ru"]
+    if vid and FISH_API_KEY:
+        try:
+            _generate_speech_fish(text, filename, vid)
+            return
+        except Exception as e:
+            print(f"[Fish error]: {e}, пробую ElevenLabs")
+    _generate_speech_elevenlabs(text=text, filename=filename)
+
+
+def list_voice_choices(lang: str) -> list:
+    if lang == "ru":
+        base = (list(ELEVENLABS_VOICE_OPTIONS["male"].keys())
+                + list(ELEVENLABS_VOICE_OPTIONS["female"].keys()))
+    else:
+        base = list(KOKORO_VOICES) + VOICE_OPTIONS["male"] + VOICE_OPTIONS["female"]
+    return base + list(FISH_VOICES[lang].keys())
+
+
+def current_voice_choice(lang: str) -> str:
+    vid = _fish_choice[lang]
+    if vid:
+        for name, v in FISH_VOICES[lang].items():
+            if v == vid:
+                return name
+    if lang == "ru":
+        return _elevenlabs_voice["name"]
+    return TTS_VOICE if _en_engine["name"] == "groq" else KOKORO_VOICE
+
+
+def choose_voice(name: str) -> str:
+    """Выбор голоса из настроек для текущего языка."""
+    global KOKORO_VOICE
+    lang = _response_language["lang"]
+    if name in FISH_VOICES[lang]:
+        _fish_choice[lang] = FISH_VOICES[lang][name]
+        result = f"Voice switched to {name}."
+    else:
+        _fish_choice[lang] = None
+        if lang == "ru":
+            result = set_elevenlabs_voice(name)
+        elif name in KOKORO_VOICES:
+            KOKORO_VOICE = name
+            _en_engine["name"] = "kokoro"
+            result = f"Voice switched to {name}."
+        else:
+            result = set_voice(name)          # голоса Groq Orpheus
+            _en_engine["name"] = "groq"
+    _save_voice_prefs()
+    return result
+
+
+def _save_voice_prefs() -> None:
+    import json
+    try:
+        with open(VOICE_PREFS, "w", encoding="utf-8") as f:
+            json.dump({"kokoro": KOKORO_VOICE, "fish": _fish_choice,
+                       "eleven": _elevenlabs_voice.get("name"),
+                       "en_engine": _en_engine["name"], "groq_voice": TTS_VOICE},
+                      f, ensure_ascii=False)
+    except Exception as e:
+        print(f"[voice prefs] {e}")
+
+
+def _load_voice_prefs() -> None:
+    global KOKORO_VOICE
+    import json
+    try:
+        with open(VOICE_PREFS, encoding="utf-8") as f:
+            p = json.load(f)
+    except Exception:
+        return
+    KOKORO_VOICE = p.get("kokoro", KOKORO_VOICE)
+    _en_engine["name"] = p.get("en_engine", "kokoro")
+    if p.get("groq_voice"):
+        try:
+            set_voice(p["groq_voice"])
+        except Exception:
+            pass
+    for lang in ("en", "ru"):
+        vid = (p.get("fish") or {}).get(lang)
+        if vid in FISH_VOICES[lang].values():
+            _fish_choice[lang] = vid
+    if p.get("eleven"):
+        try:
+            set_elevenlabs_voice(p["eleven"])
+        except Exception:
+            pass
+
+_load_voice_prefs()

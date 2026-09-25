@@ -26,7 +26,7 @@ class Api:
     
     def get_audio_options(self) -> dict:
         import sounddevice as sd
-        from voice import VOICE_OPTIONS, TTS_VOICE, get_response_language, ELEVENLABS_VOICE_OPTIONS, _elevenlabs_voice
+        from voice import get_response_language, list_voice_choices, current_voice_choice
         try:
             from pygame._sdl2 import audio as sdl2_audio
             speakers = sdl2_audio.get_audio_device_names(False)
@@ -36,12 +36,8 @@ class Api:
                 if d['max_input_channels'] > 0 and "переназначение" not in d['name'].lower()]
 
         lang = get_response_language()
-        if lang == "ru":
-            voices = list(ELEVENLABS_VOICE_OPTIONS["male"].keys()) + list(ELEVENLABS_VOICE_OPTIONS["female"].keys())
-            current_voice = _elevenlabs_voice["name"]
-        else:
-            voices = VOICE_OPTIONS["male"] + VOICE_OPTIONS["female"]
-            current_voice = TTS_VOICE
+        voices = list_voice_choices(lang)
+        current_voice = current_voice_choice(lang)
 
         return {
             "microphones": mics,
@@ -53,11 +49,8 @@ class Api:
         }
 
     def set_voice_ui(self, name: str) -> None:
-        from voice import set_voice, set_elevenlabs_voice, get_response_language
-        if get_response_language() == "ru":
-            set_elevenlabs_voice(name)
-        else:
-            set_voice(name)
+        from voice import choose_voice
+        choose_voice(name)
 
     def set_microphone_ui(self, name: str) -> None:
         from voice import set_microphone
@@ -98,8 +91,17 @@ class Api:
         
     def send_text_command(self, text: str) -> None:
         text = text.strip()
-        if text:
-            shared_state["manual_queue"].append(text)
+        if not text:
+            return
+        if text.lower().strip(" .!") in ("стоп", "stop", "отмена", "cancel", "хватит"):
+            from ai_brain import cancel_current_task
+            cancel_current_task()
+            return
+        shared_state["manual_queue"].append(text)
+
+    def cancel_task(self) -> None:
+        from ai_brain import cancel_current_task
+        cancel_current_task()
 
     def set_theme(self, theme: str) -> None:
         shared_state["theme"] = theme

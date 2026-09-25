@@ -156,7 +156,7 @@ NOT_AN_APP = (
 
 
 def try_fast_command(text: str):
-    t = text.lower().strip().rstrip(".!?")
+    t = text.lower().strip().strip('«»"\'“”„').rstrip(".!?").strip()
     if not t:
         return None
 
@@ -164,7 +164,7 @@ def try_fast_command(text: str):
     # "где файл про бюджет поездки" / "найди файл где я писал про стажировку"
     m = re.match(
         r"^(?:где|найди|найти|поищи|покажи)\s+(?:мне\s+)?"
-        r"(?:файл|документ|заметк\w*|запис\w*)\s*"
+        r"(?:файл|документ|заметк\w*|запис\w*|скриншот\w*|снимок\w*|картинк\w*|фото\w*)\s*"
         r"(?:,?\s*(?:где|в котором|с текстом|про|о|об)\s+)?(.+)$", t)
     if m:
         what = m.group(1).strip()
@@ -173,6 +173,38 @@ def try_fast_command(text: str):
             from file_search import search_file_content
             return _ok(search_file_content(what))
 
+    # English: "where is the file about the budget for the trip"
+    m = re.match(
+        r"^(?:where(?:'s| is)|find|search for|show me)\s+(?:the\s+|my\s+|a\s+)?"
+        r"(?:file|document|doc|note|screenshot|image|picture|photo)s?\s+"
+        r"(?:about|with|on|where|that|of|showing)\s+(.+)$", t)
+    if m and len(m.group(1).strip()) > 2:
+        from file_search import search_file_content
+        return _ok(search_file_content(m.group(1).strip()))
+
+    m = re.match(r"^open\s+(?:the\s+)?(?:file|document)\s+(?:about|with|where)\s+(.+)$", t)
+    if m:
+        from file_search import open_found_file
+        return _ok(open_found_file(m.group(1).strip()))
+
+        # "открой второй" / "open the second one" / "open 3"
+    m = re.match(r"^(?:открой|open)\s+(?:the\s+)?(?:номер\s+|number\s+)?(\w+)"
+                 r"(?:\s+(?:файл|file|one|результат))?$", t)
+    if m:
+        from file_search import _ORD, open_search_result
+        w = m.group(1)
+        if w in _ORD or w.isdigit():
+            return _ok(open_search_result(w))
+
+    # "покажи второй в папке" / "show the second one in folder"
+    m = re.match(r"^(?:покажи|show)\s+(?:the\s+)?(\w+)(?:\s+(?:файл|file|one))?"
+                 r"\s+(?:в папке|in (?:the\s+)?folder)$", t)
+    if m:
+        from file_search import _ORD, show_search_result_in_folder
+        w = m.group(1)
+        if w in _ORD or w.isdigit():
+            return _ok(show_search_result_in_folder(w))
+    
     m = re.match(r"^(?:открой)\s+файл\s+(?:где|про|о|с текстом)\s+(.+)$", t)
     if m:
         from file_search import open_found_file

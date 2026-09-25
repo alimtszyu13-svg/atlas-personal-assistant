@@ -39,7 +39,7 @@ GROUPS = {
     },
     "files": {
         "open_file", "create_folder", "delete_file", "locate_file",
-        "rename_file", "copy_file", "move_file",
+        "rename_file", "copy_file", "move_file","open_search_result"
     },
     "system": {
         "open_app", "close_app", "set_volume", "get_volume", "volume_up",
@@ -94,7 +94,7 @@ TRIGGERS = {
     "files": (
         "файл", "папк", "документ", "переименуй", "скопируй", "перемести",
         "удали", "загрузк", "рабочий стол", "file", "folder", "document",
-        "rename", "copy", "move", "delete", "desktop", "download", "search_file_content", "open_found_file", "где файл", "содержим", "внутри файла", "писал про"
+        "rename", "copy", "move", "delete", "desktop", "download", "search_file_content", "open_found_file", "где файл", "содержим", "внутри файла", "писал про", "скриншот", "screenshot", "картинк", "фото", "image", "picture", "photo"
     ),
     "system": (
         "приложени", "программ", "запусти", "закрой", "громкост", "яркост",
@@ -202,3 +202,60 @@ def filter_schema(full_schema: list, active_groups: set) -> list:
         allowed |= GROUPS.get(g, set())
     return [t for t in full_schema
             if t.get("function", {}).get("name") in allowed]
+
+# ---------------------------------------------------------------------------
+# Семантический роутер: инструменты по смыслу запроса, а не только по словам
+# ---------------------------------------------------------------------------
+import re as _re
+import numpy as _np
+
+SEMANTIC_TOP_K = 8          # сколько инструментов брать по смыслу
+SEMANTIC_MIN_SIM = 0.2      # ниже — инструмент к запросу не относится
+_tool_index = {"names": None, "mat": None}
+
+
+def _build_tool_index(full_schema: list) -> None:
+    from file_search import _embed          # та же MiniLM, что в поиске файлов
+    names, texts = [], []
+    for t in full_schema:
+        f = t["function"]
+        names.append(f["name"])
+        texts.append(f"{f['name'].replace('_', ' ')}: {f.get('description', '')}")
+    _tool_index["names"] = names
+    _tool_index["mat"] = _embed(texts)
+
+
+def semantic_tools(question: str, full_schema: list, k: int = SEMANTIC_TOP_K) -> set:
+    from file_search import _embed
+    if _tool_index["mat"] is None:
+        _build_tool_index(full_schema)
+    q = _re.sub(r"^\s*\([^)]*\)\s*", "", question)      # убираем подсказку языка в начале
+    sims = _tool_index["mat"] @ _embed([q])[0]
+    names = _tool_index["names"]
+    return {names[j] for j in _np.argsort(-sims)[:k] if sims[j] >= SEMANTIC_MIN_SIM}
+
+
+def smart_schema(question: str, full_schema: list, groups: set) -> list:
+    """CORE + группы, явно названные в запросе + топ-K инструментов по смыслу.
+    Набор «на каждый день» (DEFAULT_GROUPS) больше не шлём целиком —
+    его заменяет смысловой выбор."""
+    allowed = set(CORE)
+    if set(groups) != set(DEFAULT_GROUPS):          # группы нашлись по ключевым словам
+        for g in groups:
+            allowed |= GROUPS.get(g, set())
+    try:
+        allowed |= semantic_tools(question, full_schema)
+    except Exception as e:
+        print(f"[router] семантика недоступна ({e}) — беру группы по умолчанию")
+        for g in DEFAULT_GROUPS:
+            allowed |= GROUPS.get(g, set())
+    return [t for t in full_schema if t["function"]["name"] in allowed]
+
+
+def add_group(active_schema: list, full_schema: list, group) -> list:
+    """Модель вызвала инструмент из новой группы — добавляем её инструменты."""
+    have = {t["function"]["name"] for t in active_schema}
+    extra = [t for t in full_schema
+             if t["function"]["name"] in GROUPS.get(group, set())
+             and t["function"]["name"] not in have]
+    return active_schema + extra

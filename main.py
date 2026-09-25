@@ -1,13 +1,18 @@
+# onnxruntime должен загрузиться первым: его DLL конфликтуют,
+# если раньше успели загрузиться WinRT (OCR) или .NET (pywebview)
+import onnxruntime  # noqa: F401
 import threading
 import time
 from datetime import datetime
 from ai_brain import ask_ai
+from core.bus import bus
 from fast_commands import try_fast_command
 from reminders import start_reminder_thread
 from web_gui import WebGUI
 from window_hotkey import start_window_toggle_hotkey
 from ui_state import shared_state
 import random
+import re
 from selection_hotkey import start_selection_hotkeys
 from hotkeys import start_push_to_talk_hotkey
 from voice import speak, speak_cached, speak_streaming, listen, wait_for_wake_word, _push_to_talk_event, get_response_language
@@ -71,11 +76,14 @@ def _speak_and_update(text: str, interruptible: bool = True) -> None:
     shared_state["state"] = "speaking"
     shared_state["text"] = text
     shared_state["chat_history"].append(("Atlas", text))
-    speak(text, interruptible=interruptible)
+    spoken = re.sub(r"^\s*(?:[-*•]|#+|\d+\.)\s+", "", text, flags=re.M).replace("**", "")
+    speak(spoken, interruptible=interruptible)
     shared_state["state"] = "idle"
 
 
 def _process_command(command: str) -> None:
+    import traceback
+    print(f"[cmd] {command!r} ← {traceback.extract_stack()[-2].name}")
     shared_state["chat_history"].append(("You", command))
     shared_state["text"] = command
 
@@ -105,8 +113,15 @@ def _process_command(command: str) -> None:
     # на то, что она "запомнит" переключение из истории диалога, особенно
     # если язык менялся через интерфейс, минуя саму беседу
     lang_hint = "(Respond in Russian.) " if get_response_language() == "ru" else "(Respond in English.) "
-    response = ask_ai(lang_hint + command)
-    _speak_and_update(response)
+    from voice import SpeechStream
+    speech = SpeechStream()
+    response = ask_ai(lang_hint + command, speech=speech)
+    shared_state["chat_history"].append(("Atlas", response))   # текст — сразу, речь догоняет
+    speech.finish()
+    if not speech.spoken_any:            # запасной путь (например, после rate limit)
+        shared_state["state"] = "speaking"
+        speak(response)
+    shared_state["state"] = "idle"
 
 
 def _manual_queue_watcher():
@@ -154,8 +169,14 @@ def _voice_loop():
         if len(command.strip()) < MIN_COMMAND_LENGTH:
             continue  # мусорное/пустое распознавание — не тратим вызов ask_ai
 
-        STOP_WORDS = ("stop", "стоп", "выключись")
-        if any(word in command.lower() for word in STOP_WORDS):
+        SHUTDOWN_PHRASES = {
+            "выключись", "отключись", "выключайся", "выключи себя",
+            "shut down", "turn off", "power off", "turn yourself off",
+        }
+        cmd = command.lower().strip(" .!?,")
+        cmd = re.sub(r"^(?:atlas|атлас)[,\s]+", "", cmd)
+        cmd = re.sub(r"[,\s]+(?:please|пожалуйста)$", "", cmd).strip()
+        if cmd in SHUTDOWN_PHRASES:
             shutdown_msg = random.choice(SHUTDOWN_RESPONSES[get_response_language()])
             _speak_and_update(shutdown_msg)
             shared_state["should_quit"] = True
@@ -163,6 +184,10 @@ def _voice_loop():
         _process_command(command)
         
 start_push_to_talk_hotkey("f9")
+import keyboard
+from ai_brain import cancel_current_task
+keyboard.add_hotkey("f8", cancel_current_task)
+print("(cancel hotkey active: f8)")
 start_selection_hotkeys()
 
 voice_thread = threading.Thread(target=_voice_loop, daemon=True)
