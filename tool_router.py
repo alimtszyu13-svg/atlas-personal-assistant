@@ -298,3 +298,6 @@ def register_tool(name: str, group: str) -> None:
 # Зрение: явные слова про экран и клики
 TRIGGERS["vision"] = ("жми", "нажми", "кликни", "ткни", "click", "press", "экран", "screen",
                       "в окне", "window", "что написано", "переведи то")
+
+TRIGGERS["missions"] = ("в фоне", "фонов", "мисси", "background", "mission",
+                        "исследуй", "research", "собери", "сравни несколько")

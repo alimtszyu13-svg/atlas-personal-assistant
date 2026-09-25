@@ -160,6 +160,23 @@ def try_fast_command(text: str):
     if not t:
         return None
 
+    # «в фоне …» / «на фоне …» — сразу фоновая миссия, решение не за моделью
+    if re.search(r"(?:^|\s)(?:в|на) фоне\b|in the background", t):
+        goal = re.sub(r"\s*(?:атлас,?\s*)?(?:(?:в|на) фоне|in the background)\s*", " ",
+                      text, flags=re.I).strip(" ,.")
+        if len(goal) > 5:
+            from core import missions
+            from ui_state import shared_state
+            from voice import get_response_language
+            # последние реплики — чтобы «сравни их» знало, кого «их»
+            ctx = [f"{who}: {str(msg)[:200]}"
+                   for who, msg in shared_state.get("chat_history", [])[-5:-1]]
+            full = goal + ("\n\nRecent conversation for context:\n" + "\n".join(ctx) if ctx else "")
+            mid = missions.start(full)
+            if get_response_language() == "ru":
+                return ("speak", f"Принял, миссия {mid} в работе. Скажу, когда будет готово.")
+            return ("speak", f"On it — mission {mid} is running. I'll tell you when it's done.")
+
     # Угадай число: во время игры число из фразы сразу идёт в guess_number —
     # без модели, мгновенно и без выдуманных подсказок
     from skills.fun import game_active, guess_number

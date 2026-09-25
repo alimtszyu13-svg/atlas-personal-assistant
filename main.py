@@ -278,6 +278,8 @@ _ensure_wake_phrases()
 memory.start_sleep_cycle()
 from core import proactive
 proactive.start(lambda text: _speak_and_update(text, interruptible=False))
+from core import missions
+missions.init(lambda text: _speak_and_update(text, interruptible=False))
 voice_thread = threading.Thread(target=_voice_loop, daemon=True)
 voice_thread.start()
 
