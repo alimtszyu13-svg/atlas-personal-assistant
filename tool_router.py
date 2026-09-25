@@ -16,7 +16,7 @@
 
 # Всегда доступны — дешёвые и нужны почти в любой задаче
 CORE = {
-    "update_plan", "search_web", "save_memory", "recall_memories",
+    "update_plan", "search_web", "remember_fact", "recall_conversations",
     "forget_memory", "get_weather",
 }
 

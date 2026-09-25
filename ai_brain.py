@@ -98,9 +98,9 @@ SYSTEM_PROMPT = (
     "without the user's explicit spoken confirmation. "
     ""
     "MEMORY. For 'do you remember / what did I tell you / what did we discuss' use "
-    "recall_conversations (past talks); recall_memories only lists saved facts. "
-    "Quietly save_memory durable facts (projects, goals, preferences, people, routine) "
-    "without announcing it; skip one-off details. When unsure, don't save. "
+    "recall_conversations. When the user states or changes a durable fact (goals, dates, "
+    "preferences, people, projects), quietly call remember_fact without announcing it; "
+    "skip one-off details. "
     "If asked to switch language, call set_response_language and continue in that language."
 )
 
@@ -590,7 +590,7 @@ def ask_ai(question: str, speech=None) -> str:
     active_schema = tool_router.smart_schema(question, TOOLS_SCHEMA, active_groups)
     mem_block = memory.recall_block(question)
     if mem_block:
-        print(f"[память] подмешано эпизодов: {mem_block.count(chr(10))}")
+        print(f"[память] подмешано записей: {mem_block.count(chr(10) + '- ')}")
     first_effort = _effort_for(
         question, {tool_router.group_of_tool(t["function"]["name"]) for t in active_schema})
     print(f"[TOOLS] {len(active_schema)}/{len(TOOLS_SCHEMA)} — "
