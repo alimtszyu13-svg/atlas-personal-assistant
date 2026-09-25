@@ -126,3 +126,9 @@ def reserve_any(models: list, tokens: int, cancel_check=None) -> str:
         print(f"[gateway] {models[0].split('/')[-1]} занята — беру {chosen.split('/')[-1]}")
     reserve(chosen, tokens, cancel_check)
     return chosen
+
+def busy(model: str, frac: float = 0.5) -> bool:
+    """Занято ли больше frac минутного лимита — фоновые задачи тогда ждут."""
+    with _lock:
+        win = _windows.setdefault(model, deque())
+        return _used(win, time.time()) > TPM_LIMIT * SAFETY * frac

@@ -157,15 +157,29 @@ NOT_AN_APP = (
 
 def try_fast_command(text: str):
     t = text.lower().strip().strip('«»"\'“”„').rstrip(".!?").strip()
-        # Угадай число: во время игры число из фразы сразу идёт в guess_number —
+    if not t:
+        return None
+
+    # Угадай число: во время игры число из фразы сразу идёт в guess_number —
     # без модели, мгновенно и без выдуманных подсказок
     from skills.fun import game_active, guess_number
     if game_active():
         m = re.search(r"\b(\d{1,3})\b", t)
         if m:
             return ("speak", guess_number(int(m.group(1))))   # ответ игры нужно услышать
-    if not t:
-        return None
+
+    # Шутка / факт: сразу в навык, без круга через модель
+    m = re.match(r"^(?:расскажи\s+)?(?:мне\s+)?(?:шутк\w*|анекдот\w*)(?:\s+(?:про|о|об)\s+(.+))?$", t) \
+        or re.match(r"^(?:tell\s+(?:me\s+)?)?(?:a\s+)?joke(?:\s+about\s+(.+))?$", t)
+    if m:
+        from skills.fun import tell_joke
+        return ("speak", tell_joke(m.group(1) or ""))
+
+    m = re.match(r"^(?:расскажи\s+)?(?:мне\s+)?(?:интересный\s+)?факт(?:\s+(?:про|о|об)\s+(.+))?$", t) \
+        or re.match(r"^(?:tell\s+(?:me\s+)?)?(?:a\s+|an\s+)?(?:random\s+|interesting\s+)?fact(?:\s+about\s+(.+))?$", t)
+    if m:
+        from skills.fun import random_fact
+        return ("speak", random_fact(m.group(1) or ""))
 
     # ---------- поиск файлов по содержимому ----------
     # "где файл про бюджет поездки" / "найди файл где я писал про стажировку"

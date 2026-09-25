@@ -31,3 +31,6 @@ voice_prefs.json
 models/
 temp_live_*
 test_*.wav
+memory.db
+memory.db-wal
+memory.db-shm

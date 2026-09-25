@@ -40,6 +40,7 @@ from text_utils import translate_text, generate_qr_code, word_count
 from database import save_memory, recall_memories, forget_memory, log_task
 import tool_router
 from core import llm_gateway
+from core import memory
 from browser_agent import browser_open, browser_read_page, browser_click, browser_type, browser_scroll, browser_fullscreen, browser_press_key, browser_screenshot_describe, browser_close, next_episode, play_on_netflix, play_on_rezka, media_play_pause, media_seek, media_volume, media_player_fullscreen, change_rezka_quality, change_rezka_translator, select_rezka_episode, skip_intro   
 from deep_links import launch_steam_game, list_steam_games, open_deep_link  
 from file_search import search_file_content, open_found_file, open_search_result
@@ -96,7 +97,9 @@ SYSTEM_PROMPT = (
     "browser_screenshot_describe instead of repeating. Never type into password or payment fields "
     "without the user's explicit spoken confirmation. "
     ""
-    "MEMORY. Quietly save_memory durable facts (projects, goals, preferences, people, routine) "
+    "MEMORY. For 'do you remember / what did I tell you / what did we discuss' use "
+    "recall_conversations (past talks); recall_memories only lists saved facts. "
+    "Quietly save_memory durable facts (projects, goals, preferences, people, routine) "
     "without announcing it; skip one-off details. When unsure, don't save. "
     "If asked to switch language, call set_response_language and continue in that language."
 )
@@ -510,8 +513,6 @@ READ_ONLY_TOOLS = {
     "get_my_ip", "get_local_ip", "is_website_up", "ping_host",
     "list_steam_games", "locate_file", "calculate", "convert_units",
     "word_count", "translate_text", "list_voices", "list_audio_devices",
-    "word_count", "translate_text", "list_voices", "list_audio_devices",
-    "search_file_content", "word_count", "translate_text", "list_voices", "list_audio_devices",
     "search_file_content",
 }
 
@@ -587,6 +588,9 @@ def ask_ai(question: str, speech=None) -> str:
     context_msg = {"role": "system", "content": _context_snapshot(question)}
     active_groups = tool_router.groups_for(question)
     active_schema = tool_router.smart_schema(question, TOOLS_SCHEMA, active_groups)
+    mem_block = memory.recall_block(question)
+    if mem_block:
+        print(f"[память] подмешано эпизодов: {mem_block.count(chr(10))}")
     first_effort = _effort_for(
         question, {tool_router.group_of_tool(t["function"]["name"]) for t in active_schema})
     print(f"[TOOLS] {len(active_schema)}/{len(TOOLS_SCHEMA)} — "
@@ -609,7 +613,7 @@ def ask_ai(question: str, speech=None) -> str:
                 })
 
             model = MODEL_SMART if step_index == 0 else MODEL_FAST
-            extra = [context_msg]
+            extra = [context_msg] + ([{"role": "system", "content": mem_block}] if mem_block else [])
             if current_plan:
                 extra.append({"role": "system", "content":
                     "Active plan: " + json.dumps(current_plan, ensure_ascii=False)})
@@ -708,7 +712,7 @@ def ask_ai(question: str, speech=None) -> str:
                 tool_router.mark_used(func_name)
                 if g and g not in active_groups:
                     active_groups.add(g)
-                    active_schema = tool_router.filter_schema(TOOLS_SCHEMA, active_groups)
+                    active_schema = tool_router.add_group(active_schema, TOOLS_SCHEMA, g)
                 step_index += 1
 
                 func = AVAILABLE_FUNCTIONS.get(func_name)

@@ -22,6 +22,7 @@ init_db()
 
 from file_search import build_index_background
 build_index_background()   # индекс строится в фоне, не задерживая запуск
+from core import memory
 
 WAKE_RESPONSES = {
     "en": [
@@ -86,6 +87,7 @@ def _process_command(command: str) -> None:
     import traceback
     print(f"[cmd] {command!r} ← {traceback.extract_stack()[-2].name}")
     shared_state["chat_history"].append(("You", command))
+    memory.log_turn("user", command)
     shared_state["text"] = command
 
     # Быстрый путь: простая команда выполняется сразу, без LLM и без TTS
@@ -95,6 +97,7 @@ def _process_command(command: str) -> None:
         if spoken:
             fast = fast[1]
         print(f"[FAST] {command} -> {fast}")
+        memory.log_turn("assistant", fast)
 
 
 
@@ -123,6 +126,7 @@ def _process_command(command: str) -> None:
     from voice import SpeechStream
     speech = SpeechStream()
     response = ask_ai(lang_hint + command, speech=speech)
+    memory.log_turn("assistant", response)
     shared_state["chat_history"].append(("Atlas", response))   # текст — сразу, речь догоняет
     speech.finish()
     if not speech.spoken_any:            # запасной путь (например, после rate limit)
@@ -175,6 +179,16 @@ def _warm_wake_phrases() -> None:
         if not _find_cached(p):
             _cache_phrase(p)
 
+_warmed_langs = set()
+
+
+def _ensure_wake_phrases() -> None:
+    """Прогреть отклики для текущего языка — при старте и после переключения языка."""
+    lang = get_response_language()
+    if lang not in _warmed_langs:
+        _warmed_langs.add(lang)
+        threading.Thread(target=_warm_wake_phrases, daemon=True).start()
+
 
 def _wake_reply_async() -> None:
     """Отклик на имя голосом, но без ожидания: фраза играет, а микрофон уже слушает."""
@@ -186,8 +200,7 @@ def _wake_reply_async() -> None:
         print(f"[Atlas]: {phrase}")
         pygame.mixer.Sound(path).play()           # отдельный канал, не блокирует
     else:
-        _wake_chime()                             # фразы ещё нет в кеше — сигнал и кешируем
-        threading.Thread(target=_cache_phrase, args=(phrase,), daemon=True).start()
+        speak_cached(phrase)          # фразы ещё нет в кеше — говорим голосом и сохраняем
 
 def _voice_loop():
     start_reminder_thread(_speak_and_update)
@@ -195,6 +208,8 @@ def _voice_loop():
     _speak_and_update(f"{_time_greeting()} {random.choice(GREETING_TAIL[lang])}", interruptible=False)
 
     while True:
+        _ensure_wake_phrases()        # язык могли переключить — догреваем отклики
+        memory.start_sleep_cycle()
         _push_to_talk_event.clear()  # страхуемся от "призрачного" события,
                                        # унаследованного от системного хука клавиатуры
         shared_state["state"] = "idle"
@@ -262,7 +277,7 @@ start_selection_hotkeys()
 from voice import output_device_name, output_is_headphones
 print(f"[audio] вывод: {output_device_name()} → "
       f"{'наушники' if output_is_headphones() else 'колонки'}")
-threading.Thread(target=_warm_wake_phrases, daemon=True).start()
+_ensure_wake_phrases()
 
 voice_thread = threading.Thread(target=_voice_loop, daemon=True)
 voice_thread.start()
