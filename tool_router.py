@@ -88,7 +88,7 @@ TRIGGERS = {
     "browser": (
         "сайт", "браузер", "открой", "страниц", "найди в интернете", "гугл",
         "поиск", "вкладк", "ссылк", "кликн", "нажми на", "прокрут",
-        "site", "browser", "page", "open", "google", "search", "tab",
+        "site", "browser", "page", "google", "tab",
         "link", "click", "scroll", "wikipedia", "википед",
     ),
     "files": (

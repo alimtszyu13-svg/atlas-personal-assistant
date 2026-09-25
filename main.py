@@ -1,5 +1,6 @@
 # onnxruntime должен загрузиться первым: его DLL конфликтуют,
 # если раньше успели загрузиться WinRT (OCR) или .NET (pywebview)
+from click import command
 import onnxruntime  # noqa: F401
 import threading
 import time
@@ -176,6 +177,8 @@ def _voice_loop():
         cmd = command.lower().strip(" .!?,")
         cmd = re.sub(r"^(?:atlas|атлас)[,\s]+", "", cmd)
         cmd = re.sub(r"[,\s]+(?:please|пожалуйста)$", "", cmd).strip()
+        if cmd in {"stop", "стоп", "хватит", "cancel", "отмена", "enough"}:
+            continue          # прерывать нечего — не тратим запрос к модели
         if cmd in SHUTDOWN_PHRASES:
             shutdown_msg = random.choice(SHUTDOWN_RESPONSES[get_response_language()])
             _speak_and_update(shutdown_msg)
