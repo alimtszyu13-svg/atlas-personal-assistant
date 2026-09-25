@@ -87,7 +87,9 @@ SYSTEM_PROMPT = (
     "Anything with state (games, timers, notes) must go through its tool every time — "
     "never guess a tool's answer. "
     ""
-    "TOOLS. Use them instead of saying you can't. Current facts → search_web. Local files by "
+    "TOOLS. Use them instead of saying you can't. What's on the screen / 'this' in another "
+    "app → read_screen; pressing a button in another app → click_on_screen. "
+    "Current facts → search_web. Local files by "
     "content, screenshots or pictures → search_file_content (never the browser for local files). "
     "Prefer native apps and deep links over browsing (music → play_on_spotify). Never open a search "
     "engine page: use search_web to find the URL, then browser_open the real page and read it; "
@@ -594,8 +596,8 @@ def ask_ai(question: str, speech=None) -> str:
     mem_block = memory.recall_block(question)
     if mem_block:
         print(f"[память] подмешано записей: {mem_block.count(chr(10) + '- ')}")
-    first_effort = _effort_for(
-        question, {tool_router.group_of_tool(t["function"]["name"]) for t in active_schema})
+    _names = {t["function"]["name"] for t in active_schema}
+    first_effort = _effort_for(question, {"browser"} if "browser_open" in _names else set())
     print(f"[TOOLS] {len(active_schema)}/{len(TOOLS_SCHEMA)} — "
           f"{sorted(t['function']['name'] for t in active_schema)}")
     print(f"[DEBUG context] {context_msg['content']}")

@@ -272,7 +272,9 @@ def smart_schema(question: str, full_schema: list, groups: set) -> list:
         if set(groups) != set(DEFAULT_GROUPS):
             near = {n for n, _ in ranking[:SEMANTIC_KEYWORD_K]}
             for g in groups:
-                allowed |= GROUPS.get(g, set()) & near
+                grp = GROUPS.get(g, set())
+                # маленькие группы (зрение, игры) — целиком: дёшево и надёжно
+                allowed |= grp if len(grp) <= 4 else grp & near
     except Exception as e:
         print(f"[router] семантика недоступна ({e}) — беру группы по ключевым словам")
         for g in groups:
@@ -292,3 +294,7 @@ def register_tool(name: str, group: str) -> None:
     GROUPS.setdefault(group, set()).add(name)
     _TOOL_TO_GROUP[name] = group
     _tool_index["mat"] = None
+
+# Зрение: явные слова про экран и клики
+TRIGGERS["vision"] = ("жми", "нажми", "кликни", "ткни", "click", "press", "экран", "screen",
+                      "в окне", "window", "что написано", "переведи то")
