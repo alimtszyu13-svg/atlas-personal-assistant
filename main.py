@@ -22,7 +22,7 @@ init_db()
 
 from file_search import build_index_background
 build_index_background()   # индекс строится в фоне, не задерживая запуск
-from core import memory
+from core import memory, proactive
 
 WAKE_RESPONSES = {
     "en": [
@@ -209,7 +209,6 @@ def _voice_loop():
 
     while True:
         _ensure_wake_phrases()        # язык могли переключить — догреваем отклики
-        memory.start_sleep_cycle()
         _push_to_talk_event.clear()  # страхуемся от "призрачного" события,
                                        # унаследованного от системного хука клавиатуры
         shared_state["state"] = "idle"
@@ -245,16 +244,14 @@ def _voice_loop():
         if len(command.strip()) < MIN_COMMAND_LENGTH and not re.search(r"\d", command):
             continue  # мусорное/пустое распознавание — не тратим вызов ask_ai
 
-        SHUTDOWN_PHRASES = {
-            "выключись", "отключись", "выключайся", "выключи себя",
-            "shut down", "turn off", "power off", "turn yourself off",
-        }
+        SHUTDOWN_RE = re.compile(
+            r"^(?:выключ\w*|отключ\w*|выключи себя|shut\s?down|turn off|power off|turn yourself off)$")
         cmd = command.lower().strip(" .!?,")
         cmd = re.sub(r"^(?:atlas|атлас)[,\s]+", "", cmd)
         cmd = re.sub(r"[,\s]+(?:please|пожалуйста)$", "", cmd).strip()
         if cmd in {"stop", "стоп", "хватит", "cancel", "отмена", "enough"}:
             continue          # прерывать нечего — не тратим запрос к модели
-        if cmd in SHUTDOWN_PHRASES:
+        if SHUTDOWN_RE.match(cmd):
             shutdown_msg = random.choice(SHUTDOWN_RESPONSES[get_response_language()])
             _speak_and_update(shutdown_msg)
             shared_state["should_quit"] = True
@@ -278,7 +275,9 @@ from voice import output_device_name, output_is_headphones
 print(f"[audio] вывод: {output_device_name()} → "
       f"{'наушники' if output_is_headphones() else 'колонки'}")
 _ensure_wake_phrases()
-
+memory.start_sleep_cycle()
+from core import proactive
+proactive.start(lambda text: _speak_and_update(text, interruptible=False))
 voice_thread = threading.Thread(target=_voice_loop, daemon=True)
 voice_thread.start()
 

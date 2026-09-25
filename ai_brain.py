@@ -471,7 +471,8 @@ def _context_snapshot(question: str) -> str:
     q = question.lower()
     wants_selection = any(k in q for k in ("select", "highlight", "выдел"))
     wants_clipboard = wants_selection or any(k in q for k in (
-        "это", "this", "that", "скопир", "copied", "буфер", "clipboard"))
+        "это", "this", "that", "скопир", "copied", "буфер", "clipboard",
+        "ошибк", "error", "трейсбек", "traceback", "разбер"))
 
     # Ctrl+C имеет смысл, только если в фокусе окно с текстом, а не сам Atlas
     if wants_selection and title and title.upper() != "ATLAS":
@@ -487,7 +488,9 @@ def _context_snapshot(question: str) -> str:
             import pyperclip
             clip = pyperclip.paste().strip()
             if clip:
-                parts.append(f"clipboard: {clip[:300]}")
+                # у трейсбека важен конец (там сама ошибка), у остального — начало
+                snippet = clip[-800:] if "Traceback" in clip else clip[:300]
+                parts.append(f"clipboard: {snippet}")
             else:
                 print("[context] clipboard is empty")
         except Exception as e:
