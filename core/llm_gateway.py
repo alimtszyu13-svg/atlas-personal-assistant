@@ -132,3 +132,30 @@ def busy(model: str, frac: float = 0.5) -> bool:
     with _lock:
         win = _windows.setdefault(model, deque())
         return _used(win, time.time()) > TPM_LIMIT * SAFETY * frac
+
+
+# ---------------------------------------------------------------------------
+# Для панели «Система» в интерфейсе: расход за минуту и последний ответ
+# ---------------------------------------------------------------------------
+_last = {}
+_record_original = record
+
+
+def record(model, reserved, usage, prompt_chars, fallback):
+    _record_original(model, reserved, usage, prompt_chars, fallback)
+    total = None
+    if usage is not None:
+        total = usage.get("total_tokens") if isinstance(usage, dict) else getattr(usage, "total_tokens", None)
+    _last.update(model=model.split("/")[-1], tokens=int(total or fallback), at=time.time())
+
+
+def snapshot() -> dict:
+    budget = int(TPM_LIMIT * SAFETY)
+    with _lock:
+        now = time.time()
+        models = {m.split("/")[-1]: {"used": int(_used(w, now)), "budget": budget}
+                  for m, w in _windows.items()}
+    last = dict(_last)
+    if last:
+        last["ago"] = time.time() - last.pop("at")
+    return {"models": models, "last": last}

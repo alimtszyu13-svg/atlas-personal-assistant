@@ -1,4 +1,3 @@
-from audioop import rms
 import sounddevice as sd
 import numpy as np
 import os
@@ -232,16 +231,16 @@ _WHISPER_JUNK = {
 }
 
 def _transcribe_audio(recording: np.ndarray) -> str:
+    """
+    Распознаёт фразу через Groq Whisper. В русском режиме — с подсказкой языка,
+    в английском Whisper определяет язык сам. Тишину и фразы, которые Whisper
+    выдумывает на шуме («Продолжение следует», «Thanks for watching»), отбрасываем.
+    """
     if not _has_speech(recording):
         print("[VAD] речи нет — Whisper не вызываю")
         return ""
-    """
-    В английском режиме: переводит речь на ЛЮБОМ языке в английский текст
-    (endpoint /audio/translations). В русском режиме: распознаёт речь как есть,
-    без перевода, ожидая русский язык (endpoint /audio/transcriptions).
-    """
-    temp_path = "temp_stt.wav"
 
+    temp_path = "temp_stt.wav"
     with wave.open(temp_path, 'wb') as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
@@ -250,29 +249,14 @@ def _transcribe_audio(recording: np.ndarray) -> str:
 
     try:
         with open(temp_path, "rb") as f:
-            if _response_language["lang"] == "ru":
-                result = groq_client.audio.transcriptions.create(
-                    file=(temp_path, f.read()),
-                    model="whisper-large-v3-turbo",
-                    language="ru"
-                )
-            else:
-                # без перевода: Whisper сам определит язык, а модель поймёт и русский
-                result = groq_client.audio.transcriptions.create(
-                    file=(temp_path, f.read()),
-                    model="whisper-large-v3-turbo",
-                )
-        text = result.text.strip()
-        if not re.search(r"[^\W_]", text):         # ни буквы, ни цифры: «...», «?!»
-            print(f"[Whisper] пустая фраза отброшена: {text!r}")
-            return ""
-        if re.sub(r"[^\w\s]", "", text.lower()).strip() in _WHISPER_JUNK:
-            print(f"[Whisper] выдуманная фраза отброшена: {text!r}")
-            return ""
-        return text
-    except Exception as e:
-        print(f"[STT error]: {e}")
-        text = result.text.strip()
+            data = f.read()
+        if _response_language["lang"] == "ru":
+            result = groq_client.audio.transcriptions.create(
+                file=(temp_path, data), model="whisper-large-v3-turbo", language="ru")
+        else:
+            result = groq_client.audio.transcriptions.create(
+                file=(temp_path, data), model="whisper-large-v3-turbo")
+        text = (result.text or "").strip()
         if not re.search(r"[^\W_]", text):         # ни буквы, ни цифры: «...», «?!»
             print(f"[Whisper] пустая фраза отброшена: {text!r}")
             return ""
@@ -284,7 +268,10 @@ def _transcribe_audio(recording: np.ndarray) -> str:
         print(f"[STT error]: {e}")
         return ""
     finally:
-        os.remove(temp_path)
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
 
 
 WAKE_CONF = 0.9                      # ниже — «атлас» из шума, не будим
@@ -754,6 +741,8 @@ def _listen_once(max_duration: float, silence_limit: float,
     try:
         while True:
             chunk, _overflow = stream.read(block)
+            shared_state["mic_level"] = min(1.0, float(np.sqrt(np.mean(
+                chunk.astype(np.float32) ** 2))) / 32768 * 9)   # для звезды в интерфейсе
             if started:
                 frames.append(chunk)
             else:
@@ -772,6 +761,7 @@ def _listen_once(max_duration: float, silence_limit: float,
         stream.stop()
         stream.close()
         vad.reset_states()
+        shared_state["mic_level"] = 0.0
 
     return np.concatenate(frames) if started else None
 

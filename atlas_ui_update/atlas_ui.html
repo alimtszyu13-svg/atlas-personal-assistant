@@ -336,82 +336,17 @@
   body[data-theme="light"] .dd-item[aria-selected="true"] { background: #CFE0FF; color: #0E1A33; }
   body[data-theme="light"] .pre, body[data-theme="light"] .item q { color: #22324F; }
   body[data-theme="light"] .msg.atlas { background: rgba(255,255,255,.7); }
-
-  /* ===================== Окна: заголовок, кнопки, ручки размера ===================== */
-  .panel.wm { display: flex; flex-direction: column; overflow: visible; padding: 0; }
-  .panel.wm[hidden] { display: none !important; }
-  .win-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 12px 10px 18px; flex-shrink: 0; }
-  .win-head h2 { margin: 0; }
-  .win-body { flex: 1; min-height: 0; overflow: auto; padding: 4px 18px 18px; }
-  .wm-head { cursor: grab; user-select: none; touch-action: none; }
-  .wm.wm-drag .wm-head { cursor: grabbing; }
-  .wm.wm-drag { transition: none !important; }
-  .win-ctl { display: flex; gap: 4px; margin-left: auto; }
-  .page header .win-ctl { margin-right: 8px; }
-  .win-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid transparent; background: transparent;
-    color: var(--muted); cursor: pointer; border-radius: 8px; }
-  .win-btn:hover { color: var(--text); border-color: var(--line); background: rgba(120,170,255,.08); }
-  .win-btn[aria-pressed="true"] { color: var(--ion); border-color: var(--line-strong); }
-  .wm.wm-min .win-body, .page.wm.wm-min .body { display: none; }
-  .page.wm-min { bottom: auto; }
-  .wm-rz { position: absolute; z-index: 3; touch-action: none; }
-  .wm-n { top: -4px; left: 12px; right: 12px; height: 8px; cursor: ns-resize; }
-  .wm-s { bottom: -4px; left: 12px; right: 12px; height: 8px; cursor: ns-resize; }
-  .wm-e { right: -4px; top: 12px; bottom: 12px; width: 8px; cursor: ew-resize; }
-  .wm-w { left: -4px; top: 12px; bottom: 12px; width: 8px; cursor: ew-resize; }
-  .wm-ne { top: -4px; right: -4px; width: 16px; height: 16px; cursor: nesw-resize; }
-  .wm-sw { bottom: -4px; left: -4px; width: 16px; height: 16px; cursor: nesw-resize; }
-  .wm-nw { top: -4px; left: -4px; width: 16px; height: 16px; cursor: nwse-resize; }
-  .wm-se { bottom: -4px; right: -4px; width: 16px; height: 16px; cursor: nwse-resize; }
-  .wm.wm-min .wm-n, .wm.wm-min .wm-s, .wm.wm-min .wm-ne, .wm.wm-min .wm-nw, .wm.wm-min .wm-se, .wm.wm-min .wm-sw { display: none; }
-  /* срезанные углы обрезали бы ручки размера — у окон оставляем скругление */
-  .panel.wm, .page.wm { clip-path: none; border-radius: 16px; }
-  .captions { transition: left .35s ease, width .35s ease; }
-
-  /* ===================== Заставка запуска и финал ===================== */
-  body.intro .hud > *, body.outro .hud > * { opacity: 0 !important; pointer-events: none !important; }
-  .wordmark span { animation-name: none; opacity: 0; }
-  .wordmark.show span { animation-name: wm-in; animation-duration: 1.6s; animation-timing-function: cubic-bezier(.2,.8,.2,1); animation-fill-mode: both; }
-  .wordmark.show.hide span { animation-name: wm-out; animation-duration: .9s; animation-delay: 0s; animation-timing-function: ease-in; }
-  @keyframes wm-out { from { opacity: 1; } to { opacity: 0; filter: blur(10px); transform: scale(1.15); } }
-  .bootlog { position: fixed; left: 28px; bottom: calc(26px + env(safe-area-inset-bottom, 0px)); width: 330px; z-index: 30;
-    font-family: "Exo 2", Manrope, sans-serif; font-variant-numeric: tabular-nums; pointer-events: none;
-    opacity: 0; transition: opacity .6s ease; }
-  .bootlog.show { opacity: 1; }
-  .bootlog.done { opacity: 0; transition: opacity 1.2s ease; }
-  .bl-title { font-family: Unbounded, sans-serif; font-size: 10.5px; letter-spacing: .28em; color: var(--ion); margin-bottom: 8px; }
-  .bl-line { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; color: #A2B4D6; padding: 2px 0;
-    animation: bl-in .35s ease both; }
-  .bl-line.bad { color: #FFB35A; }
-  @keyframes bl-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
-  .bl-label { white-space: nowrap; }
-  .bl-dots { flex: 1; border-bottom: 1px dotted rgba(162,180,214,.35); transform: translateY(-3px); min-width: 12px; }
-  .bl-val { color: #EAF2FF; white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
-  .bl-mark { width: 14px; text-align: center; color: var(--good); }
-  .bl-line.bad .bl-mark { color: #FFB35A; }
-  .bl-sum { margin-top: 8px; font-size: 12.5px; font-weight: 600; min-height: 18px; }
-  .bl-sum.ok { color: var(--good); } .bl-sum.bad { color: #FFB35A; }
-  .bl-skip { margin-top: 10px; font-size: 11px; color: rgba(162,180,214,.55); }
-  .bootlog.done .bl-skip { display: none; }
-  .boot-credit { position: fixed; right: 32px; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); z-index: 30; pointer-events: none;
-    font-family: Unbounded, sans-serif; font-size: 11px; letter-spacing: .3em; color: #A2B4D6;
-    opacity: 0; transform: translateY(6px); transition: opacity 1.2s ease, transform 1.2s ease; animation: none; }
-  .boot-credit.show { opacity: .8; transform: none; }
-  @media (max-width: 760px) { .bootlog { width: calc(100% - 56px); bottom: 150px; } }
 </style>
 </head>
-<body data-theme="dark" class="intro">
+<body data-theme="dark">
 <canvas id="scene" aria-hidden="true"></canvas>
 <div class="vignette"></div>
 <div class="wordmark" id="wordmark" aria-label="Atlas"><span>A</span><span>T</span><span>L</span><span>A</span><span>S</span></div>
 
-<div class="bootlog" id="bootlog" aria-live="polite">
-  <div class="bl-title" data-i18n="boot_title">ПРОВЕРКА СИСТЕМ</div>
-  <div id="bootLines"></div>
-  <div class="bl-sum" id="bootSum"></div>
-  <div class="bl-skip" data-i18n="boot_skip"></div>
+<div id="boot-overlay">
+  <div class="boot-title">ATLAS</div>
+  <div class="boot-credit" data-i18n="boot_credit">PROJECT BY ALIM TSZYU</div>
 </div>
-<div class="boot-credit" id="bootCredit" data-i18n="boot_credit">PROJECT BY ALIM TSZYU</div>
 <div id="shutdown-overlay">
   <div class="crt-flash" id="crt-flash"></div>
   <div class="crt-line" id="crt-line"></div>
@@ -504,13 +439,9 @@
       <button class="chip" id="sfxBtn" aria-pressed="true" data-i18n="fx_sfx">Звуки интерфейса</button>
       <button class="chip" id="ambBtn" aria-pressed="false" data-i18n="fx_amb">Гул космоса</button>
       <button class="chip" id="saverBtn" data-i18n="fx_saver">Показать заставку</button>
-      <button class="chip" id="introShortBtn" aria-pressed="false" data-i18n="fx_intro_short">Короткая заставка при запуске</button>
     </div>
     <p class="hint" data-i18n="saver_hint"></p>
     <p class="hint" data-i18n="hotkeys"></p>
-    <h4 data-i18n="win_title">Окна</h4>
-    <button class="chip" id="resetLayout" data-i18n="win_reset">Вернуть окна на места</button>
-    <p class="hint" data-i18n="win_hint"></p>
   </section>
 
   <div class="pops" id="pops" aria-live="polite"></div>
@@ -541,7 +472,6 @@
   </div>
 </div>
 
-<script>setTimeout(function () { document.body.classList.remove('intro'); }, 14000);</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
@@ -655,12 +585,11 @@
     g.setAttribute('aPhase', new THREE.Float32BufferAttribute(phase, 1));
     return g;
   }
-  const uniforms = { uGather: { value: 1 }, uUnfold: { value: 1 }, uTime: { value: 0 }, uRot: { value: 0 }, uSpread: { value: 1 }, uAmp: { value: 0 }, uBright: { value: 0.5 }, uPixel: { value: renderer.getPixelRatio() } };
+  const uniforms = { uTime: { value: 0 }, uRot: { value: 0 }, uSpread: { value: 1 }, uAmp: { value: 0 }, uBright: { value: 0.5 }, uPixel: { value: renderer.getPixelRatio() } };
   // общий вершинный шейдер: внутренние звёзды обходят центр быстрее внешних
   const GALAXY_VS = [
     'attribute float aSize; attribute vec3 aColor; attribute float aPhase;',
     'uniform float uTime; uniform float uRot; uniform float uSpread; uniform float uAmp; uniform float uPixel; uniform float uBright;',
-    'uniform float uGather; uniform float uUnfold;',
     'varying vec3 vColor; varying float vAlpha;',
     'void main() {',
     '  vec3 p = position;',
@@ -668,16 +597,6 @@
     '  float ang = uRot * (0.5 / (0.3 + rxz));',
     '  float cs = cos(ang), sn = sin(ang);',
     '  p.xz = mat2(cs, -sn, sn, cs) * p.xz;',
-    '  float ia = 1.0;',
-    '  if (uUnfold < 0.999) {',                                          // заставка: сбор в точку и раскрытие
-    '    vec3 dir = normalize(vec3(sin(aPhase * 91.7 + 1.3), cos(aPhase * 53.3), sin(aPhase * 27.1 + 2.1)) + vec3(0.001));',
-    '    vec3 far = dir * (5.0 + fract(aPhase * 7.13) * 5.0);',
-    '    float tw = (1.0 - uUnfold) * 4.0 / (0.3 + rxz);',
-    '    float c2 = cos(tw), s2 = sin(tw);',
-    '    vec3 q = p; q.xz = mat2(c2, -s2, s2, c2) * q.xz;',
-    '    if (uUnfold > 0.0) { p = q * uUnfold; }',
-    '    else { p = mix(far, vec3(0.0), uGather); ia = smoothstep(0.0, 0.25, uGather) * (1.0 - 0.85 * smoothstep(0.7, 1.0, uGather)); }',
-    '  }',
     '  float r = length(p);',
     '  float pulse = 1.0 + uAmp * 0.1 * (0.55 + 0.45 * sin(aPhase * 13.0 + uTime * 6.0)) * smoothstep(0.3, 1.4, r);',
     '  p *= uSpread * pulse;',
@@ -686,7 +605,7 @@
     '  gl_PointSize = max(1.2, aSize * uPixel * (18.0 / -mv.z));',
     '  float tw = 0.8 + 0.2 * sin(uTime * 1.5 + aPhase * 40.0);',
     '  vColor = aColor;',
-    '  vAlpha = ia * tw * uBright * clamp(1.25 - r * 0.18, 0.3, 1.0) * mix(0.45, 1.0, smoothstep(0.0, 0.5, r)) * mix(0.55, 1.0, smoothstep(-6.8, -3.2, mv.z));',
+    '  vAlpha = tw * uBright * clamp(1.25 - r * 0.18, 0.3, 1.0) * mix(0.45, 1.0, smoothstep(0.0, 0.5, r)) * mix(0.55, 1.0, smoothstep(-6.8, -3.2, mv.z));',
     '}'].join('\n');
   const galaxyPoints = new THREE.Points(pointsGeo(P, CO, SZ, PH), new THREE.ShaderMaterial({
     uniforms: uniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
@@ -1062,115 +981,6 @@
     }
   }
 
-  // --- звуки заставки и финала ---
-  // Кинозвук: общий «зал» — ревербератор с длинным хвостом и компрессор, чтобы низы не хрипели
-  let fx = null;
-  function noiseBuffer(c, sec) {
-    const b = c.createBuffer(1, Math.floor(c.sampleRate * sec), c.sampleRate), d = b.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    return b;
-  }
-  function impulse(c, sec, decay) {
-    const len = Math.floor(c.sampleRate * sec), b = c.createBuffer(2, len, c.sampleRate);
-    for (let ch = 0; ch < 2; ch++) {
-      const d = b.getChannelData(ch);
-      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
-    }
-    return b;
-  }
-  function fxBus() {
-    if (fx) return fx;
-    const c = audio.ctx();
-    const input = c.createGain(), dry = c.createGain(), wet = c.createGain();
-    const verb = c.createConvolver(); verb.buffer = impulse(c, 4.2, 2.8);
-    const comp = c.createDynamicsCompressor();
-    comp.threshold.value = -20; comp.ratio.value = 4; comp.attack.value = 0.008; comp.release.value = 0.5;
-    dry.gain.value = 1; wet.gain.value = 0.38;
-    input.connect(dry); input.connect(verb); verb.connect(wet);
-    dry.connect(comp); wet.connect(comp); comp.connect(c.destination);
-    fx = { c: c, input: input };
-    return fx;
-  }
-  function voice(c, type, f, t0, dur, dest, detuneCents) {
-    const o = c.createOscillator(); o.type = type;
-    o.frequency.setValueAtTime(f, t0);
-    if (detuneCents) o.detune.value = detuneCents;
-    o.connect(dest); o.start(t0); o.stop(t0 + dur + 0.1);
-    return o;
-  }
-  function gainNode(c, dest) { const g = c.createGain(); g.gain.value = 0.0001; g.connect(dest); return g; }
-  function lowpass(c, dest, f, q) { const l = c.createBiquadFilter(); l.type = 'lowpass'; l.frequency.value = f; l.Q.value = q || 0.7; l.connect(dest); return l; }
-
-  function cinematic(kind, k) {
-    if (!audio.on) return;
-    try {
-      const F = fxBus(), c = F.c, t0 = c.currentTime + 0.03, out = F.input;
-      k = k || 1;
-      if (kind === 'swell') {
-        // низкий нарастающий гул: суббас + тёмный «оркестровый» дрон квинтой + приглушённый шум
-        const len = 2.1 * k;
-        const gSub = gainNode(c, out);
-        const sub = voice(c, 'sine', 36, t0, len, gSub); sub.frequency.exponentialRampToValueAtTime(41, t0 + len);
-        gSub.gain.exponentialRampToValueAtTime(0.2, t0 + len * 0.92); gSub.gain.exponentialRampToValueAtTime(0.0001, t0 + len + 0.15);
-        const gDr = gainNode(c, out), lp = lowpass(c, gDr, 140, 1.1);
-        lp.frequency.setValueAtTime(140, t0); lp.frequency.exponentialRampToValueAtTime(950, t0 + len);
-        voice(c, 'sawtooth', 55, t0, len, lp, -7); voice(c, 'sawtooth', 55, t0, len, lp, 7); voice(c, 'sawtooth', 82.41, t0, len, lp, 0);
-        gDr.gain.exponentialRampToValueAtTime(0.07, t0 + len * 0.95); gDr.gain.exponentialRampToValueAtTime(0.0001, t0 + len + 0.12);
-        const n = c.createBufferSource(); n.buffer = noiseBuffer(c, len + 0.3);
-        const gN = gainNode(c, out), nl = lowpass(c, gN, 100);
-        nl.frequency.exponentialRampToValueAtTime(650, t0 + len);
-        n.connect(nl); n.start(t0); n.stop(t0 + len + 0.2);
-        gN.gain.exponentialRampToValueAtTime(0.035, t0 + len * 0.9); gN.gain.exponentialRampToValueAtTime(0.0001, t0 + len + 0.1);
-      } else if (kind === 'impact') {
-        // «брааам»: суббасовый провал + медный аккорд пилами с открывающимся фильтром + глухой удар
-        const gSub = gainNode(c, out);
-        const sub = voice(c, 'sine', 68, t0, 3.2, gSub); sub.frequency.exponentialRampToValueAtTime(27, t0 + 2.6);
-        gSub.gain.setValueAtTime(0.32, t0); gSub.gain.exponentialRampToValueAtTime(0.0001, t0 + 3.2);
-        const gB = gainNode(c, out), lp = lowpass(c, gB, 180, 1.4);
-        lp.frequency.setValueAtTime(180, t0); lp.frequency.exponentialRampToValueAtTime(1500, t0 + 0.09);
-        lp.frequency.exponentialRampToValueAtTime(420, t0 + 1.5); lp.frequency.exponentialRampToValueAtTime(160, t0 + 4);
-        [[41.2, 0], [55, -9], [55, 9], [82.41, -4], [110, 5]].forEach(function (v) { voice(c, 'sawtooth', v[0], t0, 4.2, lp, v[1]); });
-        gB.gain.setValueAtTime(0.0001, t0); gB.gain.exponentialRampToValueAtTime(0.1, t0 + 0.03);
-        gB.gain.exponentialRampToValueAtTime(0.03, t0 + 1.4); gB.gain.exponentialRampToValueAtTime(0.0001, t0 + 4.2);
-        const n = c.createBufferSource(); n.buffer = noiseBuffer(c, 0.5);
-        const gN = gainNode(c, out), nl = lowpass(c, gN, 900);
-        n.connect(nl); n.start(t0); n.stop(t0 + 0.5);
-        gN.gain.setValueAtTime(0.14, t0); gN.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.3);
-      } else if (kind === 'pad') {
-        // спокойное низкое разрешение — ля минор, без «звоночков»
-        const len = 3.6 * Math.max(0.5, k);
-        const g = gainNode(c, out), lp = lowpass(c, g, 650, 0.6);
-        [[110, -6], [110, 6], [130.81, 0], [164.81, -4]].forEach(function (v) { voice(c, 'sawtooth', v[0], t0, len, lp, v[1]); });
-        g.gain.exponentialRampToValueAtTime(0.03, t0 + 1.1); g.gain.setValueAtTime(0.03, t0 + len * 0.45);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
-      } else if (kind === 'fall') {
-        // финал: дрон уходит вниз и темнеет
-        const len = 2.2;
-        const g = gainNode(c, out), lp = lowpass(c, g, 900, 1.0);
-        lp.frequency.exponentialRampToValueAtTime(120, t0 + len);
-        const o1 = voice(c, 'sawtooth', 82.41, t0, len, lp, -6), o2 = voice(c, 'sawtooth', 82.41, t0, len, lp, 6);
-        o1.frequency.exponentialRampToValueAtTime(41.2, t0 + len); o2.frequency.exponentialRampToValueAtTime(41.2, t0 + len);
-        g.gain.exponentialRampToValueAtTime(0.07, t0 + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
-        const gS = gainNode(c, out), sub = voice(c, 'sine', 55, t0, len, gS);
-        sub.frequency.exponentialRampToValueAtTime(30, t0 + len);
-        gS.gain.exponentialRampToValueAtTime(0.16, t0 + 0.3); gS.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
-      } else if (kind === 'off') {
-        // «обесточивание»: глубокий спад частоты и глухой щелчок
-        const g = gainNode(c, out), o = voice(c, 'sine', 120, t0, 1.1, g);
-        o.frequency.exponentialRampToValueAtTime(24, t0 + 1.0);
-        g.gain.setValueAtTime(0.18, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.1);
-        const n = c.createBufferSource(); n.buffer = noiseBuffer(c, 0.2);
-        const gN = gainNode(c, out), nl = lowpass(c, gN, 400);
-        n.connect(nl); n.start(t0); n.stop(t0 + 0.2);
-        gN.gain.setValueAtTime(0.1, t0); gN.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.15);
-      }
-    } catch (e) { console.log(e); }
-  }
-
-  // --- заставка запуска и финал: множители яркости частей сцены (1 = обычный режим) ---
-  const intro = { active: true, started: false, mode: 'intro', t0: 0, scale: 1, fired: {},
-                  gather: 0, unfold: 0, star: 0, rings: 0, bg: 0, flash: 0 };
-
   // --- живые данные из Python: огибающая речи и уровень микрофона ---
   const live = { env: [], dur: 0, elapsed: 0, at: 0, mic: 0 };
 
@@ -1314,9 +1124,6 @@
       perf.frames++;
     }
     const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
-    updateIntro();
-    const I = intro;
-    uniforms.uGather.value = I.gather; uniforms.uUnfold.value = I.unfold;
     const tg = STATES[state], k = 1 - Math.pow(0.002, dt);
     ['spread', 'core', 'bright', 'glow', 'rings', 'rot', 'arcSpin'].forEach(function (key) { cur[key] += (tg[key] - cur[key]) * k; });
     cur.dim += (dimTarget - cur.dim) * k;
@@ -1336,16 +1143,15 @@
       const A = c.userData.a - uniforms.uRot.value * (0.5 / (0.3 + c.userData.r));
       const rr = c.userData.r * uniforms.uSpread.value;
       c.position.set(Math.cos(A) * rr, 0, Math.sin(A) * rr);
-      c.material.opacity = c.userData.base * (0.45 + cur.bright * 0.55) * cur.dim * I.unfold;
+      c.material.opacity = c.userData.base * (0.45 + cur.bright * 0.55) * cur.dim;
     });
-    glints.forEach(function (s) { s.material.opacity = (0.35 + 0.25 * Math.sin(t * 1.3 + s.userData.ph)) * cur.dim * I.bg; });
-    stars.material.opacity = 0.8 * I.bg;
+    glints.forEach(function (s) { s.material.opacity = (0.35 + 0.25 * Math.sin(t * 1.3 + s.userData.ph)) * cur.dim; });
     orb.rotation.x = Math.sin(t * 0.06) * 0.06;
     orb.rotation.y = Math.sin(t * 0.045) * 0.08;
     stars.rotation.y += dt * 0.004 * speed;
 
     // кольца
-    const ringVis = cur.rings * cur.dim * I.rings;
+    const ringVis = cur.rings * cur.dim;
     rings.forEach(function (r) {
       r.rotation.z += dt * r.userData.spin * cur.arcSpin * speed;
       r.material.opacity = r.userData.base * ringVis;
@@ -1371,22 +1177,21 @@
     const c = cur.core * (1 + cur.amp * 0.05) * (1 + breathe * 0.4);
     cur.spin += ((state === 'thinking' ? 3 : 1) - cur.spin) * k;
     cur.phase += dt * cur.spin * speed;                    // плазма течёт быстрее, когда Atlas думает
-    star.scale.setScalar(Math.max(0.0001, c * I.star));
-    star.visible = I.star > 0.001;
+    star.scale.setScalar(c);
     starUniforms.uTime.value = cur.phase;
     const life = 1 + 0.07 * Math.sin(t * 0.7) + 0.03 * Math.sin(t * 2.3);        // звезда «дышит» и в тишине
     starUniforms.uBright.value = (0.72 + g * 0.5) * life * (0.6 + cur.dim * 0.4);
     corona.quaternion.copy(camera.quaternion);
-    corona.scale.setScalar(c * (1 + cur.amp * 0.12) * Math.max(0.25, I.star));
+    corona.scale.setScalar(c * (1 + cur.amp * 0.12));
     coronaUniforms.uTime.value = cur.phase;
     coronaUniforms.uAmp.value = reduceMotion ? cur.amp * 0.3 : cur.amp;
-    coronaUniforms.uInt.value = (0.32 + g * 0.45) * life * cur.dim * Math.min(1, I.star * 1.2) + I.flash * 0.9;
+    coronaUniforms.uInt.value = (0.32 + g * 0.45) * life * cur.dim;
     spikes.scale.setScalar(2.3 * c * (1 + cur.amp * 0.2));
-    spikes.material.opacity = (0.04 + g * 0.08) * cur.dim * I.star + I.flash * 0.25;
-    halo.scale.setScalar(2.8 * (0.95 + g * 0.12)); halo.material.opacity = ((composer ? 0.015 : 0.03) + g * (composer ? 0.03 : 0.06)) * I.star + I.flash * 0.35;
-    haze.material.opacity = (0.1 + g * 0.1) * I.unfold;
+    spikes.material.opacity = (0.04 + g * 0.08) * cur.dim;
+    halo.scale.setScalar(2.8 * (0.95 + g * 0.12)); halo.material.opacity = (composer ? 0.015 : 0.03) + g * (composer ? 0.03 : 0.06);
+    haze.material.opacity = 0.1 + g * 0.1;
     haze.scale.setScalar(uniforms.uSpread.value);
-    dustUniforms.uDust.value = 0.24 * (0.5 + cur.dim * 0.5) * I.unfold;
+    dustUniforms.uDust.value = 0.24 * (0.5 + cur.dim * 0.5);
 
     // спутники-искры: ярче и быстрее, когда Atlas активен
     sparks.forEach(function (sp) {
@@ -1399,7 +1204,7 @@
       sp.line.geometry.attributes.position.needsUpdate = true;
       sparkPos(sp, sp.phase, sparkV);
       sp.head.position.copy(sparkV);
-      const vis = (0.35 + cur.glow * 0.65) * cur.dim * (1 - saverState.v * 0.5) * I.rings;
+      const vis = (0.35 + cur.glow * 0.65) * cur.dim * (1 - saverState.v * 0.5);
       sp.line.material.opacity = 0.7 * vis;
       sp.head.material.opacity = 0.9 * vis;
     });
@@ -1462,7 +1267,7 @@
     camera.lookAt(0, 0, 0);
     // метеор
     met.next -= dt;
-    if (!met.active && met.next <= 0 && !reduceMotion && !I.active) {
+    if (!met.active && met.next <= 0 && !reduceMotion) {
       met.active = true; met.t = 0;
       met.x = (Math.random() - 0.3) * 8; met.y = 2 + Math.random() * 1.5;
       const ang = -0.5 - Math.random() * 0.5;
@@ -1488,12 +1293,12 @@
       if (motePos[i * 3 + 1] > 1.9) { motePos[i * 3 + 1] = -1.9; motePos[i * 3] = (Math.random() - 0.5) * 6; }
     }
     moteGeo.attributes.position.needsUpdate = true;
-    motes.material.opacity = (0.12 + g * 0.08) * I.bg;
+    motes.material.opacity = 0.12 + g * 0.08;
     if (finalPass) finalPass.uniforms.uTime.value = t;
 
-    if (bloom) bloom.strength = (0.26 + g * 0.42) * (0.5 + cur.dim * 0.5) + I.flash * 1.6;
+    if (bloom) bloom.strength = (0.26 + g * 0.42) * (0.5 + cur.dim * 0.5);
     cur.exposure += ((state === 'idle' ? 0.88 : 1.0) - cur.exposure) * k;
-    if (finalPass) finalPass.uniforms.uExposure.value = (cur.exposure * cur.dim * 0.35 + cur.exposure * 0.65) * (1 + I.flash * 1.2);
+    if (finalPass) finalPass.uniforms.uExposure.value = cur.exposure * cur.dim * 0.35 + cur.exposure * 0.65;
     if (composer) composer.render(); else renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
@@ -1545,14 +1350,7 @@
       n_battery: 'Низкий заряд', n_break: 'Пора сделать перерыв', n_mission_done: 'Миссия готова',
       n_mission_failed: 'Миссия не удалась', n_info: 'Atlas',
       act_explain: 'Разобрать', act_notes: 'Открыть заметки', cmd_explain: 'разбери ошибку из буфера обмена',
-      err_api: 'Нет связи с Atlas',
-      win_left: 'Прикрепить слева', win_right: 'Прикрепить справа', win_max: 'Развернуть', win_restore: 'Обычный размер',
-      win_min: 'Свернуть', win_unmin: 'Раскрыть', win_close: 'Закрыть', win_drag: 'Потяните, чтобы переместить. Двойной щелчок — развернуть',
-      boot_title: 'ПРОВЕРКА СИСТЕМ', boot_core: 'ядро', boot_vosk: 'слух (Vosk)', boot_voice: 'голос', boot_mic: 'микрофон',
-      boot_memory: 'память, фактов', boot_index: 'индекс, файлов', boot_missions: 'миссий в работе', boot_groq: 'связь с Groq',
-      boot_ready: 'Все системы в норме', boot_issues: 'Есть проблемы', boot_skip: 'Щелчок или любая клавиша — пропустить',
-      fx_intro_short: 'Короткая заставка при запуске',
-      win_title: 'Окна', win_reset: 'Вернуть окна на места', win_hint: 'Окна можно перетаскивать за заголовок, менять размер за края и углы, прикреплять к краям и разворачивать. Положение запоминается.'
+      err_api: 'Нет связи с Atlas'
     },
     en: {
       state_idle: 'idle', state_listening: 'listening', state_thinking: 'thinking', state_speaking: 'speaking',
@@ -1596,14 +1394,7 @@
       n_battery: 'Low battery', n_break: 'Time for a break', n_mission_done: 'Mission complete',
       n_mission_failed: 'Mission failed', n_info: 'Atlas',
       act_explain: 'Explain', act_notes: 'Open notes', cmd_explain: 'explain the error from my clipboard',
-      err_api: 'No connection to Atlas',
-      win_left: 'Snap left', win_right: 'Snap right', win_max: 'Maximize', win_restore: 'Restore size',
-      win_min: 'Collapse', win_unmin: 'Expand', win_close: 'Close', win_drag: 'Drag to move. Double-click to maximize',
-      boot_title: 'SYSTEMS CHECK', boot_core: 'core', boot_vosk: 'hearing (Vosk)', boot_voice: 'voice', boot_mic: 'microphone',
-      boot_memory: 'memory, facts', boot_index: 'index, files', boot_missions: 'missions running', boot_groq: 'Groq link',
-      boot_ready: 'All systems nominal', boot_issues: 'Issues found', boot_skip: 'Click or press any key to skip',
-      fx_intro_short: 'Short startup intro',
-      win_title: 'Windows', win_reset: 'Reset window layout', win_hint: 'Drag windows by the title, resize from edges and corners, snap them to the sides or maximize them. The layout is remembered.'
+      err_api: 'No connection to Atlas'
     }
   };
   // команды инструментов на обоих языках — Atlas понимает оба, но в чате видно то, что на языке интерфейса
@@ -1637,7 +1428,6 @@
     label.textContent = t('state_' + state);
     updateClock();
     renderInbox();
-    if (typeof refreshWinLabels === 'function' && Object.keys(wins).length) refreshWinLabels();
     if (openPanel) refreshPanel(openPanel);
     if (!page.hidden) openPage(currentPage, true);
   }
@@ -1701,11 +1491,8 @@
     btn.type = 'button';
     btn.setAttribute('aria-haspopup', 'listbox');
     btn.setAttribute('aria-expanded', 'false');
-    // выбранное значение храним отдельно: раньше выбор перезаписывал сам вариант списка,
-    // и после «Светлая → Тёмная» возвращалась снова светлая (то же с микрофоном и голосом)
-    const first = options.find(function (o) { return o.value === value; }) || options[0] || { value: '', label: '—' };
-    let curVal = first.value;
-    const span = el('span', null, first.label);
+    const cur = options.find(function (o) { return o.value === value; }) || options[0] || { value: '', label: '—' };
+    const span = el('span', null, cur.label);
     btn.appendChild(span);
     btn.insertAdjacentHTML('beforeend', CHEVRON);
     const list = el('div', 'dd-list');
@@ -1714,7 +1501,7 @@
     options.forEach(function (o, i) {
       const it = el('div', 'dd-item', o.label);
       it.setAttribute('role', 'option');
-      it.setAttribute('aria-selected', String(o.value === curVal));
+      it.setAttribute('aria-selected', String(o.value === cur.value));
       it.addEventListener('click', function (e) { e.stopPropagation(); choose(i); });
       list.appendChild(it);
     });
@@ -1722,7 +1509,7 @@
       document.querySelectorAll('.dd.open').forEach(function (d) { if (d !== wrap) { d.classList.remove('open'); d.querySelector('.dd-btn').setAttribute('aria-expanded', 'false'); } });
       wrap.classList.toggle('open', v);
       btn.setAttribute('aria-expanded', String(v));
-      if (v) { focusIdx = options.findIndex(function (o) { return o.value === curVal; }); highlight(); }
+      if (v) { focusIdx = options.findIndex(function (o) { return o.value === cur.value; }); highlight(); }
     }
     function highlight() {
       Array.prototype.forEach.call(list.children, function (c, i) { c.classList.toggle('focus', i === focusIdx); });
@@ -1730,7 +1517,7 @@
     }
     function choose(i) {
       const o = options[i]; if (!o) return;
-      curVal = o.value; span.textContent = o.label;
+      cur.value = o.value; span.textContent = o.label;
       Array.prototype.forEach.call(list.children, function (c, j) { c.setAttribute('aria-selected', String(j === i)); });
       open(false); btn.focus();
       onSelect(o.value);
@@ -1757,7 +1544,7 @@
   // Настройки
   // ===========================================================================
   const ACCENTS = ['#86D6FF', '#22D3EE', '#34D399', '#FB7185', '#FBBF24', '#A78BFA'];
-  let theme = 'dark', accent = '#86D6FF', audioOpts = null, localPrefAt = -1e9;
+  let theme = 'dark', accent = '#86D6FF', audioOpts = null;
   function applyTheme(th) { theme = th === 'light' ? 'light' : 'dark'; document.body.dataset.theme = theme; }
   function applyAccent(c) {
     if (!c) return;
@@ -1774,7 +1561,7 @@
     ACCENTS.forEach(function (c) {
       const b = el('button', 'swatch');
       b.style.background = c; b.dataset.color = c; b.setAttribute('aria-label', c);
-      b.addEventListener('click', function () { localPrefAt = performance.now(); applyAccent(c); call('set_accent', c).catch(console.log); });
+      b.addEventListener('click', function () { applyAccent(c); call('set_accent', c).catch(console.log); });
       box.appendChild(b);
     });
   })();
@@ -1788,7 +1575,7 @@
       function (v) { call('set_language_ui', v).then(function () { setUiLang(v); }).catch(console.log); });
     buildDropdown(document.getElementById('ddTheme'), 'set_theme',
       [{ value: 'dark', label: t('theme_dark') }, { value: 'light', label: t('theme_light') }], theme,
-      function (v) { localPrefAt = performance.now(); applyTheme(v); call('set_theme', v).catch(console.log); });
+      function (v) { applyTheme(v); call('set_theme', v).catch(console.log); });
     const mics = (audioOpts.microphones || []).map(function (m) { return { value: m, label: m }; });
     buildDropdown(document.getElementById('ddMic'), 'set_mic', mics, audioOpts.current_microphone || (mics[0] && mics[0].value),
       function (v) { call('set_microphone_ui', v).catch(console.log); });
@@ -1834,8 +1621,7 @@
     openPanel = name;
     document.getElementById('panel-' + name).hidden = false;
     document.querySelector('[data-panel="' + name + '"]').setAttribute('aria-expanded', 'true');
-    pops.classList.toggle('shift', !isCustom(name));
-    applyGeom(name); bringToFront(name);
+    pops.classList.add('shift');
     refreshPanel(name);
     if (name === 'missions' || name === 'system') panelTimer = setInterval(function () { refreshPanel(name); }, 2000);
   }
@@ -1849,7 +1635,7 @@
     b.addEventListener('click', function (e) { e.stopPropagation(); togglePanel(b.dataset.panel); });
   });
   document.addEventListener('click', function (e) {
-    if (openPanel && !isCustom(openPanel) && !e.target.closest('.panel') && !e.target.closest('[data-panel]')) closePanel();
+    if (openPanel && !e.target.closest('.panel') && !e.target.closest('[data-panel]')) closePanel();
   });
 
   // --- миссии ---
@@ -2038,7 +1824,6 @@
       page.hidden = false;
       requestAnimationFrame(function () { page.classList.add('in'); });
     }
-    applyGeom('page'); bringToFront('page'); placeCaptions();
     dimTarget = 0.4;
     const f = pageBody.querySelector('input');
     (f || document.getElementById('closePage')).focus();
@@ -2048,7 +1833,7 @@
     page.classList.remove('in');
     dimTarget = 1;
     currentPage = null;
-    setTimeout(function () { if (!currentPage) { page.hidden = true; placeCaptions(); } }, 350);
+    setTimeout(function () { if (!currentPage) page.hidden = true; }, 350);
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
   document.querySelectorAll('[data-page]').forEach(function (b) { b.addEventListener('click', function () { openPage(b.dataset.page); }); });
@@ -2317,350 +2102,6 @@
   function pageProjects() { pageBody.appendChild(el('div', 'item', t('projects_empty'))); }
 
   // ===========================================================================
-  // Окна: перетаскивание, изменение размера, прикрепление к краям, разворот
-  // ===========================================================================
-  const WIN_ICONS = {
-    left: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="2" width="11" height="10" rx="1"/><rect x="1.5" y="2" width="5" height="10" rx="1" fill="currentColor" fill-opacity=".35"/></svg>',
-    right: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="2" width="11" height="10" rx="1"/><rect x="7.5" y="2" width="5" height="10" rx="1" fill="currentColor" fill-opacity=".35"/></svg>',
-    max: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="10" height="10" rx="1"/></svg>',
-    restore: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="4.5" width="7.5" height="7.5" rx="1"/><path d="M4.5 4.5V2h7.5v7.5H9.5"/></svg>',
-    min: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 10h8"/></svg>',
-    unmin: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5L7 5l3.5 3.5"/></svg>',
-    close: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l6 6M9 3L3 9"/></svg>'
-  };
-  const wins = {};           // id → { el, head, isPage, btns }
-  let layout = {};           // id → { mode: 'float'|'max'|'left'|'right', x, y, w, h, min }
-  let zTop = 20, saveTimer = null;
-  const EDGE = { L: 88, T: 72, G: 16 };   // слева — кнопки разделов, сверху — кнопки панелей
-
-  function isCustom(id) { const st = layout[id]; return !!(st && st.mode); }
-  function saveLayout() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(function () { call('set_ui_layout', JSON.stringify(layout)).catch(function () {}); }, 400);
-  }
-  function bringToFront(id) { if (wins[id]) wins[id].el.style.zIndex = String(++zTop); }
-  function minSize(id) { return wins[id].isPage ? { w: 380, h: 240 } : { w: 280, h: 160 }; }
-  function clampRect(id, r) {
-    const m = minSize(id), vw = innerWidth, vh = innerHeight;
-    const w = Math.max(m.w, Math.min(r.w, vw - 16)), h = Math.max(m.h, Math.min(r.h, vh - 16));
-    return { x: Math.max(0, Math.min(r.x, vw - 80)), y: Math.max(0, Math.min(r.y, vh - 44)), w: w, h: h };
-  }
-  function rectFor(id) {
-    const st = layout[id], vw = innerWidth, vh = innerHeight, G = EDGE.G, L = EDGE.L, T = EDGE.T;
-    const half = Math.round((vw - L - G) / 2) - 6;
-    if (st.mode === 'max') return { x: L, y: T, w: vw - L - G, h: vh - T - G };
-    if (st.mode === 'left') return { x: L, y: T, w: half, h: vh - T - G };
-    if (st.mode === 'right') return { x: vw - G - half, y: T, w: half, h: vh - T - G };
-    return clampRect(id, st);
-  }
-  function applyGeom(id) {
-    const w = wins[id]; if (!w) return;
-    const el = w.el, st = layout[id];
-    el.classList.toggle('wm-min', !!(st && st.min));
-    if (!st || !st.mode) {
-      ['left', 'top', 'width', 'height', 'right', 'bottom', 'maxHeight'].forEach(function (k) { el.style[k] = ''; });
-    } else {
-      const r = rectFor(id);
-      el.style.right = 'auto'; el.style.bottom = 'auto'; el.style.maxHeight = 'none';
-      el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px';
-      el.style.height = st.min ? 'auto' : r.h + 'px';
-    }
-    const maxed = !!(st && st.mode === 'max'), minned = !!(st && st.min);
-    w.btns.max.innerHTML = WIN_ICONS[maxed ? 'restore' : 'max'];
-    w.btns.max.setAttribute('aria-label', t(maxed ? 'win_restore' : 'win_max')); w.btns.max.title = t(maxed ? 'win_restore' : 'win_max');
-    w.btns.min.innerHTML = WIN_ICONS[minned ? 'unmin' : 'min'];
-    w.btns.min.setAttribute('aria-label', t(minned ? 'win_unmin' : 'win_min')); w.btns.min.title = t(minned ? 'win_unmin' : 'win_min');
-    w.btns.left.setAttribute('aria-pressed', String(!!(st && st.mode === 'left')));
-    w.btns.right.setAttribute('aria-pressed', String(!!(st && st.mode === 'right')));
-    if (id === 'page') placeCaptions();
-    if (!w.isPage && openPanel === id) pops.classList.toggle('shift', !isCustom(id));
-  }
-  function currentRect(id) {
-    const r = wins[id].el.getBoundingClientRect();
-    return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
-  }
-  function setMode(id, mode) {
-    const st = layout[id] || {};
-    if (st.mode === mode || (mode === 'max' && st.mode === 'max')) {   // повторное нажатие — вернуть плавающее окно
-      layout[id] = st.float ? Object.assign({ mode: 'float', min: false }, st.float) : {};
-    } else {
-      const keep = st.mode === 'float' ? { x: st.x, y: st.y, w: st.w, h: st.h } : (st.float || null);
-      layout[id] = { mode: mode, min: false, float: keep || currentRect(id) };
-    }
-    applyGeom(id); saveLayout();
-  }
-  function toggleMin(id) {
-    const st = layout[id];
-    if (!st || !st.mode) layout[id] = Object.assign({ mode: 'float', min: true }, currentRect(id));
-    else st.min = !st.min;
-    applyGeom(id); saveLayout();
-  }
-  function winButton(kind, onClick) {
-    const b = el('button', 'win-btn');
-    b.type = 'button'; b.innerHTML = WIN_ICONS[kind];
-    b.setAttribute('aria-label', t('win_' + kind)); b.title = t('win_' + kind);
-    b.addEventListener('click', function (e) { e.stopPropagation(); onClick(); });
-    return b;
-  }
-  function makeWindow(el, id, isPage) {
-    let head;
-    if (isPage) {
-      head = el.querySelector('header');
-    } else {
-      // панель: заголовок — отдельная полоса, содержимое прокручивается ниже, ручки не уезжают
-      head = document.createElement('div'); head.className = 'win-head';
-      const h2 = el.querySelector('h2'); head.appendChild(h2);
-      const body = document.createElement('div'); body.className = 'win-body';
-      while (el.firstChild) body.appendChild(el.firstChild);
-      el.appendChild(head); el.appendChild(body);
-    }
-    head.classList.add('wm-head');
-    head.title = t('win_drag');
-    const ctl = document.createElement('div'); ctl.className = 'win-ctl';
-    const btns = {
-      left: winButton('left', function () { setMode(id, 'left'); }),
-      right: winButton('right', function () { setMode(id, 'right'); }),
-      min: winButton('min', function () { toggleMin(id); }),
-      max: winButton('max', function () { setMode(id, 'max'); })
-    };
-    [btns.left, btns.right, btns.min, btns.max].forEach(function (b) { ctl.appendChild(b); });
-    if (isPage) head.insertBefore(ctl, head.querySelector('#closePage'));
-    else { ctl.appendChild(winButton('close', closePanel)); head.appendChild(ctl); }
-    ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].forEach(function (d) {
-      const h = document.createElement('div'); h.className = 'wm-rz wm-' + d; h.dataset.dir = d; el.appendChild(h);
-    });
-    el.classList.add('wm');
-    wins[id] = { el: el, head: head, isPage: isPage, btns: btns };
-
-    el.addEventListener('pointerdown', function () { bringToFront(id); });
-    head.addEventListener('dblclick', function (e) { if (!e.target.closest('button')) setMode(id, 'max'); });
-
-    // перетаскивание за заголовок
-    head.addEventListener('pointerdown', function (e) {
-      if (e.button !== 0 || e.target.closest('button')) return;
-      e.preventDefault();
-      const start = currentRect(id), sx = e.clientX, sy = e.clientY;
-      let moved = false;
-      head.setPointerCapture(e.pointerId);
-      function move(ev) {
-        const dx = ev.clientX - sx, dy = ev.clientY - sy;
-        if (!moved && Math.hypot(dx, dy) < 4) return;
-        if (!moved) {
-          moved = true;
-          const st = layout[id] || {};
-          // из прикреплённого или развёрнутого состояния окно «отрывается» в прежнем размере
-          const base = (st.mode && st.mode !== 'float' && st.float) ? st.float : start;
-          layout[id] = { mode: 'float', min: !!st.min, x: start.x, y: start.y, w: base.w, h: base.h };
-          el.classList.add('wm-drag');
-        }
-        const st2 = layout[id];
-        st2.x = start.x + dx; st2.y = start.y + dy;
-        applyGeom(id);
-      }
-      function up() {
-        head.removeEventListener('pointermove', move); head.removeEventListener('pointerup', up);
-        el.classList.remove('wm-drag');
-        if (!moved) return;
-        // отпустили у края экрана — прикрепить, как в Windows
-        const st2 = layout[id];
-        if (lastPointer.x <= 6) setMode(id, 'left');
-        else if (lastPointer.x >= innerWidth - 6) setMode(id, 'right');
-        else if (lastPointer.y <= 4) setMode(id, 'max');
-        else { Object.assign(st2, clampRect(id, st2)); applyGeom(id); saveLayout(); }
-      }
-      head.addEventListener('pointermove', move); head.addEventListener('pointerup', up);
-    });
-
-    // изменение размера за края и углы
-    el.querySelectorAll(':scope > .wm-rz').forEach(function (h) {
-      h.addEventListener('pointerdown', function (e) {
-        if (e.button !== 0) return;
-        e.preventDefault(); e.stopPropagation();
-        const d = h.dataset.dir, start = currentRect(id), sx = e.clientX, sy = e.clientY, m = minSize(id);
-        const st0 = layout[id] || {};
-        layout[id] = { mode: 'float', min: false, x: start.x, y: start.y, w: start.w, h: start.h };
-        el.classList.add('wm-drag');
-        h.setPointerCapture(e.pointerId);
-        function move(ev) {
-          const dx = ev.clientX - sx, dy = ev.clientY - sy, r = layout[id];
-          if (d.indexOf('e') >= 0) r.w = Math.max(m.w, start.w + dx);
-          if (d.indexOf('s') >= 0) r.h = Math.max(m.h, start.h + dy);
-          if (d.indexOf('w') >= 0) { r.w = Math.max(m.w, start.w - dx); r.x = start.x + start.w - r.w; }
-          if (d.indexOf('n') >= 0) { r.h = Math.max(m.h, start.h - dy); r.y = start.y + start.h - r.h; }
-          applyGeom(id);
-        }
-        function up() {
-          h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up);
-          el.classList.remove('wm-drag');
-          Object.assign(layout[id], clampRect(id, layout[id])); applyGeom(id); saveLayout();
-        }
-        h.addEventListener('pointermove', move); h.addEventListener('pointerup', up);
-        void st0;
-      });
-    });
-  }
-  const lastPointer = { x: 0, y: 0 };
-  window.addEventListener('pointermove', function (e) { lastPointer.x = e.clientX; lastPointer.y = e.clientY; }, true);
-
-  ['missions', 'inbox', 'system', 'settings'].forEach(function (n) { makeWindow(document.getElementById('panel-' + n), n, false); });
-  makeWindow(page, 'page', true);
-
-  window.addEventListener('resize', function () {
-    Object.keys(wins).forEach(function (id) { if (!wins[id].el.hidden) applyGeom(id); });
-    placeCaptions();
-  });
-  document.getElementById('resetLayout').addEventListener('click', function () {
-    layout = layout._prefs ? { _prefs: layout._prefs } : {}; saveLayout();
-    Object.keys(wins).forEach(function (id) { applyGeom(id); });
-  });
-  function refreshWinLabels() {
-    Object.keys(wins).forEach(function (id) {
-      const w = wins[id];
-      w.head.title = t('win_drag');
-      w.btns.left.title = t('win_left'); w.btns.left.setAttribute('aria-label', t('win_left'));
-      w.btns.right.title = t('win_right'); w.btns.right.setAttribute('aria-label', t('win_right'));
-      const c = w.head.querySelector('.win-ctl .win-btn:last-child');
-      if (!w.isPage && c) { c.title = t('win_close'); c.setAttribute('aria-label', t('win_close')); }
-      applyGeom(id);
-    });
-  }
-
-  // Субтитры не должны налезать на открытый раздел: переезжают в свободную часть экрана
-  function placeCaptions() {
-    const cap = document.querySelector('.captions');
-    if (!cap) return;
-    if (page.hidden || !currentPage) { cap.style.left = ''; cap.style.width = ''; cap.style.display = ''; return; }
-    const r = page.getBoundingClientRect(), vw = innerWidth;
-    const freeL = r.right + 24, freeR = vw - 24;
-    const freeLeft = r.left - 24 - 88;
-    if (freeR - freeL >= 280) {
-      cap.style.display = ''; cap.style.left = ((freeL + freeR) / 2) + 'px'; cap.style.width = Math.min(820, freeR - freeL) + 'px';
-    } else if (freeLeft >= 280) {
-      cap.style.display = ''; cap.style.left = (88 + 24 + freeLeft / 2) + 'px'; cap.style.width = Math.min(820, freeLeft) + 'px';
-    } else {
-      cap.style.display = 'none';          // места нет — всё и так видно в разделе
-    }
-  }
-
-  // ===========================================================================
-  // Заставка запуска: «рождение звезды» + проверка систем + звук
-  // и финал при выключении: галактика сворачивается обратно в точку
-  // ===========================================================================
-  function easeIO(x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
-  function easeO(x) { return 1 - Math.pow(1 - x, 3); }
-  function seg(t, a, b) { return Math.max(0, Math.min(1, (t - a) / (b - a))); }
-  const TL = { gatherA: 0.5, gatherB: 2.6, flash: 2.6, unfoldA: 2.7, unfoldB: 5.4, ringsA: 4.3, ringsB: 6.0, word: 5.2, end: 6.6 };
-  const bootlog = document.getElementById('bootlog'), bootLines = document.getElementById('bootLines'),
-        bootSum = document.getElementById('bootSum'), bootCredit = document.getElementById('bootCredit');
-
-  function introShort() { return !!(layout._prefs && layout._prefs.shortIntro) || reduceMotion; }
-  function syncIntroChip() {
-    const b = document.getElementById('introShortBtn');
-    if (b) b.setAttribute('aria-pressed', String(introShort()));
-  }
-  document.getElementById('introShortBtn').addEventListener('click', function () {
-    layout._prefs = Object.assign({}, layout._prefs, { shortIntro: !introShort() });
-    syncIntroChip(); saveLayout();
-  });
-
-  function startIntro() {
-    if (intro.started) return;
-    intro.started = true; intro.active = true; intro.mode = 'intro';
-    intro.scale = introShort() ? 0.35 : 1;
-    intro.t0 = performance.now(); intro.fired = {};
-    applyI18n(bootlog); applyI18n(bootCredit);
-    loadBootLog();
-  }
-  function skipIntro() {
-    if (!intro.active || intro.mode !== 'intro' || !intro.started) return;
-    const t = (performance.now() - intro.t0) / 1000 / intro.scale;
-    if (t < TL.end - 0.4) intro.t0 = performance.now() - (TL.end - 0.4) * 1000 * intro.scale;
-  }
-  window.addEventListener('pointerdown', skipIntro, true);
-  window.addEventListener('keydown', skipIntro, true);
-
-  function once(key, fn) { if (!intro.fired[key]) { intro.fired[key] = true; fn(); } }
-  function updateIntro() {
-    if (!intro.active) return;
-    if (!intro.started) return;                                   // ждём настроек — экран тёмный
-    const t = (performance.now() - intro.t0) / 1000 / intro.scale;
-    if (intro.mode === 'intro') {
-      intro.bg = easeO(seg(t, 0.2, 3.5));
-      intro.gather = easeIO(seg(t, TL.gatherA, TL.gatherB));
-      intro.unfold = easeO(seg(t, TL.unfoldA, TL.unfoldB));
-      const s = seg(t, TL.flash, TL.flash + 0.9);
-      intro.star = t < TL.flash ? 0.05 * seg(t, 0.3, 0.9) : Math.min(1.25, easeO(s) * (1 + 0.25 * Math.sin(s * Math.PI)));
-      intro.flash = t < TL.flash ? 0 : Math.max(0, 1 - (t - TL.flash) / 0.7);
-      intro.rings = easeO(seg(t, TL.ringsA, TL.ringsB));
-      if (t >= TL.gatherA) once('swell', function () { cinematic('swell', intro.scale); });
-      if (t >= TL.flash) once('flash', function () { cinematic('impact'); call('intro_done_ui').catch(function () {}); });
-      if (t >= TL.ringsA) once('hud', function () { document.body.classList.remove('intro'); });
-      if (t >= TL.word) once('word', function () { wordmarkEl.classList.add('show'); bootCredit.classList.add('show'); cinematic('pad', intro.scale); });
-      if (t >= TL.end) once('end', function () {
-        intro.active = false;
-        intro.gather = intro.unfold = intro.star = intro.rings = intro.bg = 1; intro.flash = 0;
-        setTimeout(function () { bootCredit.classList.remove('show'); }, 2500);
-        setTimeout(function () { bootlog.classList.add('done'); }, 3200);
-      });
-    } else {                                                     // финал
-      intro.gather = 1;
-      intro.rings = 1 - easeO(seg(t, 0, 0.8));
-      intro.unfold = 1 - easeIO(seg(t, 0.3, 2.0));
-      intro.bg = 1 - seg(t, 0.6, 2.3);
-      intro.star = (t < 1.9 ? 1 : Math.max(0.05, 1 - easeIO(seg(t, 1.9, 2.4)) * 0.95)) * (1 - seg(t, 2.5, 2.8));
-      intro.flash = t < 2.4 ? 0 : Math.max(0, 0.7 * (1 - (t - 2.4) / 0.5));
-      if (t >= 2.5) once('crt', function () {
-        document.getElementById('shutdown-overlay').classList.add('active');
-        document.getElementById('crt-line').classList.add('play');
-      });
-      if (t >= 3.1) once('quit', function () { call('confirm_quit').catch(console.log); });
-    }
-  }
-  function startOutro() {
-    intro.started = true; intro.active = true; intro.mode = 'outro';
-    intro.scale = 1; intro.t0 = performance.now(); intro.fired = {};
-    document.body.classList.add('outro');
-    wordmarkEl.classList.add('show', 'hide');
-    cinematic('fall'); setTimeout(function () { cinematic('off'); }, 2300);
-  }
-
-  // Журнал проверки систем: настоящие данные из Python
-  function bootLine(label, value, ok) {
-    const row = el('div', 'bl-line' + (ok ? '' : ' bad'));
-    row.appendChild(el('span', 'bl-label', label));
-    row.appendChild(el('span', 'bl-dots'));
-    if (value !== '' && value !== null && value !== undefined) row.appendChild(el('span', 'bl-val', String(value)));
-    row.appendChild(el('span', 'bl-mark', ok ? '✓' : '✗'));
-    return row;
-  }
-  function fmtBoot(item) {
-    const v = item.value;
-    if (item.key === 'groq' && item.ok) return v + ' ' + t('journal_ms');
-    if (typeof v === 'number') return v.toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US');
-    return v ? String(v).slice(0, 34) : '';
-  }
-  async function loadBootLog() {
-    bootLines.textContent = ''; bootSum.textContent = '';
-    bootlog.classList.add('show');
-    let items = [];
-    try { items = await call('get_boot_status'); } catch (e) { items = [{ key: 'core', ok: true, value: '' }]; }
-    const step = 170 * intro.scale;
-    let bad = 0;
-    items.forEach(function (it, i) {
-      if (!it.ok) bad++;
-      setTimeout(function () { bootLines.appendChild(bootLine(t('boot_' + it.key), fmtBoot(it), it.ok)); }, i * step);
-    });
-    let groq;
-    try { groq = await call('ping_groq_ui'); } catch (e) { groq = { key: 'groq', ok: false, value: '' }; }
-    setTimeout(function () {
-      if (!groq.ok) bad++;
-      bootLines.appendChild(bootLine(t('boot_groq'), fmtBoot(groq), groq.ok));
-      bootSum.textContent = bad ? t('boot_issues') + ': ' + bad : t('boot_ready');
-      bootSum.className = 'bl-sum ' + (bad ? 'bad' : 'ok');
-    }, items.length * step);
-  }
-
-  // ===========================================================================
   // Клавиатура
   // ===========================================================================
   document.addEventListener('keydown', function (e) {
@@ -2677,8 +2118,10 @@
     if (shutdownStarted) return;
     shutdownStarted = true;
     setAmbient(false);
-    closePanel(); if (!page.hidden) closePage();
-    startOutro();
+    document.getElementById('shutdown-overlay').classList.add('active');
+    document.getElementById('crt-flash').classList.add('play');
+    document.getElementById('crt-line').classList.add('play');
+    setTimeout(function () { call('confirm_quit').catch(console.log); }, 750);
   }
 
   // ===========================================================================
@@ -2688,10 +2131,8 @@
     try {
       const s = await call('get_state');
       // тема и акцент могут меняться голосом («тёмная тема») — держим их в синхроне с Python
-      // только что выбрали в настройках — не даём опросу, отправленному раньше, вернуть старое значение
-      const prefSettled = performance.now() - localPrefAt > 1500;
-      if (prefSettled && s.theme && s.theme !== theme) applyTheme(s.theme);
-      if (prefSettled && s.accent_color && String(s.accent_color).toLowerCase() !== accent.toLowerCase()) {
+      if (s.theme && s.theme !== theme) applyTheme(s.theme);
+      if (s.accent_color && String(s.accent_color).toLowerCase() !== accent.toLowerCase()) {
         applyAccent(ACCENTS.find(function (a) { return a.toLowerCase() === String(s.accent_color).toLowerCase(); }) || s.accent_color);
       }
       if (s.language && s.language !== lang) setUiLang(s.language);     // язык могли сменить голосом
@@ -2718,21 +2159,17 @@
   setState('idle');
   updateClock();
   renderInbox();
+  window.addEventListener('load', function () {
+    setTimeout(function () { document.getElementById('boot-overlay').classList.add('hide'); }, 3200);
+  });
   let started = false;
   function start() {
     if (started) return;
     started = true;
-    call('get_ui_layout').then(function (txt) {
-      try { layout = JSON.parse(txt || '{}') || {}; } catch (e) { layout = {}; }
-      Object.keys(wins).forEach(function (id) { if (!wins[id].el.hidden) applyGeom(id); });
-      syncIntroChip();
-      startIntro();
-    }).catch(function () { startIntro(); });
     populateSettings();
     pollState();
   }
   window.addEventListener('pywebviewready', start);
-  setTimeout(function () { if (!intro.started) startIntro(); }, 4000);   // без Python — всё равно показать сцену
   if (window.pywebview && window.pywebview.api) start();
 })();
 </script>

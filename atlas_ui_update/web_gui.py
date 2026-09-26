@@ -383,89 +383,6 @@ class Api:
             return []
         return [{"when": _fmt_ts(r[0]), "summary": r[1]} for r in rows]
 
-    # ------------------------------------------------------------------
-    # Раскладка окон интерфейса (положение, размер, прикрепление)
-    # ------------------------------------------------------------------
-    _LAYOUT_FILE = os.path.join(_ROOT, "ui_layout.json")
-
-    def get_ui_layout(self) -> str:
-        try:
-            with open(self._LAYOUT_FILE, encoding="utf-8") as f:
-                return f.read()
-        except OSError:
-            return "{}"
-
-    def set_ui_layout(self, data: str) -> None:
-        import json
-        try:
-            json.loads(data)                     # сохраняем только корректный JSON
-        except (TypeError, ValueError):
-            return
-        with open(self._LAYOUT_FILE, "w", encoding="utf-8") as f:
-            f.write(data)
-
-    # ------------------------------------------------------------------
-    # Заставка запуска: проверка систем и сигнал «звезда вспыхнула»
-    # ------------------------------------------------------------------
-    def get_boot_status(self) -> list:
-        """Быстрые проверки для журнала заставки. Каждая — ключ, успех, значение."""
-        out = []
-
-        def add(key, ok, value=""):
-            out.append({"key": key, "ok": bool(ok), "value": value})
-
-        add("core", True)
-        try:
-            import voice
-            add("vosk", os.path.isdir(voice.VOSK_MODEL_PATH))
-        except Exception as e:
-            add("vosk", False, str(e)[:40])
-        try:
-            from voice import get_response_language, current_voice_choice
-            add("voice", True, current_voice_choice(get_response_language()))
-        except Exception as e:
-            add("voice", False, str(e)[:40])
-        try:
-            import sounddevice as sd
-            add("mic", True, sd.query_devices(kind="input")["name"])
-        except Exception as e:
-            add("mic", False, str(e)[:40])
-        try:
-            conn = self._memory_conn()
-            try:
-                n = conn.execute("SELECT COUNT(*) FROM edges WHERE active = 1").fetchone()[0]
-            except sqlite3.OperationalError:
-                n = 0                              # графа ещё нет — это не ошибка
-            conn.close()
-            add("memory", True, n)
-        except Exception as e:
-            add("memory", False, str(e)[:40])
-        try:
-            import file_search
-            db = getattr(file_search, "INDEX_DB", None) or os.path.join(_ROOT, "file_index2.db")
-            db = db if os.path.isabs(db) else os.path.join(_ROOT, db)
-            conn = sqlite3.connect(db)
-            n = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
-            conn.close()
-            add("index", True, n)
-        except Exception as e:
-            add("index", False, str(e)[:40])
-        add("missions", True, self._missions_running())
-        return out
-
-    def ping_groq_ui(self) -> dict:
-        """Связь с Groq: бесплатный запрос списка моделей, без расхода токенов."""
-        try:
-            from voice import groq_client
-            t0 = time.time()
-            groq_client.models.list()
-            return {"key": "groq", "ok": True, "value": int((time.time() - t0) * 1000)}
-        except Exception as e:
-            return {"key": "groq", "ok": False, "value": str(e)[:40]}
-
-    def intro_done_ui(self) -> None:
-        shared_state["intro_done"] = True
-
 
 class WebGUI:
     def __init__(self, shared_state: dict):
@@ -479,9 +396,6 @@ class WebGUI:
             "ATLAS", "atlas_ui.html", js_api=self.api,
             fullscreen=True, background_color="#02040A"
         )
-        # звуки заставки должны играть сразу, без первого клика по окну
-        os.environ.setdefault("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-                              "--autoplay-policy=no-user-gesture-required")
         webview.start(debug=True)
 
     def show_window(self):

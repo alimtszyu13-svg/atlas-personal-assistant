@@ -1,6 +1,5 @@
 # onnxruntime должен загрузиться первым: его DLL конфликтуют,
 # если раньше успели загрузиться WinRT (OCR) или .NET (pywebview)
-from click import command
 import onnxruntime  # noqa: F401
 import threading
 import time
@@ -204,11 +203,14 @@ def _wake_reply_async() -> None:
 
 def _voice_loop():
     start_reminder_thread(_speak_and_update)
+    # приветствие — в момент вспышки звезды в заставке (не дольше 15 с ожидания)
+    _t0 = time.time()
+    while not shared_state.get("intro_done") and time.time() - _t0 < 15:
+        time.sleep(0.1)
     lang = get_response_language()
     _speak_and_update(f"{_time_greeting()} {random.choice(GREETING_TAIL[lang])}", interruptible=False)
 
     while True:
-        _ensure_wake_phrases()        # язык могли переключить — догреваем отклики
         _push_to_talk_event.clear()  # страхуемся от "призрачного" события,
                                        # унаследованного от системного хука клавиатуры
         shared_state["state"] = "idle"
@@ -229,14 +231,6 @@ def _voice_loop():
         # услышал своё имя вслух. Push-to-talk и always-listening — уже
         # осознанные действия пользователя, лишняя реплика тут была бы
         # той самой "повторяющейся" болтовнёй, которая надоедала.
-        from voice import wake_has_command
-        if trigger == "voice" and not wake_has_command():
-            from voice import output_is_headphones
-            if output_is_headphones():
-                _wake_reply_async()          # наушники: говорим и сразу слушаем
-            else:
-                lang = get_response_language()
-                speak_cached(random.choice(WAKE_RESPONSES[lang]))   # колонки: сначала договорить
             
         shared_state["state"] = "listening"
         command = listen()
@@ -274,7 +268,6 @@ start_selection_hotkeys()
 from voice import output_device_name, output_is_headphones
 print(f"[audio] вывод: {output_device_name()} → "
       f"{'наушники' if output_is_headphones() else 'колонки'}")
-_ensure_wake_phrases()
 memory.start_sleep_cycle()
 from core import proactive
 proactive.start(lambda text: _speak_and_update(text, interruptible=False))

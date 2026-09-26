@@ -35,3 +35,4 @@ memory.db
 memory.db-wal
 memory.db-shm
 missions.db
+backup_*/

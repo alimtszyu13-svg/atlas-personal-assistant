@@ -108,7 +108,12 @@ def _ru() -> bool:
     return get_response_language() == "ru"
 
 
-def _notify(text: str) -> None:
+def _notify(text: str, kind: str = "ok", key: str = "mission_done") -> None:
+    try:                                   # панель уведомлений в интерфейсе
+        from ui_state import notify
+        notify(kind, key, text)
+    except Exception as e:
+        print(f"[миссии] уведомление интерфейсу: {e}")
     """Ждём до 2 минут, пока Atlas освободится, и говорим голосом; иначе — тихо в чат."""
     def _run():
         from core.proactive import is_fullscreen
@@ -208,6 +213,6 @@ def _worker(mid: int, goal: str, ev: threading.Event) -> None:
     except Exception as e:
         _set(mid, status="failed", finished=time.time(), result=str(e))
         print(f"[миссия #{mid}] ошибка: {e}")
-        _notify(f"Миссия не удалась: {goal[:60]}." if _ru() else f"Mission failed: {goal[:60]}.")
+        _notify(f"Миссия не удалась: {goal[:60]}." if _ru() else f"Mission failed: {goal[:60]}.", kind="warn", key="mission_failed")
     finally:
         _running.pop(mid, None)

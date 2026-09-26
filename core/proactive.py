@@ -173,6 +173,13 @@ def _quiet_reason():
 
 
 def _deliver(rule: Rule, text: str, speak) -> None:
+    try:                                   # панель уведомлений в интерфейсе
+        from ui_state import notify
+        _k = {"rule_traceback": "clipboard"}.get(rule.check.__name__,
+                                                   rule.check.__name__.replace("rule_", ""))
+        notify("info" if _k == "break" else "warn", _k, text)
+    except Exception as e:
+        print(f"[проактивность] уведомление интерфейсу: {e}")
     why = None if rule.voice else "только чат"
     why = why or _quiet_reason()
     print(f"[проактивность] {rule.name}: {text}" + (f"  (тихо: {why})" if why else ""))
