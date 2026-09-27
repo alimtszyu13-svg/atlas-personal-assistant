@@ -31,6 +31,38 @@ def _used(win: deque, now: float) -> int:
     return sum(t for _, t in win)
 
 
+def _wait_for(win: deque, now: float, tokens: int, budget: int) -> float:
+    """Сколько секунд ждать, пока в окне освободится место именно под tokens:
+    идём от старых записей к новым, пока не наберётся нужный объём."""
+    used = _used(win, now)
+    if not win or used + tokens <= budget:
+        return 0.0
+    need = used + tokens - budget
+    freed = 0
+    for t, n in win:
+        freed += n
+        if freed >= need:
+            return max(0.0, 60 - (now - t) + 0.3)
+    return max(0.0, 60 - (now - win[-1][0]) + 0.3)
+
+
+def plan(models: list, tokens: int):
+    """Для каждой модели — сколько ждать под этот запрос; возвращает
+    (модель, ожидание в секундах, свободное место в окне) с минимальным ожиданием.
+    При равенстве предпочитается модель, стоящая в списке раньше."""
+    budget = int(TPM_LIMIT * SAFETY)
+    best = None
+    with _lock:
+        now = time.time()
+        for m in models:
+            win = _windows.setdefault(m, deque())
+            wait = _wait_for(win, now, tokens, budget)
+            room = budget - _used(win, now)
+            if best is None or wait < best[1] - 0.05:
+                best = (m, wait, room)
+    return best
+
+
 def reserve(model: str, tokens: int, cancel_check=None) -> None:
     """Ждёт, пока в минутном окне модели хватит места, и записывает расход."""
     budget = int(TPM_LIMIT * SAFETY)
@@ -44,7 +76,7 @@ def reserve(model: str, tokens: int, cancel_check=None) -> None:
                 win.append((now, tokens))
                 print(f"[gateway] {short}: запрос ~{tokens} ток., за минуту {used + tokens}/{budget}")
                 return
-            wait = 60 - (now - win[0][0]) + 0.3
+            wait = _wait_for(win, now, tokens, budget)   # точно под этот запрос
         print(f"[gateway] {short}: лимит минуты ({used}/{budget}), жду {wait:.1f}с")
         end = time.time() + wait
         while time.time() < end:
@@ -60,32 +92,46 @@ def add(model: str, tokens: int) -> None:
 
 
 def fit(messages: list, tools: list, limit: int = MAX_REQUEST) -> list:
-    """Ужимает запрос до limit токенов. Сначала сокращает старые результаты
-    инструментов, потом убирает самые старые реплики. Системный промпт
-    и последние сообщения не трогает. Историю в памяти не меняет — работает с копией."""
+    """Ужимает запрос до limit токенов. Текущий вопрос пользователя и всё, что
+    сделано по нему (вызовы инструментов, результаты), не удаляется никогда —
+    иначе модель забывает, о чём её спросили. Порядок: сначала сокращаются
+    старые результаты инструментов, потом удаляются реплики ДО текущего вопроса.
+    Историю в памяти не меняет — работает с копией."""
     msgs = [dict(m) if isinstance(m, dict) else m for m in messages]
     tools_cost = estimate(tools)
 
     def total():
         return estimate(msgs) + tools_cost
 
-    for m in msgs[1:-4]:
+    def role(m):
+        return m.get("role") if isinstance(m, dict) else getattr(m, "role", None)
+
+    def last_user():
+        for i in range(len(msgs) - 1, -1, -1):
+            if role(msgs[i]) == "user":
+                return i
+        return len(msgs)
+
+    tool_idx = [i for i, m in enumerate(msgs) if role(m) == "tool"]
+    for i in tool_idx[:-1]:                       # самый свежий результат — целиком
         if total() <= limit:
             break
-        if isinstance(m, dict) and m.get("role") == "tool" and len(str(m.get("content", ""))) > 300:
+        m = msgs[i]
+        if isinstance(m, dict) and len(str(m.get("content", ""))) > 300:
             m["content"] = str(m["content"])[:300] + " …[сокращено]"
 
     dropped = 0
-    while total() > limit and len(msgs) > 5:
+    while total() > limit and last_user() > 1:
         del msgs[1]
         dropped += 1
         # не оставляем результаты инструментов без вызова, который их породил
-        while len(msgs) > 5 and isinstance(msgs[1], dict) and msgs[1].get("role") == "tool":
+        while last_user() > 1 and role(msgs[1]) == "tool":
             del msgs[1]
             dropped += 1
     if dropped:
         print(f"[gateway] запрос ужат: убрано {dropped} старых сообщений, ~{total()} ток.")
     return msgs
+
 
 def chars(obj) -> int:
     return len(json.dumps(obj, ensure_ascii=False, default=str))
@@ -111,17 +157,7 @@ def record(model: str, reserved: int, usage, prompt_chars: int, fallback: int) -
 def reserve_any(models: list, tokens: int, cancel_check=None) -> str:
     """Берёт первую модель из списка, у которой прямо сейчас есть место.
     Если места нет ни у одной — ждёт ту, что освободится раньше. Возвращает модель."""
-    budget = int(TPM_LIMIT * SAFETY)
-    with _lock:
-        now = time.time()
-        chosen = None
-        for m in models:
-            win = _windows.setdefault(m, deque())
-            if not win or _used(win, now) + tokens <= budget:
-                chosen = m
-                break
-        if chosen is None:
-            chosen = min(models, key=lambda m: _windows[m][0][0])
+    chosen = plan(models, tokens)[0]      # модель, где ждать меньше всего (часто — ноль)
     if chosen != models[0]:
         print(f"[gateway] {models[0].split('/')[-1]} занята — беру {chosen.split('/')[-1]}")
     reserve(chosen, tokens, cancel_check)

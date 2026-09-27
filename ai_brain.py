@@ -628,10 +628,19 @@ def ask_ai(question: str, speech=None) -> str:
             for attempt in range(3):
                 try:
                     _t0 = time.time()
-                    msgs = llm_gateway.fit(
-                        clean_messages_for_api(conversation_history) + extra, active_schema)
+                    base_msgs = clean_messages_for_api(conversation_history) + extra
+                    msgs = llm_gateway.fit(base_msgs, active_schema)
                     est = llm_gateway.estimate(msgs) + llm_gateway.estimate(active_schema)
                     other = MODEL_FAST if model == MODEL_SMART else MODEL_SMART
+                    _m, _wait, _room = llm_gateway.plan([model, other], est)
+                    if _wait > 3 and _room >= 2500:
+                        # ждать долго, а под более короткий запрос место есть — ужимаем
+                        # старую историю, и запрос уходит сразу
+                        msgs = llm_gateway.fit(base_msgs, active_schema, limit=_room - 200)
+                        new_est = llm_gateway.estimate(msgs) + llm_gateway.estimate(active_schema)
+                        print(f"[gateway] вместо ожидания {_wait:.0f}с ужимаю запрос: "
+                              f"~{est} → ~{new_est} ток.")
+                        est = new_est
                     model = llm_gateway.reserve_any([model, other], est, _check_cancel)
                     response, usage = _call_model_stream(on_text,
                         model=model,

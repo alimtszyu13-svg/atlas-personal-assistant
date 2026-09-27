@@ -25,6 +25,131 @@ TTS_VOICE = "troy"
 STT_MODEL = "whisper-large-v3"
 
 SAMPLE_RATE = 16000
+
+
+# ---------------------------------------------------------------------------
+# Постоянный поток микрофона. Открывается один раз; распознавание имени, запись
+# команды и «Атлас, стоп» подключаются к нему как читатели. Нет повторного
+# открытия устройства — нет задержки после имени (особенно с Bluetooth).
+# ---------------------------------------------------------------------------
+class _MicHub:
+    CAP = SAMPLE_RATE * 2 * 10          # не больше 10 с звука в очереди читателя
+
+    def __init__(self):
+        self._subs = []
+        self._lock = threading.Lock()
+        self._stream = None
+
+    def _callback(self, indata, frames, time_info, status):
+        data = bytes(indata)
+        with self._lock:
+            subs = list(self._subs)
+        for s in subs:
+            s._push(data)
+
+    def _ensure(self):
+        with self._lock:
+            if self._stream is not None and self._stream.active:
+                return
+            if self._stream is not None:
+                try:
+                    self._stream.close()
+                except Exception:
+                    pass
+            self._stream = sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=512,
+                                             dtype="int16", channels=1,
+                                             callback=self._callback)
+            self._stream.start()
+        print("[микрофон] поток открыт — дальше без повторных открытий")
+
+    def restart(self):
+        """Сменили микрофон или устройство пропало — переоткрыть поток."""
+        with self._lock:
+            st, self._stream = self._stream, None
+            has_subs = bool(self._subs)
+        if st is not None:
+            try:
+                st.stop()
+                st.close()
+            except Exception:
+                pass
+        if has_subs:
+            self._ensure()
+
+    def subscribe(self, reader):
+        self._ensure()
+        with self._lock:
+            self._subs.append(reader)
+
+    def unsubscribe(self, reader):
+        with self._lock:
+            if reader in self._subs:
+                self._subs.remove(reader)
+
+
+_mic_hub = _MicHub()
+
+
+class _MicReader:
+    """Ведёт себя как поток sounddevice: start/stop/close, with, read(n)."""
+
+    def __init__(self, as_array: bool):
+        self.as_array = as_array
+        self._buf = bytearray()
+        self._cv = threading.Condition()
+        self._on = False
+
+    def _push(self, data: bytes):
+        with self._cv:
+            self._buf += data
+            if len(self._buf) > _MicHub.CAP:
+                del self._buf[:len(self._buf) - _MicHub.CAP]
+            self._cv.notify()
+
+    def start(self):
+        if not self._on:
+            _mic_hub.subscribe(self)
+            self._on = True
+
+    def stop(self):
+        if self._on:
+            _mic_hub.unsubscribe(self)
+            self._on = False
+
+    def close(self):
+        self.stop()
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, *exc):
+        self.stop()
+
+    def read(self, frames: int):
+        need = frames * 2
+        with self._cv:
+            while len(self._buf) < need:
+                if not self._cv.wait(timeout=2.0):
+                    print("[микрофон] звука нет 2 с — переоткрываю поток")
+                    self._cv.release()
+                    try:
+                        _mic_hub.restart()
+                    finally:
+                        self._cv.acquire()
+            data = bytes(self._buf[:need])
+            del self._buf[:need]
+        if self.as_array:
+            return np.frombuffer(data, dtype=np.int16).reshape(-1, 1).copy(), False
+        return data, False
+
+
+def _mic_raw(**_kw):
+    return _MicReader(as_array=False)
+
+
+def _mic_array(**_kw):
+    return _MicReader(as_array=True)
 INTERRUPT_WORDS = ("stop", "enough", "quiet", "стоп", "хватит", "тихо")
 # Локальное распознавание (Vosk): слышит только эти слова — быстро и без интернета
 WAKE_WORDS_LOCAL = ("атлас",)
@@ -297,7 +422,7 @@ def wait_for_wake_word() -> str:
     ring = deque(maxlen=40)          # последние 10 с звука: (номер первого сэмпла, кусок)
     fed = 0
     _wake_leftover["audio"] = None
-    with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=block,
+    with _mic_raw(samplerate=SAMPLE_RATE, blocksize=block,
                            dtype="int16", channels=1) as stream:
         while True:
             if _push_to_talk_event.is_set():
@@ -332,7 +457,7 @@ def _watch_for_interrupt(stop_event: threading.Event) -> None:
     rec = _vosk_recognizer(INTERRUPT_WORDS_LOCAL + WAKE_WORDS_LOCAL)
     rec.SetWords(True)                      # нужна уверенность по каждому слову
     last_stop = 0.0
-    with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=4000,
+    with _mic_raw(samplerate=SAMPLE_RATE, blocksize=4000,
                            dtype="int16", channels=1) as stream:
         while pygame.mixer.music.get_busy() and not stop_event.is_set():
             data, _overflow = stream.read(4000)
@@ -749,7 +874,7 @@ def _listen_once(max_duration: float, silence_limit: float,
     frames, started = [], False
     t0 = time.time()
 
-    stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=block)
+    stream = _mic_array(samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=block)
     stream.start()
     try:
         while True:
@@ -787,7 +912,7 @@ def _wait_for_continuation(window: float = 0.9):
     chunk_size = int(SAMPLE_RATE * chunk_duration)
     checks = int(window / chunk_duration)
 
-    stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16")
+    stream = _mic_array(samplerate=SAMPLE_RATE, channels=1, dtype="int16")
     stream.start()
     try:
         for _ in range(checks):
@@ -896,6 +1021,7 @@ def set_microphone(name: str) -> str:
             current = sd.default.device
             out_idx = current[1] if isinstance(current, (list, tuple)) else None
             sd.default.device = (i, out_idx)
+            _mic_hub.restart()           # постоянный поток — на новый микрофон
             return f"Microphone switched to {dev['name']}."
     return f"Couldn't find a microphone matching '{name}'."
 
