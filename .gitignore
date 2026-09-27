@@ -36,3 +36,16 @@ memory.db-wal
 memory.db-shm
 missions.db
 backup_*/
+# резервные копии установщиков
+backup_*/
+# локальные настройки интерфейса
+ui_layout.json
+# временные файлы озвучки
+temp_*.wav
+temp_*.mp3
+fish_test.mp3
+# базы и секреты
+*.db
+.env
+token.json
+credentials.json

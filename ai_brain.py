@@ -805,3 +805,61 @@ def remember_exchange(user_text: str, assistant_text: str) -> None:
 def reset_conversation() -> None:
     global conversation_history
     conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+
+# === Починка вызова неизвестного инструмента ===
+# Модель попросила инструмент, которого нет в наборе этого запроса, — Groq отвечает
+# «attempted to call tool 'X' which was not in request.tools». Вместо слепых повторов
+# чиним сам запрос: добавляем инструмент, подсказываем или отвечаем без инструментов.
+import re as _re_toolfix
+
+_UNKNOWN_TOOL_RE = _re_toolfix.compile(r"attempted to call tool '([^']+)'")
+_call_model_stream_base = _call_model_stream
+
+
+def _tool_names(tools):
+    return {t.get("function", {}).get("name") for t in (tools or [])}
+
+
+def _with_tool(tools, name):
+    """Набор инструментов + запрошенный инструмент и его группа (если группа небольшая)."""
+    have = _tool_names(tools)
+    wanted = {name}
+    try:
+        import tool_router
+        g = tool_router.group_of_tool(name)
+        members = tool_router.GROUPS.get(g, set()) if g else set()
+        if len(members) <= 12:
+            wanted |= set(members)
+    except Exception:
+        pass
+    extra = [t for t in TOOLS_SCHEMA
+             if t["function"]["name"] in wanted and t["function"]["name"] not in have]
+    return list(tools or []) + extra
+
+
+def _call_model_stream(*args, **kwargs):
+    fixes = 0
+    while True:
+        try:
+            return _call_model_stream_base(*args, **kwargs)
+        except Exception as e:
+            m = _UNKNOWN_TOOL_RE.search(str(e))
+            if not m or fixes >= 2 or not kwargs.get("tools"):
+                raise
+            fixes += 1
+            raw = m.group(1)
+            name = raw.split("<|")[0].strip()          # сбой разметки: 'search_web<|channel|>commentary'
+            known = {t["function"]["name"] for t in TOOLS_SCHEMA}
+            if fixes == 1 and name in known:
+                kwargs["tools"] = _with_tool(kwargs["tools"], name)
+                print(f"[инструменты] модель попросила «{name}» — добавляю в набор и повторяю")
+            elif fixes == 1:
+                kwargs["messages"] = list(kwargs.get("messages") or []) + [{
+                    "role": "system",
+                    "content": f"Tool '{raw}' does not exist. Use only the tools provided, "
+                               f"or answer directly from what you already know."}]
+                print(f"[инструменты] модель попросила несуществующий «{raw}» — подсказываю и повторяю")
+            else:
+                kwargs["tool_choice"] = "none"
+                print("[инструменты] повтор не помог — отвечаю без инструментов, по уже известным данным")

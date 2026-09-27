@@ -533,7 +533,22 @@ def _split_sentences(text: str):
     return out or [text]
 
 
-def _generate_any(text: str, filename: str) -> None:
+def _generate_any(text: str, filename: str) -> str:
+    """Генерирует речь и возвращает путь к реально созданному файлу
+    (Silero даёт .wav, даже если просили .mp3)."""
+    wav = filename.rsplit(".", 1)[0] + ".wav"
+    for p in {filename, wav}:
+        try:
+            os.remove(p)                 # не подхватить старый файл с прошлой фразы
+        except OSError:
+            pass
+    _generate_any_impl(text, filename)
+    if os.path.exists(filename):
+        return filename
+    return wav if os.path.exists(wav) else filename
+
+
+def _generate_any_impl(text: str, filename: str) -> None:
     """Генерация речи в указанный файл — тот же каскад, что в speak()."""
     if _response_language["lang"] == "ru":
         try:
@@ -544,9 +559,7 @@ def _generate_any(text: str, filename: str) -> None:
         try:
             wav = filename.rsplit(".", 1)[0] + ".wav"
             _generate_speech_silero(text, wav)
-            if wav != filename:
-                _shutil.move(wav, filename)
-            return
+            return                     # WAV остаётся .wav: под именем .mp3 pygame его не читает
         except Exception as e:
             print(f"[Silero error]: {e}, пробую Edge-TTS")
         async def _gen():
@@ -580,9 +593,9 @@ def speak_streaming(text: str, interruptible: bool = True) -> None:
     def _gen(i, chunk):
         fn = f"temp_stream_{i}{ext}"
         try:
-            _generate_any(chunk, fn)
+            real = _generate_any(chunk, fn)
             with lock:
-                ready[i] = fn
+                ready[i] = real
         except Exception as e:
             print(f"[stream gen {i}]: {e}")
             with lock:
@@ -993,7 +1006,7 @@ class SpeechStream:
             fn = f"temp_live_{self.n}{self.ext}"
             self.n += 1
             try:
-                _generate_any(text, fn)
+                fn = _generate_any(text, fn)
                 self.files.put((text, fn))
             except Exception as e:
                 print(f"[live tts]: {e}")
@@ -1045,17 +1058,25 @@ _groq_tts_until = {"t": 0.0}              # до какого времени л�
 _fish = None
 
 
+FISH_MODEL = os.getenv("FISH_MODEL", "s2.1-pro-free")   # бесплатная модель Fish Audio
+
+
 def _generate_speech_fish(text: str, filename: str, voice_id: str) -> None:
-    global _fish
-    from fishaudio import FishAudio
-    from fishaudio.types import TTSConfig
-    if _fish is None:
-        _fish = FishAudio(api_key=FISH_API_KEY)
+    """Fish Audio S2.1 Pro — бесплатная модель, русский и английский."""
+    import httpx
     fmt = "mp3" if filename.endswith(".mp3") else "wav"
-    audio = _fish.tts.convert(text=text, config=TTSConfig(reference_id=voice_id, format=fmt))
-    data = audio if isinstance(audio, (bytes, bytearray)) else b"".join(audio)
+    r = httpx.post(
+        "https://api.fish.audio/v1/tts",
+        headers={"Authorization": f"Bearer {FISH_API_KEY}",
+                 "Content-Type": "application/json",
+                 "model": FISH_MODEL},
+        json={"text": text, "reference_id": voice_id, "format": fmt},
+        timeout=60,
+    )
+    if r.status_code != 200:
+        raise RuntimeError(f"Fish {r.status_code}: {r.text[:200]}")
     with open(filename, "wb") as f:
-        f.write(data)
+        f.write(r.content)
 
 
 def _generate_ru_primary(text: str, filename: str) -> None:
@@ -1067,7 +1088,20 @@ def _generate_ru_primary(text: str, filename: str) -> None:
             return
         except Exception as e:
             print(f"[Fish error]: {e}, пробую ElevenLabs")
-    _generate_speech_elevenlabs(text=text, filename=filename)
+    if _eleven_down["on"]:
+        raise RuntimeError("ElevenLabs отключён до перезапуска: закончилась квота")
+    try:
+        _generate_speech_elevenlabs(text=text, filename=filename)
+    except Exception as e:
+        msg = str(e)
+        if "quota_exceeded" in msg or "status_code: 401" in msg:
+            _eleven_down["on"] = True
+            print("[TTS] квота ElevenLabs закончилась — до перезапуска русский голос через Silero")
+            raise RuntimeError("закончилась квота ElevenLabs") from None
+        raise
+
+
+_eleven_down = {"on": False}      # True — квота исчерпана, сразу идём в Silero
 
 
 def list_voice_choices(lang: str) -> list:
