@@ -1127,3 +1127,83 @@ for _n in ("heal_status", "heal_apply", "heal_reject"):
     tool_router.register_tool(_n, "heal")
 tool_router.TRIGGERS["heal"] = ("исправлен", "почин", "самолечен", "баг", "патч", "ошибку в коде",
                                 "fix", "bug", "patch", "repair")
+
+
+# === Ритуалы ===
+def create_routine(name: str, triggers: list, steps: list, at: str = "", days: str = "") -> str:
+    """Creates a routine: several tool calls run by one phrase or on a schedule."""
+    from core import routines
+    bad = [s.get("tool") for s in steps if not isinstance(s, dict) or s.get("tool") not in AVAILABLE_FUNCTIONS]
+    if bad or not steps:
+        return f"Can't create: unknown or missing tools {bad}. Use real tool names from your tool list."
+    rid = routines.create(name, triggers or [name], steps, schedule=at, days=days)
+    return (f"Routine «{name}» created (#{rid}): {', '.join(s['tool'] for s in steps)}. "
+            f"Trigger phrases: {', '.join(triggers or [name])}." + (f" Runs daily at {at}." if at else ""))
+
+
+def list_routines() -> str:
+    from core import routines
+    rows = routines.list_all()
+    if not rows:
+        return "No routines yet."
+    return "\n".join(f"#{r['id']} «{r['name']}» [{r['status']}] say: {', '.join(r['triggers'])}; "
+                     f"steps: {', '.join(s['tool'] for s in r['steps'])}"
+                     + (f"; at {r['schedule']}" if r['enabled'] else "") for r in rows)
+
+
+def run_routine(name: str) -> str:
+    from core import routines
+    return routines.run(name)
+
+
+def delete_routine(name: str) -> str:
+    from core import routines
+    r = routines.get(name)
+    if not r:
+        return f"No routine named «{name}»."
+    routines.delete(r["id"])
+    return f"Routine «{r['name']}» deleted."
+
+
+AVAILABLE_FUNCTIONS.update({"create_routine": create_routine, "list_routines": list_routines,
+                            "run_routine": run_routine, "delete_routine": delete_routine})
+TOOLS_SCHEMA.extend([
+    {"type": "function", "function": {"name": "create_routine", "description": "Creates a routine: a named set of tool calls that runs by a trigger phrase (e.g. 'доброе утро') or daily at a time. steps = real tool names with their arguments.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "triggers": {"type": "array", "items": {"type": "string"}}, "steps": {"type": "array", "items": {"type": "object", "properties": {"tool": {"type": "string"}, "args": {"type": "object"}}, "required": ["tool"]}}, "at": {"type": "string", "description": "HH:MM to run daily, optional"}, "days": {"type": "string", "description": "weekday digits 0=Mon..6=Sun, empty = every day"}}, "required": ["name", "steps"]}}},
+    {"type": "function", "function": {"name": "list_routines", "description": "Lists the user's routines and routines Atlas suggested from habits.", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "run_routine", "description": "Runs a routine by name now.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {"name": "delete_routine", "description": "Deletes a routine by name.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+])
+for _n in ("create_routine", "list_routines", "run_routine", "delete_routine"):
+    tool_router.register_tool(_n, "routines")
+tool_router.TRIGGERS["routines"] = ("ритуал", "рутин", "каждое утро", "по утрам", "каждый вечер", "брифинг",
+                                    "routine", "briefing", "every morning", "every evening")
+
+_ask_ai_prev_routines = ask_ai
+
+
+def ask_ai(question: str, speech=None) -> str:
+    """Фраза-триггер ритуала выполняется сразу, без модели; остальное — как раньше.
+    После каждого ответа инструменты хода записываются для поиска привычек."""
+    try:
+        from core import routines
+        r = routines.match_trigger(question)
+        if r:
+            print(f"[ритуалы] фраза запускает ритуал «{r['name']}»")
+            conversation_history.append({"role": "user", "content": question})
+            text = routines.run(r["id"])
+            conversation_history.append({"role": "assistant", "content": text})
+            return text
+    except Exception as e:
+        print(f"[ритуалы] {e}")
+    reply = _ask_ai_prev_routines(question, speech)
+    try:
+        from core import routines
+        idx = max(i for i, m in enumerate(conversation_history)
+                  if isinstance(m, dict) and m.get("role") == "user" and m.get("content") == question)
+        threading.Thread(target=routines.log_tools, args=(question, list(conversation_history[idx:])),
+                         daemon=True).start()
+    except ValueError:
+        pass
+    except Exception as e:
+        print(f"[ритуалы] журнал привычек: {e}")
+    return reply

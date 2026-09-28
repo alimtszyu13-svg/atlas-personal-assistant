@@ -150,15 +150,22 @@ def _mic_raw(**_kw):
 
 def _mic_array(**_kw):
     return _MicReader(as_array=True)
-INTERRUPT_WORDS = ("stop", "enough", "quiet", "стоп", "хватит", "тихо")
+INTERRUPT_WORDS = ("stop", "enough", "quiet", "wait", "pause", "стоп", "хватит", "тихо", "стой",
+                   "прекрати", "перестань", "остановись", "довольно", "отмена")
 # Локальное распознавание (Vosk): слышит только эти слова — быстро и без интернета
-WAKE_WORDS_LOCAL = ("атлас",)
-INTERRUPT_WORDS_LOCAL = ("стоп", "хватит", "тихо", "замолчи")
+WAKE_WORDS_LOCAL = tuple(dict.fromkeys(
+    ("атлас", "атласик", "атласа", "атласу", "атласом", "атласе", "этлас", "атлэс", "атлес")
+    + tuple(w.strip().lower() for w in os.getenv("WAKE_WORDS_EXTRA", "").split(",") if w.strip())))   # имя и его формы + свои из .env
+INTERRUPT_WORDS_LOCAL = tuple(dict.fromkeys(
+    ("стоп", "хватит", "тихо", "замолчи", "стой", "прекрати", "перестань", "остановись",
+     "замолкни", "довольно", "отмена", "тише")
+    + tuple(w.strip().lower() for w in os.getenv("STOP_WORDS_EXTRA", "").split(",") if w.strip())))   # слова остановки + свои из .env
 INTERRUPT_CONF = 0.85   # минимальная уверенность Vosk в каждом слове
 STOP_REPEAT_WINDOW = 4.0   # два «стоп» в пределах стольких секунд = прерывание
 VOSK_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                "models", "vosk-model-small-ru-0.22")
 _vosk_model = None
+_vosk_warned = {}
 
 
 def _vosk_recognizer(words):
@@ -169,10 +176,20 @@ def _vosk_recognizer(words):
     if _vosk_model is None:
         SetLogLevel(-1)
         _vosk_model = Model(VOSK_MODEL_PATH)
+    known = [w for w in words if _vosk_model.find_word(w) >= 0] or list(words)[:1]
+    missing = [w for w in words if w not in known]
+    if missing and not _vosk_warned.get(tuple(words)):
+        _vosk_warned[tuple(words)] = True
+        print(f"[vosk] слышу: {', '.join(known)} | модель не знает: {', '.join(missing)}")
     return KaldiRecognizer(_vosk_model, SAMPLE_RATE,
-                           json.dumps(list(words) + ["[unk]"], ensure_ascii=False))# Локальное распознавание (Vosk): слышит только эти слова — быстро и без интернета
-WAKE_WORDS_LOCAL = ("атлас",)
-INTERRUPT_WORDS_LOCAL = ("стоп", "хватит", "тихо", "замолчи")
+                           json.dumps(known + ["[unk]"], ensure_ascii=False))# Локальное распознавание (Vosk): слышит только эти слова — быстро и без интернета
+WAKE_WORDS_LOCAL = tuple(dict.fromkeys(
+    ("атлас", "атласик", "атласа", "атласу", "атласом", "атласе", "этлас", "атлэс", "атлес")
+    + tuple(w.strip().lower() for w in os.getenv("WAKE_WORDS_EXTRA", "").split(",") if w.strip())))   # имя и его формы + свои из .env
+INTERRUPT_WORDS_LOCAL = tuple(dict.fromkeys(
+    ("стоп", "хватит", "тихо", "замолчи", "стой", "прекрати", "перестань", "остановись",
+     "замолкни", "довольно", "отмена", "тише")
+    + tuple(w.strip().lower() for w in os.getenv("STOP_WORDS_EXTRA", "").split(",") if w.strip())))   # слова остановки + свои из .env
 VOSK_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                "models", "vosk-model-small-ru-0.22")
 _vosk_model = None
@@ -186,8 +203,13 @@ def _vosk_recognizer(words):
     if _vosk_model is None:
         SetLogLevel(-1)
         _vosk_model = Model(VOSK_MODEL_PATH)
+    known = [w for w in words if _vosk_model.find_word(w) >= 0] or list(words)[:1]
+    missing = [w for w in words if w not in known]
+    if missing and not _vosk_warned.get(tuple(words)):
+        _vosk_warned[tuple(words)] = True
+        print(f"[vosk] слышу: {', '.join(known)} | модель не знает: {', '.join(missing)}")
     return KaldiRecognizer(_vosk_model, SAMPLE_RATE,
-                           json.dumps(list(words) + ["[unk]"], ensure_ascii=False))
+                           json.dumps(known + ["[unk]"], ensure_ascii=False))
 WAKE_WORD = "atlas"
 _push_to_talk_event = threading.Event()
 # Ставится, когда пользователь сказал стоп-слово во время речи.
@@ -380,7 +402,14 @@ def _transcribe_audio(recording: np.ndarray) -> str:
                 file=(temp_path, data), model="whisper-large-v3-turbo", language="ru")
         else:
             result = groq_client.audio.transcriptions.create(
-                file=(temp_path, data), model="whisper-large-v3-turbo")
+                file=(temp_path, data), model="whisper-large-v3-turbo",
+                response_format="verbose_json")
+            lang = (getattr(result, "language", "") or "").lower()
+            if lang and lang not in ("en", "english", "ru", "russian"):
+                # Whisper иногда принимает русскую речь за польскую — переслушиваем как русскую
+                print(f"[Whisper] язык «{lang}» — перераспознаю как русский")
+                result = groq_client.audio.transcriptions.create(
+                    file=(temp_path, data), model="whisper-large-v3-turbo", language="ru")
         text = (result.text or "").strip()
         if not re.search(r"[^\W_]", text):         # ни буквы, ни цифры: «...», «?!»
             print(f"[Whisper] пустая фраза отброшена: {text!r}")
@@ -436,12 +465,12 @@ def wait_for_wake_word() -> str:
                 continue
             words = json.loads(rec.Result()).get("result", [])
             for i, w in enumerate(words):
-                if w["word"] != "атлас":
+                if w["word"] not in WAKE_WORDS_LOCAL:
                     continue
                 if w["conf"] < WAKE_CONF:
-                    print(f"[wake] отклонено: атлас ({w['conf']:.2f})")
+                    print(f"[wake] отклонено: {w['word']} ({w['conf']:.2f})")
                     continue
-                print(f"[wake] атлас ({w['conf']:.2f})")
+                print(f"[wake] {w['word']} ({w['conf']:.2f})")
                 if i < len(words) - 1:            # после имени звучала речь — это команда
                     start = int(w["end"] * SAMPLE_RATE)
                     parts = [c[max(0, start - s):] for s, c in ring if s + len(c) > start]
@@ -474,7 +503,7 @@ def _watch_for_interrupt(stop_event: threading.Event) -> None:
             if n_stop:
                 last_stop = now
             # в наушниках эха нет — хватает одного «стоп»; в колонки — нужна защита от эха
-            if n_stop and ("атлас" in sure or repeated or output_is_headphones()):
+            if n_stop and (any(w in WAKE_WORDS_LOCAL for w in sure) or repeated or output_is_headphones()):
                 print("[Atlas]: (прервано)")
                 _stop_speaking.set()
                 pygame.mixer.music.stop()

@@ -94,6 +94,7 @@ def _fallback(kind: str, ru: bool) -> str:
                    "Pass a topic if the user asked for one ('about cats', 'про программистов').",
        params={"topic": "Optional joke topic; leave empty for a random joke"})
 def tell_joke(topic: str = "") -> str:
+    1 / 0  # DEMO: self-repair test
     ru = get_response_language() == "ru"
     if not topic and not ru:                       # английский без темы — из интернета
         for _ in range(3):

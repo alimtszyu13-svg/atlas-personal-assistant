@@ -283,16 +283,31 @@ def _handle(job: dict) -> None:
     try:
         from ui_state import notify
         notify("warn", "heal_ready", f"#{pid} · {job['rel']}: {dx_ru}")
+    except Exception as e:
+        print(f"[самолечение] уведомление в интерфейс не ушло: {e}")
+    if _speak:
+        threading.Thread(target=_announce, args=(pid,), daemon=True).start()
+
+
+def _announce(pid: int) -> None:
+    """Сказать вслух, когда Atlas освободится: окно Atlas часто закрыто другими окнами,
+    и всплывающая карточка просто не видна."""
+    quiet = 0
+    for _ in range(450):                      # ждём до ~15 минут
+        quiet = quiet + 1 if _idle() else 0
+        if quiet >= 2:
+            break
+        time.sleep(2)
+    try:
+        from voice import get_response_language
+        ru = get_response_language() == "ru"
     except Exception:
-        pass
-    if _speak and _idle():
-        try:
-            from voice import get_response_language
-            ru = get_response_language() == "ru"
-        except Exception:
-            ru = True
-        _speak("Сэр, я нашёл у себя ошибку и подготовил исправление — оно в разделе «Самолечение»."
-               if ru else "Sir, I found a bug in my own code and prepared a fix — it's in the Self-repair section.")
+        ru = True
+    print(f"[самолечение] сообщаю голосом об исправлении #{pid}")
+    _speak(f"Сэр, я нашёл у себя ошибку и подготовил исправление номер {pid}. "
+           "Скажите «примени исправление» или откройте раздел «Самолечение»."
+           if ru else f"Sir, I found a bug in my own code and prepared fix number {pid}. "
+           "Say 'apply the fix' or open the Self-repair section.")
 
 
 def _worker() -> None:

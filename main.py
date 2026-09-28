@@ -135,7 +135,7 @@ def _process_command(command: str) -> None:
 
 
 _SHUTDOWN_TEXT_RE = re.compile(
-    r"^(?:выключ\w*|отключ\w*|выключи себя|shut\s?down|turn off|power off|turn yourself off)$")
+    r"^(?:выключ\w*|отключ\w*|выключи себя|заверши работу|завершить работу|закончи работу|закройся|иди спать|shut\s?down|turn off|power off|turn yourself off|go to sleep|exit|quit)$")
 
 
 def _is_shutdown_text(text: str) -> bool:
@@ -255,11 +255,12 @@ def _voice_loop():
             continue  # мусорное/пустое распознавание — не тратим вызов ask_ai
 
         SHUTDOWN_RE = re.compile(
-            r"^(?:выключ\w*|отключ\w*|выключи себя|shut\s?down|turn off|power off|turn yourself off)$")
+            r"^(?:выключ\w*|отключ\w*|выключи себя|заверши работу|завершить работу|закончи работу|закройся|иди спать|shut\s?down|turn off|power off|turn yourself off|go to sleep|exit|quit)$")
         cmd = command.lower().strip(" .!?,")
         cmd = re.sub(r"^(?:atlas|атлас)[,\s]+", "", cmd)
         cmd = re.sub(r"[,\s]+(?:please|пожалуйста)$", "", cmd).strip()
-        if cmd in {"stop", "стоп", "хватит", "cancel", "отмена", "enough"}:
+        if cmd in {"stop", "стоп", "хватит", "cancel", "отмена", "enough", "стой", "прекрати", "перестань",
+                   "остановись", "довольно", "не надо", "отбой", "тихо", "замолчи", "wait", "pause"}:
             continue          # прерывать нечего — не тратим запрос к модели
         if SHUTDOWN_RE.match(cmd):
             shutdown_msg = random.choice(SHUTDOWN_RESPONSES[get_response_language()])
@@ -291,6 +292,8 @@ from core import missions
 missions.init(lambda text: _speak_and_update(text, interruptible=False))
 from core import healer
 healer.start(lambda text: _speak_and_update(text, interruptible=False))   # самолечение
+from core import routines
+routines.start(lambda text: _speak_and_update(text, interruptible=False))  # ритуалы и привычки
 voice_thread = threading.Thread(target=_voice_loop, daemon=True)
 voice_thread.start()
 

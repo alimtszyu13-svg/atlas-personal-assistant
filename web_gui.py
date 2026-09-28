@@ -145,7 +145,9 @@ class Api:
         text = text.strip()
         if not text:
             return
-        if text.lower().strip(" .!") in ("стоп", "stop", "отмена", "cancel", "хватит"):
+        if text.lower().strip(" .!") in ("стоп", "stop", "отмена", "cancel", "хватит", "стой", "прекрати",
+                                        "перестань", "остановись", "довольно", "не надо", "отбой",
+                                        "тихо", "замолчи", "wait", "pause"):
             self.stop_speaking_ui()
             return
         shared_state["manual_queue"].append(text)
@@ -494,6 +496,38 @@ class Api:
     def heal_reject_ui(self, fix_id: int) -> dict:
         from core import healer
         return healer.reject(fix_id)
+
+
+    # ------------------------------------------------------------------
+    # Ритуалы
+    # ------------------------------------------------------------------
+    def get_routines_ui(self) -> list:
+        from core import routines
+        return routines.list_all()
+
+    def run_routine_ui(self, rid: int) -> str:
+        from core import routines
+        return routines.run(rid, speak=True)
+
+    def delete_routine_ui(self, rid: int) -> None:
+        from core import routines
+        routines.delete(rid)
+
+    def accept_routine_ui(self, rid: int) -> None:
+        from core import routines
+        routines.accept(rid)
+
+    def dismiss_routine_ui(self, rid: int) -> None:
+        from core import routines
+        routines.dismiss(rid)
+
+    def schedule_routine_ui(self, rid: int, hhmm: str, enabled: bool) -> None:
+        from core import routines
+        routines.set_schedule(rid, hhmm, enabled)
+
+    def create_morning_ui(self) -> int:
+        from core import routines
+        return routines.create_morning()
 
 
 class WebGUI:

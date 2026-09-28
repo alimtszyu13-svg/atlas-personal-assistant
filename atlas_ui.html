@@ -401,6 +401,8 @@
   .diff { font-family: Consolas, 'Cascadia Mono', monospace; font-size: 12px; line-height: 1.45; white-space: pre; overflow: auto; max-height: 320px; padding: 10px 12px; margin-top: 6px; background: rgba(2,4,10,.65); border: 1px solid var(--line); }
   .diff .add { color: #7FD9A8; } .diff .del { color: #fb7185; } .diff .hunk { color: var(--muted); }
   body[data-theme="light"] .diff { background: rgba(255,255,255,.85); color: #0E1A33; }
+  .rt-time { height: 34px; padding: 0 10px; border: 1px solid var(--line); background: rgba(2,4,10,.6); color: var(--text); font: 500 13px "Exo 2", sans-serif; }
+  body[data-theme="light"] .rt-time { background: rgba(255,255,255,.85); color: #0E1A33; }
 </style>
 </head>
 <body data-theme="dark" class="intro">
@@ -525,6 +527,7 @@
     <button data-page="notes" data-i18n-aria="nav_notes"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 2.5h10v13H4z"/><path d="M6.5 6h5M6.5 9h5M6.5 12h3"/></svg><span data-i18n="nav_notes">Заметки и день</span></button>
     <button data-page="tools" data-i18n-aria="nav_tools"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="5" height="5" rx="1"/><rect x="10.5" y="2.5" width="5" height="5" rx="1"/><rect x="2.5" y="10.5" width="5" height="5" rx="1"/><rect x="10.5" y="10.5" width="5" height="5" rx="1"/></svg><span data-i18n="nav_tools">Инструменты</span></button>
     <button data-page="journal" data-i18n-aria="nav_journal"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5l2 2 7-7"/><path d="M15.5 9v5a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 14V4A1.5 1.5 0 0 1 4 2.5h7.5"/></svg><span data-i18n="nav_journal">Журнал</span></button>
+    <button data-page="routines" data-i18n-aria="nav_routines"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.5 12.5a5.5 5.5 0 0 1 11 0"/><path d="M1.5 14.5h15"/><path d="M9 2.5v2M3.3 5.3l1.4 1.4M14.7 5.3l-1.4 1.4"/></svg><span data-i18n="nav_routines">Ритуалы</span></button>
     <button data-page="heal" data-i18n-aria="nav_heal"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a3.5 3.5 0 0 0-3.3 4.6L2.8 12.5a1.5 1.5 0 0 0 2.1 2.1l5.4-5.4a3.5 3.5 0 0 0 4.6-3.3l-2 2-1.8-.3-.3-1.8z"/></svg><span data-i18n="nav_heal">Самолечение</span></button>
     <button data-page="projects" data-i18n-aria="nav_projects"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="11" rx="1.5"/><path d="M6 2.5v3M12 2.5v3"/></svg><span data-i18n="nav_projects">Проекты</span></button>
   </nav>
@@ -1318,7 +1321,8 @@
       perf.frames++;
     }
     const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
-    updateIntro();
+    intro.lastFrame = performance.now();
+    updateIntro(dt);
     const I = intro;
     uniforms.uGather.value = I.gather; uniforms.uUnfold.value = I.unfold;
     const tg = STATES[state], k = 1 - Math.pow(0.002, dt);
@@ -1537,6 +1541,11 @@
       searching: 'Ищу…', opening: 'Открываю…',
       mem_facts: 'Граф знаний', mem_saved: 'Сохранённые факты', mem_episodes: 'Эпизоды разговоров',
       mem_empty: 'Пока пусто.', forget: 'Забыть', replaced: 'устарело', you_node: 'Вы',
+      nav_routines: 'Ритуалы', rt_intro: 'Несколько действий одной фразой или по расписанию. Скажите, например, «Атлас, создай ритуал: по фразе „я дома“ — погода и мои задачи». Ещё я сам замечаю привычки и предлагаю сделать из них ритуал.',
+      rt_empty: 'Ритуалов пока нет.', rt_morning: 'Создать утренний брифинг', rt_suggest: 'Atlas заметил привычку',
+      rt_create: 'Создать ритуал', rt_dismiss: 'Не нужно', rt_run: 'Запустить', rt_delete: 'Удалить',
+      rt_say: 'Скажите', rt_sched_on: 'Каждый день в', rt_running: 'Выполняю…', rt_last: 'последний раз',
+      n_routine_suggest: 'Atlas заметил привычку', act_routine: 'Посмотреть',
       nav_heal: 'Самолечение', heal_intro: 'Когда в моём коде случается ошибка, я разбираю её, готовлю точечное исправление и проверяю его на копии. Применяю только с вашего подтверждения; каждое исправление — отдельный git-коммит, его можно откатить.',
       heal_empty: 'Ошибок в коде пока не было.', heal_apply: 'Применить', heal_reject: 'Отклонить', heal_checks: 'Проверки',
       heal_st_ready: 'готово к применению', heal_st_failed: 'не прошло проверку', heal_st_applied: 'применено',
@@ -1595,6 +1604,11 @@
       searching: 'Searching…', opening: 'Opening…',
       mem_facts: 'Knowledge graph', mem_saved: 'Saved facts', mem_episodes: 'Conversation episodes',
       mem_empty: 'Nothing yet.', forget: 'Forget', replaced: 'outdated', you_node: 'You',
+      nav_routines: 'Routines', rt_intro: 'Several actions by one phrase or on a schedule. Say, for example, "Atlas, create a routine: when I say I am home — weather and my tasks". I also notice your habits and offer to turn them into routines.',
+      rt_empty: 'No routines yet.', rt_morning: 'Create a morning briefing', rt_suggest: 'Atlas noticed a habit',
+      rt_create: 'Create routine', rt_dismiss: 'No thanks', rt_run: 'Run', rt_delete: 'Delete',
+      rt_say: 'Say', rt_sched_on: 'Every day at', rt_running: 'Running…', rt_last: 'last run',
+      n_routine_suggest: 'Atlas noticed a habit', act_routine: 'Review',
       nav_heal: 'Self-repair', heal_intro: 'When an error happens in my code, I analyse it, prepare a minimal fix and test it on a copy. I apply it only with your confirmation; every fix is a separate git commit you can revert.',
       heal_empty: 'No code errors so far.', heal_apply: 'Apply', heal_reject: 'Reject', heal_checks: 'Checks',
       heal_st_ready: 'ready to apply', heal_st_failed: 'failed checks', heal_st_applied: 'applied',
@@ -1952,7 +1966,8 @@
       const o = { kind: kind, icon: kind === 'warn' ? 'warn' : 'ok', title: notifTitle(n), text: n.text, life: 9000 };
       if (n.key === 'clipboard') { o.action = t('act_explain'); o.onAction = function () { sendCommand(t('cmd_explain')); }; }
       if (n.key === 'mission_done') { o.action = t('act_notes'); o.onAction = function () { openPage('notes'); }; }
-      if (n.key === 'heal_ready') { o.action = t('act_heal'); o.onAction = function () { openPage('heal'); }; }
+      if (n.key === 'routine_suggest') { o.action = t('act_routine'); o.life = 20000; o.onAction = function () { openPage('routines'); }; }
+      if (n.key === 'heal_ready') { o.action = t('act_heal'); o.life = 30000; o.onAction = function () { openPage('heal'); }; }
       pop(o);
     });
     while (inbox.length > 60) inbox.shift();
@@ -2060,7 +2075,7 @@
     currentPage = name;
     pageTitle.textContent = t('nav_' + name);
     pageBody.textContent = '';
-    ({ chat: pageChat, files: pageFiles, memory: pageMemory, notes: pageNotes, tools: pageTools, journal: pageJournal, projects: pageProjects, heal: pageHeal })[name]();
+    ({ chat: pageChat, files: pageFiles, memory: pageMemory, notes: pageNotes, tools: pageTools, journal: pageJournal, projects: pageProjects, heal: pageHeal, routines: pageRoutines })[name]();
     if (page.hidden) {
       page.hidden = false;
       requestAnimationFrame(function () { page.classList.add('in'); });
@@ -2360,6 +2375,64 @@
     load();
   }
 
+  // --- ритуалы ---
+  function pageRoutines() {
+    pageBody.appendChild(el('div', 'hint', t('rt_intro')));
+    const top = el('div', 'tool-grid');
+    const mk = el('button', 'chip', t('rt_morning'));
+    mk.addEventListener('click', function () { call('create_morning_ui').then(function () { openPage('routines', true); }).catch(console.log); });
+    top.appendChild(mk);
+    pageBody.appendChild(top);
+    const box = el('div'); box.style.cssText = 'display:flex; flex-direction:column; gap:12px;';
+    pageBody.appendChild(box);
+    box.appendChild(el('div', 'empty', t('loading')));
+    call('get_routines_ui').then(function (rows) {
+      box.textContent = '';
+      if (!rows.length) { box.appendChild(el('div', 'empty', t('rt_empty'))); return; }
+      rows.forEach(function (r) {
+        const it = el('div', 'item');
+        const head = el('div', 'row');
+        head.appendChild(el('b', 'grow', r.name));
+        if (r.status === 'suggested') head.appendChild(el('small', 'ok-t', t('rt_suggest')));
+        else if (r.last_run) head.appendChild(el('small', 'muted', t('rt_last') + ': ' + r.last_run));
+        it.appendChild(head);
+        if (r.triggers.length) it.appendChild(el('small', null, t('rt_say') + ': «' + r.triggers.join('», «') + '»'));
+        const steps = el('div', 'tool-grid');
+        r.steps.forEach(function (s) { steps.appendChild(el('span', 'chip', s.tool.replace(/_/g, ' '))); });
+        it.appendChild(steps);
+        if (r.status !== 'suggested') {
+          const row = el('div', 'row');
+          const sw = el('label', 'switch');
+          const cb = el('input'); cb.type = 'checkbox'; cb.checked = !!r.enabled;
+          sw.appendChild(cb); sw.appendChild(el('span', null, t('rt_sched_on')));
+          const tm = el('input'); tm.type = 'time'; tm.className = 'rt-time'; tm.value = r.schedule || '07:30';
+          tm.setAttribute('aria-label', t('rt_sched_on'));
+          function save() { call('schedule_routine_ui', r.id, tm.value, cb.checked).catch(console.log); }
+          cb.addEventListener('change', save); tm.addEventListener('change', save);
+          row.appendChild(sw); row.appendChild(tm);
+          it.appendChild(row);
+        }
+        const acts = el('div', 'acts');
+        if (r.status === 'suggested') {
+          const ok = el('button', null, t('rt_create')), no = el('button', null, t('rt_dismiss'));
+          ok.addEventListener('click', function () { call('accept_routine_ui', r.id).then(function () { openPage('routines', true); }).catch(console.log); });
+          no.addEventListener('click', function () { call('dismiss_routine_ui', r.id).then(function () { openPage('routines', true); }).catch(console.log); });
+          acts.appendChild(ok); acts.appendChild(no);
+        } else {
+          const run = el('button', null, t('rt_run')), del = el('button', null, t('rt_delete'));
+          run.addEventListener('click', function () {
+            pop({ icon: 'ok', title: r.name, text: t('rt_running'), life: 4000 });
+            call('run_routine_ui', r.id).catch(console.log);
+          });
+          del.addEventListener('click', function () { call('delete_routine_ui', r.id).then(function () { openPage('routines', true); }).catch(console.log); });
+          acts.appendChild(run); acts.appendChild(del);
+        }
+        it.appendChild(acts);
+        box.appendChild(it);
+      });
+    }).catch(function () { box.textContent = t('load_fail'); });
+  }
+
   // --- самолечение ---
   function pageHeal() {
     const box = el('div'); box.style.cssText = 'display:flex; flex-direction:column; gap:12px;';
@@ -2645,7 +2718,7 @@
   const bootlog = document.getElementById('bootlog'), bootLines = document.getElementById('bootLines'),
         bootSum = document.getElementById('bootSum'), bootCredit = document.getElementById('bootCredit');
 
-  function introShort() { return !!(layout._prefs && layout._prefs.shortIntro) || reduceMotion; }
+  function introShort() { return !!(layout._prefs && layout._prefs.shortIntro); }
   function syncIntroChip() {
     const b = document.getElementById('introShortBtn');
     if (b) b.setAttribute('aria-pressed', String(introShort()));
@@ -2657,25 +2730,33 @@
 
   function startIntro() {
     if (intro.started) return;
+    if (document.hidden) {                          // окно ещё не на экране — ждём, пока покажется
+      document.addEventListener('visibilitychange', function onVis() {
+        if (!document.hidden) { document.removeEventListener('visibilitychange', onVis); startIntro(); }
+      });
+      return;
+    }
     intro.started = true; intro.active = true; intro.mode = 'intro';
     intro.scale = introShort() ? 0.35 : 1;
-    intro.t0 = performance.now(); intro.fired = {};
+    intro.t0 = performance.now(); intro.fired = {}; intro.elapsed = 0;
     applyI18n(bootlog); applyI18n(bootCredit);
     loadBootLog();
   }
   function skipIntro() {
     if (!intro.active || intro.mode !== 'intro' || !intro.started) return;
-    const t = (performance.now() - intro.t0) / 1000 / intro.scale;
-    if (t < TL.end - 0.4) intro.t0 = performance.now() - (TL.end - 0.4) * 1000 * intro.scale;
+    const t = (intro.elapsed || 0) / intro.scale;
+    if (t < 1.0) return;                              // случайный щелчок в первую секунду не пропускает заставку
+    if (t < TL.end - 0.4) intro.elapsed = (TL.end - 0.4) * intro.scale;
   }
   window.addEventListener('pointerdown', skipIntro, true);
   window.addEventListener('keydown', skipIntro, true);
 
   function once(key, fn) { if (!intro.fired[key]) { intro.fired[key] = true; fn(); } }
-  function updateIntro() {
+  function updateIntro(dt, raw) {
     if (!intro.active) return;
     if (!intro.started) return;                                   // ждём настроек — экран тёмный
-    const t = (performance.now() - intro.t0) / 1000 / intro.scale;
+    intro.elapsed = (intro.elapsed || 0) + (raw ? dt : Math.min(dt || 0, 0.05));   // время идёт по показанным кадрам
+    const t = intro.elapsed / intro.scale;
     if (intro.mode === 'intro') {
       intro.bg = easeO(seg(t, 0.2, 3.5));
       intro.gather = easeIO(seg(t, TL.gatherA, TL.gatherB));
@@ -2708,9 +2789,13 @@
       if (t >= 3.1) once('quit', function () { call('confirm_quit').catch(console.log); });
     }
   }
+  // страховка: если кадры почему-то не рисуются (нет WebGL), заставка всё равно доходит до конца
+  setInterval(function () {
+    if (intro.active && intro.started && !document.hidden && performance.now() - (intro.lastFrame || 0) > 1000) updateIntro(0.25, true);
+  }, 250);
   function startOutro() {
     intro.started = true; intro.active = true; intro.mode = 'outro';
-    intro.scale = 1; intro.t0 = performance.now(); intro.fired = {};
+    intro.scale = 1; intro.t0 = performance.now(); intro.fired = {}; intro.elapsed = 0;
     document.body.classList.add('outro');
     wordmarkEl.classList.add('show', 'hide');
     cinematic('fall'); setTimeout(function () { cinematic('off'); }, 2300);
