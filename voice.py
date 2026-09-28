@@ -176,7 +176,8 @@ def _vosk_recognizer(words):
     if _vosk_model is None:
         SetLogLevel(-1)
         _vosk_model = Model(VOSK_MODEL_PATH)
-    known = [w for w in words if _vosk_model.find_word(w) >= 0] or list(words)[:1]
+    finder = getattr(_vosk_model, "find_word", None)      # есть не во всех версиях Vosk
+    known = ([w for w in words if finder(w) >= 0] if finder else list(words)) or list(words)[:1]
     missing = [w for w in words if w not in known]
     if missing and not _vosk_warned.get(tuple(words)):
         _vosk_warned[tuple(words)] = True
@@ -203,7 +204,8 @@ def _vosk_recognizer(words):
     if _vosk_model is None:
         SetLogLevel(-1)
         _vosk_model = Model(VOSK_MODEL_PATH)
-    known = [w for w in words if _vosk_model.find_word(w) >= 0] or list(words)[:1]
+    finder = getattr(_vosk_model, "find_word", None)      # есть не во всех версиях Vosk
+    known = ([w for w in words if finder(w) >= 0] if finder else list(words)) or list(words)[:1]
     missing = [w for w in words if w not in known]
     if missing and not _vosk_warned.get(tuple(words)):
         _vosk_warned[tuple(words)] = True
