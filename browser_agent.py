@@ -60,10 +60,47 @@ def run_in_browser_thread(func):
     """Декоратор: перенаправляет выполнение функции в вечный поток"""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        def call():
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                if not _is_closed_error(e):
+                    raise
+                # окно браузера закрыли прямо во время действия — поднимаем заново и повторяем
+                print("[browser] окно браузера было закрыто — перезапускаю и повторяю")
+                _reset_browser()
+                return func(*args, **kwargs)
         # Отправляем задачу в поток браузера и ждем результат
-        future = browser_executor.submit(func, *args, **kwargs)
-        return future.result()
+        return browser_executor.submit(call).result()
     return wrapper
+
+
+def _is_closed_error(e) -> bool:
+    msg = str(e)
+    return ("has been closed" in msg or "Target closed" in msg
+            or "Browser has been disconnected" in msg)
+
+
+def _browser_alive() -> bool:
+    """Живо ли окно: браузер создан, вкладка не закрыта, контекст на месте."""
+    try:
+        return (_browser is not None and _page is not None
+                and not _page.is_closed() and len(_browser.pages) > 0)
+    except Exception:
+        return False
+
+
+def _reset_browser() -> None:
+    """Забыть закрытый браузер, чтобы следующий _ensure_browser() открыл новый."""
+    global _playwright, _browser, _page, _last_elements
+    for obj, method in ((_browser, "close"), (_playwright, "stop")):
+        if obj is not None:
+            try:
+                getattr(obj, method)()
+            except Exception:
+                pass
+    _browser = _playwright = _page = None
+    _last_elements = []
 
 def _route_filter(route):
     """Блокирует картинки/шрифты и известные рекламные/трекинговые домены —
@@ -82,6 +119,16 @@ def _route_filter(route):
 
 def _ensure_browser():
     global _playwright, _browser, _page
+    if _browser is not None and not _browser_alive():
+        # вкладку закрыли, но окно живо — берём оставшуюся вкладку или открываем новую
+        try:
+            if _browser.pages:
+                _page = _browser.pages[0]
+            else:
+                _page = _browser.new_page()
+        except Exception:
+            print("[browser] окно браузера было закрыто — открываю заново")
+            _reset_browser()
     if _browser is None:
         _playwright = sync_playwright().start()
         _browser = _playwright.chromium.launch_persistent_context(
@@ -226,6 +273,14 @@ def _is_sensitive(el: dict) -> bool:
 @run_in_browser_thread
 def browser_open(url: str) -> str:
     """Opens a URL in a real controlled browser window and returns a numbered list of visible clickable elements."""
+    import re as _re
+    import urllib.parse as _up
+    if url.lower().startswith("file:") or _re.match(r"^[a-zA-Z]:[\\/]", url):
+        path = _up.unquote(_re.sub(r"^file:/*", "", url, flags=_re.I)).replace("/", "\\")
+        if os.path.exists(path):
+            os.startfile(path)
+            return f"Открыл файл программой по умолчанию: {path}"
+        return f"Файл не найден: {path}. Для локальных файлов используй open_search_result или open_file."
     if not url.startswith("http"):
         url = "https://" + url
     page = _ensure_browser()
@@ -609,11 +664,5 @@ def skip_intro() -> str:
     
 def browser_close() -> str:
     """Closes the controlled browser window."""
-    global _browser, _playwright, _page
-    if _browser:
-        _browser.close()
-        _playwright.stop()
-        _browser = None
-        _playwright = None
-        _page = None
+    _reset_browser()
     return "Браузер закрыт."

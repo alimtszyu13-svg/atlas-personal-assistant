@@ -144,7 +144,8 @@ from types import SimpleNamespace as _NS
 def _call_model_stream(on_text, **kwargs):
     """Потоковый запрос: текст отдаётся в on_text по мере генерации,
     вызовы инструментов собираются из кусков. Возвращает сообщение-dict."""
-    stream = client.chat.completions.create(stream=True, **kwargs)
+    _cl, _kw = _client_for(kwargs)          # cerebras:… → Cerebras, остальное → Groq
+    stream = _cl.chat.completions.create(stream=True, **_kw)
     content, calls, usage = "", {}, None
     for chunk in stream:
         _check_cancel()
@@ -551,6 +552,7 @@ def _run_one_tool(func_name, func_args):
         success = True
     except Exception as tool_err:
         print(f"[Tool error in {func_name}]: {tool_err}")
+        _heal_report(tool_err, func_name)      # ошибка в коде инструмента → самолечение
         result = f"Something went wrong running {func_name}: {tool_err}"
         success = False
     ms = int((time.time() - start) * 1000)
@@ -595,7 +597,11 @@ def ask_ai(question: str, speech=None) -> str:
     context_msg = {"role": "system", "content": _context_snapshot(question)}
     active_groups = tool_router.groups_for(question)
     active_schema = tool_router.smart_schema(question, TOOLS_SCHEMA, active_groups)
-    mem_block = memory.recall_block(question)
+    active_schema = _with_pairs(active_schema)   # связанные и недавние инструменты — сразу в наборе
+    active_schema = _with_learned(active_schema)  # инструменты, которые помогли на похожих вопросах
+    _qwords = re.sub(r"^\s*\([^)]*\)\s*", "", question).split()
+    # «да», «открой его» — память не нужна, а это ~500 токенов на каждый запрос
+    mem_block = memory.recall_block(question) if len(_qwords) > 2 else None
     if mem_block:
         print(f"[память] подмешано записей: {mem_block.count(chr(10) + '- ')}")
     _names = {t["function"]["name"] for t in active_schema}
@@ -621,6 +627,8 @@ def ask_ai(question: str, speech=None) -> str:
 
             model = MODEL_SMART if step_index == 0 else MODEL_FAST
             extra = [context_msg] + ([{"role": "system", "content": mem_block}] if mem_block else [])
+            if _lesson_msg:
+                extra.append(_lesson_msg)            # уроки из прошлых ошибок и поправок
             if current_plan:
                 extra.append({"role": "system", "content":
                     "Active plan: " + json.dumps(current_plan, ensure_ascii=False)})
@@ -632,7 +640,7 @@ def ask_ai(question: str, speech=None) -> str:
                     msgs = llm_gateway.fit(base_msgs, active_schema)
                     est = llm_gateway.estimate(msgs) + llm_gateway.estimate(active_schema)
                     other = MODEL_FAST if model == MODEL_SMART else MODEL_SMART
-                    _m, _wait, _room = llm_gateway.plan([model, other], est)
+                    _m, _wait, _room = llm_gateway.plan(_candidates(model, other), est)
                     if _wait > 3 and _room >= 2500:
                         # ждать долго, а под более короткий запрос место есть — ужимаем
                         # старую историю, и запрос уходит сразу
@@ -641,7 +649,7 @@ def ask_ai(question: str, speech=None) -> str:
                         print(f"[gateway] вместо ожидания {_wait:.0f}с ужимаю запрос: "
                               f"~{est} → ~{new_est} ток.")
                         est = new_est
-                    model = llm_gateway.reserve_any([model, other], est, _check_cancel)
+                    model = llm_gateway.reserve_any(_candidates(model, other), est, _check_cancel)
                     response, usage = _call_model_stream(on_text,
                         model=model,
                         messages=msgs,
@@ -661,10 +669,11 @@ def ask_ai(question: str, speech=None) -> str:
                     low = err.lower()
                     # Groq сам говорит, сколько ждать — просто ждём и повторяем
                     if attempt < 2 and ("rate_limit" in low or "429" in err):
-                        wait = 2.0
-                        m_wait = re.search(r"try again in ([\d.]+)s", err)
-                        if m_wait:
-                            wait = float(m_wait.group(1)) + 0.5
+                        wait = _retry_after(err)
+                        llm_gateway.cooldown(model, wait)     # модель занята ровно столько, сколько сказал Groq
+                        if wait > 3:
+                            print(f"[Rate limit] {model.split('/')[-1]}: Groq просит ждать {wait:.0f}с — беру другую модель")
+                            continue
                         print(f"[Rate limit] жду {wait:.1f}с и повторяю")
                         if _cancel_event.wait(wait):
                             raise TaskCancelled()
@@ -742,6 +751,7 @@ def ask_ai(question: str, speech=None) -> str:
                         result = func(**func_args)
                     except Exception as tool_err:
                         print(f"[Tool error in {func_name}]: {tool_err}")
+                        _heal_report(tool_err, func_name)      # ошибка в коде инструмента → самолечение
                         result = f"Something went wrong running {func_name}: {tool_err}"
                         success = False
                 else:
@@ -784,6 +794,7 @@ def ask_ai(question: str, speech=None) -> str:
     
     except Exception as e:
         print(f"[Ошибка ask_ai]: {e}")
+        _heal_report(e, "ask_ai")
         if "rate_limit" in str(e).lower() or "413" in str(e):
             print("[Rate limit] Обрезаю историю жёстче и пробую ещё раз")
             conversation_history = _safe_tail(4)
@@ -872,3 +883,247 @@ def _call_model_stream(*args, **kwargs):
             else:
                 kwargs["tool_choice"] = "none"
                 print("[инструменты] повтор не помог — отвечаю без инструментов, по уже известным данным")
+
+
+# === Самообучение ===
+# Перед ответом: уроки, подходящие к вопросу, и инструменты из опыта похожих вопросов.
+# Если пользователь поправляет Atlas — в фоне извлекается правило.
+# После ответа: разбор хода (какие инструменты сработали, была ли ошибка → рецепт).
+_lesson_msg = None
+_current_question = ""
+
+
+def _with_learned(schema: list) -> list:
+    try:
+        from core import lessons
+        names = lessons.learned_tools(_current_question)
+    except Exception as e:
+        print(f"[уроки] память инструментов недоступна: {e}")
+        return schema
+    have = {t["function"]["name"] for t in schema}
+    extra = [t for t in TOOLS_SCHEMA if t["function"]["name"] in names - have]
+    if extra:
+        print(f"[уроки] + инструменты из опыта: {sorted(t['function']['name'] for t in extra)}")
+    return schema + extra
+
+
+_ask_ai_base = ask_ai
+
+
+def ask_ai(question: str, speech=None) -> str:
+    global _lesson_msg, _current_question
+    from core import lessons
+    _current_question = question
+    try:
+        blk = lessons.lessons_block(question)
+        _lesson_msg = {"role": "system", "content": blk} if blk else None
+        if blk:
+            print(f"[уроки] подмешано: {blk.count(chr(10) + '- ')}")
+    except Exception as e:
+        print(f"[уроки] {e}")
+        _lesson_msg = None
+    if lessons.is_correction(question):
+        ctx = list(conversation_history[-10:])
+        threading.Thread(target=lessons.learn_from_correction, args=(question, ctx), daemon=True).start()
+    reply = _ask_ai_base(question, speech)
+    try:
+        idx = max(i for i, m in enumerate(conversation_history)
+                  if isinstance(m, dict) and m.get("role") == "user" and m.get("content") == question)
+        threading.Thread(target=lessons.record_turn,
+                         args=(question, list(conversation_history[idx:])), daemon=True).start()
+    except ValueError:
+        pass
+    except Exception as e:
+        print(f"[уроки] разбор хода: {e}")
+    return reply
+
+
+# === Связанные инструменты ===
+TOOL_PAIRS = {
+    "search_file_content": ["open_search_result", "open_found_file", "open_file"],
+    "open_found_file": ["open_search_result"],
+    "locate_file": ["open_file"],
+    "search_web": ["read_webpage"],
+    "read_webpage": ["search_web"],
+    "play_on_rezka": ["media_play_pause", "media_seek", "media_volume", "media_player_fullscreen",
+                      "change_rezka_quality", "change_rezka_translator", "select_rezka_episode",
+                      "next_episode", "skip_intro"],
+    "play_on_netflix": ["media_play_pause", "media_seek", "media_volume", "media_player_fullscreen",
+                        "next_episode", "skip_intro"],
+    "browser_open": ["browser_read_page", "browser_click", "browser_type", "browser_scroll",
+                     "browser_screenshot_describe"],
+    "play_on_spotify": ["play_pause_media", "next_track", "previous_track"],
+    "start_mission": ["mission_status", "cancel_mission"],
+    "start_number_game": ["guess_number"],
+}
+
+
+def _recent_tool_names(n_msgs: int = 12) -> set:
+    names = set()
+    for m in conversation_history[-n_msgs:]:
+        if isinstance(m, dict):
+            for tc in (m.get("tool_calls") or []):
+                fn = tc.get("function") if isinstance(tc, dict) else None
+                if isinstance(fn, dict) and fn.get("name"):
+                    names.add(fn["name"])
+    return names
+
+
+def _with_pairs(schema: list) -> list:
+    have = {t["function"]["name"] for t in schema}
+    recent = _recent_tool_names()
+    want = set(recent)
+    for n in have | recent:
+        want |= set(TOOL_PAIRS.get(n, []))
+    extra = [t for t in TOOLS_SCHEMA if t["function"]["name"] in want - have]
+    if extra:
+        print(f"[инструменты] + связанные: {sorted(t['function']['name'] for t in extra)}")
+    return schema + extra
+
+
+# === Второй провайдер: Cerebras ===
+# Та же gpt-oss-120b, но с лимитом ~60 000 токенов в минуту. Ключ — CEREBRAS_API_KEY в .env.
+CEREBRAS_MODEL = "cerebras:gpt-oss-120b"
+cerebras_client = (OpenAI(api_key=os.getenv("CEREBRAS_API_KEY"), base_url="https://api.cerebras.ai/v1",
+                          max_retries=0) if os.getenv("CEREBRAS_API_KEY") else None)
+_cerebras_down = {"until": 0.0}
+print("[cerebras] подключён — лимиты Groq больше не узкое место" if cerebras_client
+      else "[cerebras] ключа нет (CEREBRAS_API_KEY) — работаю только через Groq")
+
+
+def _client_for(kwargs: dict):
+    m = str(kwargs.get("model", ""))
+    if m.startswith("cerebras:") and cerebras_client is not None:
+        kw = dict(kwargs)
+        kw["model"] = m.split(":", 1)[1]
+        return cerebras_client, kw
+    return client, kwargs
+
+
+def _candidates(model: str, other: str) -> list:
+    """Cerebras первым (запас большой), затем модели Groq."""
+    if cerebras_client is not None and time.time() >= _cerebras_down["until"]:
+        return [CEREBRAS_MODEL, model, other]
+    return [model, other]
+
+
+_call_model_stream_groq = _call_model_stream
+
+
+def _call_model_stream(*args, **kwargs):
+    if str(kwargs.get("model", "")).startswith("cerebras:"):
+        try:
+            return _call_model_stream_groq(*args, **kwargs)
+        except TaskCancelled:
+            raise
+        except Exception as e:
+            if "attempted to call tool" in str(e):
+                raise
+            _cerebras_down["until"] = time.time() + 300
+            print(f"[cerebras] ошибка ({str(e)[:140]}) — 5 минут работаю через Groq")
+            kwargs = dict(kwargs)
+            kwargs["model"] = MODEL_SMART
+            return _call_model_stream_groq(*args, **kwargs)
+    return _call_model_stream_groq(*args, **kwargs)
+
+
+# === Пул моделей Groq ===
+# У Groq лимиты свои у каждой модели. Запасные модели с поддержкой инструментов берутся,
+# только если есть на аккаунте (проверка при запуске, в фоне).
+EXTRA_GROQ = [("moonshotai/kimi-k2-instruct-0905", 10000), ("llama-3.3-70b-versatile", 12000)]
+_extra_models = []
+
+
+def _detect_extra_models():
+    try:
+        have = {m.id for m in client.models.list().data}
+        for mid, tpm in EXTRA_GROQ:
+            if mid in have and mid not in _extra_models:
+                _extra_models.append(mid)
+                llm_gateway.MODEL_TPM[mid] = tpm
+        print(f"[модели] запасные модели Groq: "
+              f"{', '.join(m.split('/')[-1] for m in _extra_models) or 'на аккаунте нет'}")
+    except Exception as e:
+        print(f"[модели] список моделей Groq недоступен: {e}")
+
+
+threading.Thread(target=_detect_extra_models, daemon=True).start()
+
+_client_for_prev = globals().get("_client_for")
+
+
+def _client_for(kwargs: dict):
+    cl, kw = _client_for_prev(kwargs) if _client_for_prev else (client, kwargs)
+    m = str(kw.get("model", ""))
+    if "reasoning_effort" in kw and "gpt-oss" not in m:
+        kw = dict(kw)
+        kw.pop("reasoning_effort", None)     # у kimi и llama такого параметра нет
+    return cl, kw
+
+
+_candidates_prev = globals().get("_candidates")
+
+
+def _candidates(model: str, other: str) -> list:
+    base = _candidates_prev(model, other) if _candidates_prev else [model, other]
+    return base + [m for m in _extra_models if m not in base]
+
+
+def _retry_after(err: str) -> float:
+    """«try again in 7m12.5s» / «in 2.3s» / «in 1h2m» → секунды."""
+    m = re.search(r"try again in (?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?", err)
+    if m and any(m.groups()):
+        h, mi, s = (float(x) if x else 0.0 for x in m.groups())
+        return h * 3600 + mi * 60 + s + 0.5
+    return 2.0
+
+
+# === Самолечение ===
+def _heal_report(exc, where=""):
+    try:
+        from core import healer
+        healer.report(exc, where)
+    except Exception as e:
+        print(f"[самолечение] {e}")
+
+
+def _heal_lang() -> str:
+    try:
+        from voice import get_response_language
+        return get_response_language()
+    except Exception:
+        return "ru"
+
+
+def heal_status() -> str:
+    """Lists fixes of Atlas's own code that are waiting for the user's confirmation."""
+    from core import healer
+    items = [i for i in healer.list_items(10) if i["status"] == "ready"]
+    if not items:
+        return "No fixes are waiting for confirmation."
+    return "\n".join(f"#{i['id']} {i['file']}: {i['dx_en'] or i['dx_ru']}" for i in items)
+
+
+def heal_apply(fix_id: int = 0) -> str:
+    """Applies a prepared fix — ONLY when the user explicitly said to apply it."""
+    from core import healer
+    r = healer.apply(fix_id)
+    return r["msg_ru"] if _heal_lang() == "ru" else r["msg_en"]
+
+
+def heal_reject(fix_id: int = 0) -> str:
+    from core import healer
+    r = healer.reject(fix_id)
+    return r["msg_ru"] if _heal_lang() == "ru" else r["msg_en"]
+
+
+AVAILABLE_FUNCTIONS.update({"heal_status": heal_status, "heal_apply": heal_apply, "heal_reject": heal_reject})
+TOOLS_SCHEMA.extend([
+    {"type": "function", "function": {"name": "heal_status", "description": "Lists bug fixes Atlas prepared for its own code that wait for the user's confirmation (self-repair).", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "heal_apply", "description": "Applies a prepared self-repair fix to Atlas's own code. Call ONLY after the user explicitly asked to apply it ('применяй исправление', 'apply the fix'). fix_id 0 = the latest one.", "parameters": {"type": "object", "properties": {"fix_id": {"type": "integer"}}}}},
+    {"type": "function", "function": {"name": "heal_reject", "description": "Rejects a prepared self-repair fix. fix_id 0 = the latest one.", "parameters": {"type": "object", "properties": {"fix_id": {"type": "integer"}}}}},
+])
+for _n in ("heal_status", "heal_apply", "heal_reject"):
+    tool_router.register_tool(_n, "heal")
+tool_router.TRIGGERS["heal"] = ("исправлен", "почин", "самолечен", "баг", "патч", "ошибку в коде",
+                                "fix", "bug", "patch", "repair")

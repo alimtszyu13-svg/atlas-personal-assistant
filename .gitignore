@@ -49,3 +49,4 @@ fish_test.mp3
 .env
 token.json
 credentials.json
+.heal_backup/

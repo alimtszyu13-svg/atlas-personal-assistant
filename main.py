@@ -134,10 +134,26 @@ def _process_command(command: str) -> None:
     shared_state["state"] = "idle"
 
 
+_SHUTDOWN_TEXT_RE = re.compile(
+    r"^(?:выключ\w*|отключ\w*|выключи себя|shut\s?down|turn off|power off|turn yourself off)$")
+
+
+def _is_shutdown_text(text: str) -> bool:
+    cmd = text.lower().strip(" .!?,")
+    cmd = re.sub(r"^(?:atlas|атлас)[,\s]+", "", cmd)
+    cmd = re.sub(r"[,\s]+(?:please|пожалуйста)$", "", cmd).strip()
+    return bool(_SHUTDOWN_TEXT_RE.match(cmd))
+
+
 def _manual_queue_watcher():
     while True:
         if shared_state["manual_queue"]:
             command = shared_state["manual_queue"].pop(0)
+            if _is_shutdown_text(command):          # «выключись» в чате — как голосом
+                shared_state["chat_history"].append(("You", command))
+                _speak_and_update(random.choice(SHUTDOWN_RESPONSES[get_response_language()]))
+                shared_state["should_quit"] = True
+                continue
             _process_command(command)
         time.sleep(0.2)
 
@@ -273,6 +289,8 @@ from core import proactive
 proactive.start(lambda text: _speak_and_update(text, interruptible=False))
 from core import missions
 missions.init(lambda text: _speak_and_update(text, interruptible=False))
+from core import healer
+healer.start(lambda text: _speak_and_update(text, interruptible=False))   # самолечение
 voice_thread = threading.Thread(target=_voice_loop, daemon=True)
 voice_thread.start()
 

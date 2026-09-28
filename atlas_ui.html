@@ -398,6 +398,9 @@
     opacity: 0; transform: translateY(6px); transition: opacity 1.2s ease, transform 1.2s ease; animation: none; }
   .boot-credit.show { opacity: .8; transform: none; }
   @media (max-width: 760px) { .bootlog { width: calc(100% - 56px); bottom: 150px; } }
+  .diff { font-family: Consolas, 'Cascadia Mono', monospace; font-size: 12px; line-height: 1.45; white-space: pre; overflow: auto; max-height: 320px; padding: 10px 12px; margin-top: 6px; background: rgba(2,4,10,.65); border: 1px solid var(--line); }
+  .diff .add { color: #7FD9A8; } .diff .del { color: #fb7185; } .diff .hunk { color: var(--muted); }
+  body[data-theme="light"] .diff { background: rgba(255,255,255,.85); color: #0E1A33; }
 </style>
 </head>
 <body data-theme="dark" class="intro">
@@ -522,6 +525,7 @@
     <button data-page="notes" data-i18n-aria="nav_notes"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 2.5h10v13H4z"/><path d="M6.5 6h5M6.5 9h5M6.5 12h3"/></svg><span data-i18n="nav_notes">Заметки и день</span></button>
     <button data-page="tools" data-i18n-aria="nav_tools"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="5" height="5" rx="1"/><rect x="10.5" y="2.5" width="5" height="5" rx="1"/><rect x="2.5" y="10.5" width="5" height="5" rx="1"/><rect x="10.5" y="10.5" width="5" height="5" rx="1"/></svg><span data-i18n="nav_tools">Инструменты</span></button>
     <button data-page="journal" data-i18n-aria="nav_journal"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5l2 2 7-7"/><path d="M15.5 9v5a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 14V4A1.5 1.5 0 0 1 4 2.5h7.5"/></svg><span data-i18n="nav_journal">Журнал</span></button>
+    <button data-page="heal" data-i18n-aria="nav_heal"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a3.5 3.5 0 0 0-3.3 4.6L2.8 12.5a1.5 1.5 0 0 0 2.1 2.1l5.4-5.4a3.5 3.5 0 0 0 4.6-3.3l-2 2-1.8-.3-.3-1.8z"/></svg><span data-i18n="nav_heal">Самолечение</span></button>
     <button data-page="projects" data-i18n-aria="nav_projects"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="11" rx="1.5"/><path d="M6 2.5v3M12 2.5v3"/></svg><span data-i18n="nav_projects">Проекты</span></button>
   </nav>
 
@@ -1533,6 +1537,13 @@
       searching: 'Ищу…', opening: 'Открываю…',
       mem_facts: 'Граф знаний', mem_saved: 'Сохранённые факты', mem_episodes: 'Эпизоды разговоров',
       mem_empty: 'Пока пусто.', forget: 'Забыть', replaced: 'устарело', you_node: 'Вы',
+      nav_heal: 'Самолечение', heal_intro: 'Когда в моём коде случается ошибка, я разбираю её, готовлю точечное исправление и проверяю его на копии. Применяю только с вашего подтверждения; каждое исправление — отдельный git-коммит, его можно откатить.',
+      heal_empty: 'Ошибок в коде пока не было.', heal_apply: 'Применить', heal_reject: 'Отклонить', heal_checks: 'Проверки',
+      heal_st_ready: 'готово к применению', heal_st_failed: 'не прошло проверку', heal_st_applied: 'применено',
+      heal_st_rejected: 'отклонено', heal_st_nofix: 'правка кода не нужна',
+      n_heal_ready: 'Нашёл ошибку и подготовил исправление', act_heal: 'Посмотреть',
+      mem_lessons: 'Чему Atlas научился', lessons_empty: 'Пока ничему — поправляйте меня, и я запомню.',
+      lesson_rule: 'правило', lesson_recipe: 'из опыта', lesson_used: 'применено',
       notes_agenda: 'Повестка дня', notes_notes: 'Заметки', refresh: 'Обновить', loading: 'Загрузка…', load_fail: 'Не удалось загрузить.',
       tools_system: 'Система', tools_dev: 'Разработка', tools_info: 'Инфо и развлечения', tools_net: 'Сеть', tools_daily: 'Каждый день',
       t_lock: 'Заблокировать', t_shot: 'Скриншот', t_bin: 'Очистить корзину', t_cpu: 'Процессор и память', t_bat: 'Батарея',
@@ -1584,6 +1595,13 @@
       searching: 'Searching…', opening: 'Opening…',
       mem_facts: 'Knowledge graph', mem_saved: 'Saved facts', mem_episodes: 'Conversation episodes',
       mem_empty: 'Nothing yet.', forget: 'Forget', replaced: 'outdated', you_node: 'You',
+      nav_heal: 'Self-repair', heal_intro: 'When an error happens in my code, I analyse it, prepare a minimal fix and test it on a copy. I apply it only with your confirmation; every fix is a separate git commit you can revert.',
+      heal_empty: 'No code errors so far.', heal_apply: 'Apply', heal_reject: 'Reject', heal_checks: 'Checks',
+      heal_st_ready: 'ready to apply', heal_st_failed: 'failed checks', heal_st_applied: 'applied',
+      heal_st_rejected: 'rejected', heal_st_nofix: 'no code change needed',
+      n_heal_ready: 'Found a bug and prepared a fix', act_heal: 'Review',
+      mem_lessons: 'What Atlas has learned', lessons_empty: 'Nothing yet — correct me and I will remember.',
+      lesson_rule: 'rule', lesson_recipe: 'from experience', lesson_used: 'used',
       notes_agenda: "Today's agenda", notes_notes: 'Notes', refresh: 'Refresh', loading: 'Loading…', load_fail: 'Failed to load.',
       tools_system: 'System', tools_dev: 'Developer', tools_info: 'Info & fun', tools_net: 'Network', tools_daily: 'Everyday',
       t_lock: 'Lock', t_shot: 'Screenshot', t_bin: 'Empty recycle bin', t_cpu: 'CPU & RAM', t_bat: 'Battery',
@@ -1800,7 +1818,13 @@
       function (v) { call('set_voice_ui', v).catch(console.log); });
     document.getElementById('alwaysToggle').checked = !!audioOpts.always_listening;
   }
-  document.getElementById('alwaysToggle').addEventListener('change', function () {
+  document.getElementById('alwaysToggle').addEventListener('change', function (e) {
+    // только настоящий щелчок в открытых настройках — никаких случайных переключений
+    if (!e.isTrusted || openPanel !== 'settings') {
+      console.log('[всегда слушать] переключение отклонено: не из открытых настроек');
+      this.checked = !this.checked;
+      return;
+    }
     call('set_always_listening_ui', this.checked).catch(console.log);
   });
   document.getElementById('sfxBtn').addEventListener('click', function () {
@@ -1821,6 +1845,8 @@
   let openPanel = null, panelTimer = null;
   function closePanel() {
     if (!openPanel) return;
+    const _pnl = document.getElementById('panel-' + openPanel);
+    if (_pnl && _pnl.contains(document.activeElement)) document.activeElement.blur();   // фокус не остаётся в скрытой панели
     document.getElementById('panel-' + openPanel).hidden = true;
     document.querySelector('[data-panel="' + openPanel + '"]').setAttribute('aria-expanded', 'false');
     openPanel = null;
@@ -1926,6 +1952,7 @@
       const o = { kind: kind, icon: kind === 'warn' ? 'warn' : 'ok', title: notifTitle(n), text: n.text, life: 9000 };
       if (n.key === 'clipboard') { o.action = t('act_explain'); o.onAction = function () { sendCommand(t('cmd_explain')); }; }
       if (n.key === 'mission_done') { o.action = t('act_notes'); o.onAction = function () { openPage('notes'); }; }
+      if (n.key === 'heal_ready') { o.action = t('act_heal'); o.onAction = function () { openPage('heal'); }; }
       pop(o);
     });
     while (inbox.length > 60) inbox.shift();
@@ -2033,7 +2060,7 @@
     currentPage = name;
     pageTitle.textContent = t('nav_' + name);
     pageBody.textContent = '';
-    ({ chat: pageChat, files: pageFiles, memory: pageMemory, notes: pageNotes, tools: pageTools, journal: pageJournal, projects: pageProjects })[name]();
+    ({ chat: pageChat, files: pageFiles, memory: pageMemory, notes: pageNotes, tools: pageTools, journal: pageJournal, projects: pageProjects, heal: pageHeal })[name]();
     if (page.hidden) {
       page.hidden = false;
       requestAnimationFrame(function () { page.classList.add('in'); });
@@ -2214,6 +2241,26 @@
     pageBody.appendChild(saved);
     pageBody.appendChild(sectionHead('mem_episodes'));
     pageBody.appendChild(eps);
+    const lessonsBox = el('div');
+    pageBody.insertBefore(lessonsBox, pageBody.firstChild);
+    pageBody.insertBefore(sectionHead('mem_lessons'), lessonsBox);
+    lessonsBox.style.cssText = 'display:flex; flex-direction:column; gap:8px;';
+    lessonsBox.appendChild(el('div', 'empty', t('loading')));
+    call('get_lessons_ui').then(function (rows) {
+      lessonsBox.textContent = '';
+      if (!rows.length) lessonsBox.appendChild(el('div', 'empty', t('lessons_empty')));
+      rows.forEach(function (l) {
+        const r = el('div', 'row');
+        const g = el('div', 'grow');
+        g.appendChild(el('span', null, l.text));
+        g.appendChild(el('small', null, t(l.kind === 'recipe' ? 'lesson_recipe' : 'lesson_rule') + ' · ' + l.when +
+                                        (l.uses ? ' · ' + t('lesson_used') + ': ' + l.uses : '')));
+        const x = el('button', 'x-btn'); x.setAttribute('aria-label', t('forget')); x.title = t('forget');
+        x.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 3l6 6M9 3L3 9"/></svg>';
+        x.addEventListener('click', function () { call('forget_lesson_ui', l.id).then(function () { openPage('memory', true); }).catch(console.log); });
+        r.appendChild(g); r.appendChild(x); lessonsBox.appendChild(r);
+      });
+    }).catch(function () { lessonsBox.textContent = t('load_fail'); });
     [facts, saved, eps].forEach(function (b) { b.appendChild(el('div', 'empty', t('loading'))); b.style.cssText = 'display:flex; flex-direction:column; gap:8px;'; });
     call('get_graph_ui').then(function (rows) {
       facts.textContent = '';
@@ -2311,6 +2358,51 @@
     pageBody.appendChild(sectionHead('nav_journal', load));
     pageBody.appendChild(box);
     load();
+  }
+
+  // --- самолечение ---
+  function pageHeal() {
+    const box = el('div'); box.style.cssText = 'display:flex; flex-direction:column; gap:12px;';
+    pageBody.appendChild(el('div', 'hint', t('heal_intro')));
+    pageBody.appendChild(box);
+    box.appendChild(el('div', 'empty', t('loading')));
+    call('get_heal_ui').then(function (rows) {
+      box.textContent = '';
+      if (!rows.length) { box.appendChild(el('div', 'empty', t('heal_empty'))); return; }
+      rows.forEach(function (h) {
+        const it = el('div', 'item');
+        const head = el('div', 'row');
+        head.appendChild(el('b', 'grow', '#' + h.id + ' · ' + h.file + ':' + h.line));
+        head.appendChild(el('small', h.status === 'ready' ? 'ok-t' : (h.status === 'failed' ? 'bad-t' : 'muted'),
+                            t('heal_st_' + h.status) + ' · ' + h.when));
+        it.appendChild(head);
+        it.appendChild(el('div', null, (lang === 'ru' ? h.dx_ru : h.dx_en) || h.dx_ru || h.dx_en || ''));
+        it.appendChild(el('small', 'muted', h.error));
+        if (h.diff) {
+          const d = el('div', 'diff');
+          h.diff.split('\n').forEach(function (ln) {
+            const cls = ln.startsWith('+') && !ln.startsWith('+++') ? 'add'
+                      : ln.startsWith('-') && !ln.startsWith('---') ? 'del' : ln.startsWith('@@') ? 'hunk' : null;
+            d.appendChild(el('span', cls, ln + '\n'));
+          });
+          it.appendChild(d);
+        }
+        if (h.checks) it.appendChild(el('small', 'muted', t('heal_checks') + ': ' + h.checks.replace(/\n/g, ' · ')));
+        if (h.status === 'ready') {
+          const acts = el('div', 'acts');
+          const ap = el('button', null, t('heal_apply')), rj = el('button', null, t('heal_reject'));
+          function done(r) {
+            pop({ kind: r.ok ? 'ok' : 'warn', icon: r.ok ? 'ok' : 'warn', title: t('nav_heal'),
+                  text: lang === 'ru' ? r.msg_ru : r.msg_en, life: 10000 });
+            openPage('heal', true);
+          }
+          ap.addEventListener('click', function () { call('heal_apply_ui', h.id).then(done).catch(console.log); });
+          rj.addEventListener('click', function () { call('heal_reject_ui', h.id).then(done).catch(console.log); });
+          acts.appendChild(ap); acts.appendChild(rj); it.appendChild(acts);
+        }
+        box.appendChild(it);
+      });
+    }).catch(function () { box.textContent = t('load_fail'); });
   }
 
   // --- проекты ---

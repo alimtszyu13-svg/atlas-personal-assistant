@@ -128,7 +128,7 @@ def _load_graph(c) -> None:
         _graph["dirty"] = False
 
 
-def graph_facts(query: str, limit: int = 10) -> list:
+def graph_facts(query: str, limit: int = 6) -> list:
     """Связи вокруг сущностей из вопроса: по смыслу, по имени и «мой/мне» → User."""
     from file_search import _embed
     q = re.sub(r"^\s*\([^)]*\)\s*", "", query or "").strip()

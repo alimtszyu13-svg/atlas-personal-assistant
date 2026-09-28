@@ -15,6 +15,11 @@ TPM_LIMIT = 8000          # токенов в минуту на модель (б
 SAFETY = 0.95             # оценка уже подстраивается по реальности — запас можно уменьшить
 MAX_REQUEST = 6000        # один запрос не больше этого — остальное остаётся на ответ
 CHARS_PER_TOKEN = 4.0     # стартовая оценка; дальше подстраивается по реальному расходу
+MODEL_TPM = {"cerebras:gpt-oss-120b": 60000}   # у Cerebras запас намного больше
+
+
+def _budget(model: str) -> int:
+    return int(MODEL_TPM.get(model, TPM_LIMIT) * SAFETY)
 
 _lock = threading.Lock()
 _windows = {}             # модель → deque[(время, токены)]
@@ -56,6 +61,7 @@ def plan(models: list, tokens: int):
         now = time.time()
         for m in models:
             win = _windows.setdefault(m, deque())
+            budget = _budget(m)
             wait = _wait_for(win, now, tokens, budget)
             room = budget - _used(win, now)
             if best is None or wait < best[1] - 0.05:
@@ -65,7 +71,7 @@ def plan(models: list, tokens: int):
 
 def reserve(model: str, tokens: int, cancel_check=None) -> None:
     """Ждёт, пока в минутном окне модели хватит места, и записывает расход."""
-    budget = int(TPM_LIMIT * SAFETY)
+    budget = _budget(model)
     short = model.split("/")[-1]
     while True:
         with _lock:
@@ -149,10 +155,13 @@ def record(model: str, reserved: int, usage, prompt_chars: int, fallback: int) -
     if not total:
         add(model, fallback)
         return
-    add(model, total - reserved)          # поправка: в окне теперь реальный расход
+    details = get("prompt_tokens_details")
+    cached = (details.get("cached_tokens") if isinstance(details, dict)
+              else getattr(details, "cached_tokens", 0)) or 0
+    add(model, total - cached - reserved)  # кэш Groq в лимит не входит — вычитаем
     if prompt:
         CHARS_PER_TOKEN = 0.7 * CHARS_PER_TOKEN + 0.3 * (prompt_chars / prompt)
-    print(f"[gateway] реально: {total} ток. (оценка {reserved}), chars/token → {CHARS_PER_TOKEN:.2f}")
+    print(f"[gateway] реально: {total} ток. (из них кэш {cached}, в лимит {total - cached}; оценка {reserved}), chars/token → {CHARS_PER_TOKEN:.2f}")
 
 def reserve_any(models: list, tokens: int, cancel_check=None) -> str:
     """Берёт первую модель из списка, у которой прямо сейчас есть место.
@@ -167,7 +176,7 @@ def busy(model: str, frac: float = 0.5) -> bool:
     """Занято ли больше frac минутного лимита — фоновые задачи тогда ждут."""
     with _lock:
         win = _windows.setdefault(model, deque())
-        return _used(win, time.time()) > TPM_LIMIT * SAFETY * frac
+        return _used(win, time.time()) > _budget(model) * frac
 
 
 # ---------------------------------------------------------------------------
@@ -189,9 +198,15 @@ def snapshot() -> dict:
     budget = int(TPM_LIMIT * SAFETY)
     with _lock:
         now = time.time()
-        models = {m.split("/")[-1]: {"used": int(_used(w, now)), "budget": budget}
+        models = {m.split("/")[-1]: {"used": int(_used(w, now)), "budget": _budget(m)}
                   for m, w in _windows.items()}
     last = dict(_last)
     if last:
         last["ago"] = time.time() - last.pop("at")
     return {"models": models, "last": last}
+
+
+def cooldown(model: str, seconds: float) -> None:
+    """Groq сказал «попробуйте через N секунд» — считаем модель занятой ровно до этого момента."""
+    with _lock:
+        _windows.setdefault(model, deque()).append((time.time() - 60 + seconds, _budget(model)))

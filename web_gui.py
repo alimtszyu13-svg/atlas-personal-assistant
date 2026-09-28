@@ -112,6 +112,7 @@ class Api:
 
     def set_always_listening_ui(self, enabled: bool) -> None:
         from listening_mode import set_always_listening
+        print(f"[UI] переключатель «всегда слушать» в интерфейсе → {enabled}")
         set_always_listening(enabled)
 
     def push_to_talk(self) -> None:
@@ -465,6 +466,34 @@ class Api:
 
     def intro_done_ui(self) -> None:
         shared_state["intro_done"] = True
+
+
+    # ------------------------------------------------------------------
+    # Самообучение: уроки для раздела «Память»
+    # ------------------------------------------------------------------
+    def get_lessons_ui(self) -> list:
+        from core import lessons
+        return lessons.list_lessons()
+
+    def forget_lesson_ui(self, lesson_id: int) -> None:
+        from core import lessons
+        lessons.forget_lesson(lesson_id)
+
+
+    # ------------------------------------------------------------------
+    # Самолечение: исправления собственного кода
+    # ------------------------------------------------------------------
+    def get_heal_ui(self) -> list:
+        from core import healer
+        return healer.list_items()
+
+    def heal_apply_ui(self, fix_id: int) -> dict:
+        from core import healer
+        return healer.apply(fix_id)
+
+    def heal_reject_ui(self, fix_id: int) -> dict:
+        from core import healer
+        return healer.reject(fix_id)
 
 
 class WebGUI:
