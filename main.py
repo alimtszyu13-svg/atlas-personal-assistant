@@ -89,6 +89,12 @@ def _process_command(command: str) -> None:
     memory.log_turn("user", command)
     shared_state["text"] = command
 
+    from core import speaker_id                  # «запомни мой голос», «отвечай только мне / всем»
+    if speaker_id.handle_command(command, lambda t: _speak_and_update(t, interruptible=False)):
+        shared_state["state"] = "idle"
+        shared_state["text"] = ""
+        return
+
     # Быстрый путь: простая команда выполняется сразу, без LLM и без TTS
     fast = try_fast_command(command)
     if fast is not None:
@@ -253,6 +259,16 @@ def _voice_loop():
 
         if len(command.strip()) < MIN_COMMAND_LENGTH and not re.search(r"\d", command):
             continue  # мусорное/пустое распознавание — не тратим вызов ask_ai
+
+        if trigger != "manual":                  # F9 и текст не проверяем — это запасной путь
+            from core import speaker_id
+            _ok, _score = speaker_id.check_last()
+            if _score is not None:
+                print(f"[голос] сходство с вашим голосом: {_score:.2f}")
+            if not _ok:
+                print("[голос] это не ваш голос — команда пропущена")
+                shared_state["text"] = ""
+                continue
 
         SHUTDOWN_RE = re.compile(
             r"^(?:выключ\w*|отключ\w*|выключи себя|заверши работу|завершить работу|закончи работу|закройся|иди спать|shut\s?down|turn off|power off|turn yourself off|go to sleep|exit|quit)$")

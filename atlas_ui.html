@@ -513,6 +513,10 @@
     </div>
     <p class="hint" data-i18n="saver_hint"></p>
     <p class="hint" data-i18n="hotkeys"></p>
+    <h4 data-i18n="spk_title">Мой голос</h4>
+    <label class="switch"><input type="checkbox" id="spkToggle"><span data-i18n="spk_toggle">Отвечать только на мой голос</span></label>
+    <button class="chip" id="spkEnroll" data-i18n="spk_enroll">Записать мой голос</button>
+    <p class="hint" id="spkStatus"></p>
     <h4 data-i18n="win_title">Окна</h4>
     <button class="chip" id="resetLayout" data-i18n="win_reset">Вернуть окна на места</button>
     <p class="hint" data-i18n="win_hint"></p>
@@ -1541,6 +1545,8 @@
       searching: 'Ищу…', opening: 'Открываю…',
       mem_facts: 'Граф знаний', mem_saved: 'Сохранённые факты', mem_episodes: 'Эпизоды разговоров',
       mem_empty: 'Пока пусто.', forget: 'Забыть', replaced: 'устарело', you_node: 'Вы',
+      spk_title: 'Мой голос', spk_toggle: 'Отвечать только на мой голос', spk_enroll: 'Записать мой голос',
+      spk_ready: 'Голос записан', spk_thr: 'порог', spk_none: 'Голос ещё не записан: нажмите «Записать мой голос» и повторите за Atlas три фразы. Команды с клавиатуры и F9 проверяться не будут.',
       nav_routines: 'Ритуалы', rt_intro: 'Несколько действий одной фразой или по расписанию. Скажите, например, «Атлас, создай ритуал: по фразе „я дома“ — погода и мои задачи». Ещё я сам замечаю привычки и предлагаю сделать из них ритуал.',
       rt_empty: 'Ритуалов пока нет.', rt_morning: 'Создать утренний брифинг', rt_suggest: 'Atlas заметил привычку',
       rt_create: 'Создать ритуал', rt_dismiss: 'Не нужно', rt_run: 'Запустить', rt_delete: 'Удалить',
@@ -1604,6 +1610,8 @@
       searching: 'Searching…', opening: 'Opening…',
       mem_facts: 'Knowledge graph', mem_saved: 'Saved facts', mem_episodes: 'Conversation episodes',
       mem_empty: 'Nothing yet.', forget: 'Forget', replaced: 'outdated', you_node: 'You',
+      spk_title: 'My voice', spk_toggle: 'Respond only to my voice', spk_enroll: 'Record my voice',
+      spk_ready: 'Voice recorded', spk_thr: 'threshold', spk_none: 'No voice recorded yet: press “Record my voice” and repeat three phrases after Atlas. Typed commands and F9 are never checked.',
       nav_routines: 'Routines', rt_intro: 'Several actions by one phrase or on a schedule. Say, for example, "Atlas, create a routine: when I say I am home — weather and my tasks". I also notice your habits and offer to turn them into routines.',
       rt_empty: 'No routines yet.', rt_morning: 'Create a morning briefing', rt_suggest: 'Atlas noticed a habit',
       rt_create: 'Create routine', rt_dismiss: 'No thanks', rt_run: 'Run', rt_delete: 'Delete',
@@ -2374,6 +2382,26 @@
     pageBody.appendChild(box);
     load();
   }
+
+  // --- мой голос ---
+  function refreshSpeaker() {
+    call('get_speaker_ui').then(function (s) {
+      if (!s) return;
+      const tg = document.getElementById('spkToggle');
+      tg.checked = !!s.enabled; tg.disabled = !s.enrolled;
+      document.getElementById('spkStatus').textContent = s.enrolled
+        ? t('spk_ready') + ' · ' + t('spk_thr') + ' ' + Number(s.threshold).toFixed(2) : t('spk_none');
+    }).catch(function () {});
+  }
+  document.querySelector('[data-panel="settings"]').addEventListener('click', function () { setTimeout(refreshSpeaker, 50); });
+  document.getElementById('spkToggle').addEventListener('change', function (e) {
+    if (!e.isTrusted) return;
+    call('set_speaker_check_ui', this.checked).then(refreshSpeaker).catch(console.log);
+  });
+  document.getElementById('spkEnroll').addEventListener('click', function () {
+    closePanel();
+    call('send_text_command', lang === 'ru' ? 'Запомни мой голос' : 'Remember my voice').catch(console.log);
+  });
 
   // --- ритуалы ---
   function pageRoutines() {

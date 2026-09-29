@@ -530,6 +530,18 @@ class Api:
         return routines.create_morning()
 
 
+    # ------------------------------------------------------------------
+    # Узнавание голоса
+    # ------------------------------------------------------------------
+    def get_speaker_ui(self) -> dict:
+        from core import speaker_id
+        return speaker_id.status()
+
+    def set_speaker_check_ui(self, enabled: bool) -> dict:
+        from core import speaker_id
+        return speaker_id.set_enabled(enabled)
+
+
 class WebGUI:
     def __init__(self, shared_state: dict):
         self.shared_state = shared_state

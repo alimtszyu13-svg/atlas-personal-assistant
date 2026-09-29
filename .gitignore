@@ -50,3 +50,6 @@ fish_test.mp3
 token.json
 credentials.json
 .heal_backup/
+
+# voice fingerprint (private)
+models/speaker/

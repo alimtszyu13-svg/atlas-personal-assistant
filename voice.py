@@ -183,34 +183,6 @@ def _vosk_recognizer(words):
         _vosk_warned[tuple(words)] = True
         print(f"[vosk] слышу: {', '.join(known)} | модель не знает: {', '.join(missing)}")
     return KaldiRecognizer(_vosk_model, SAMPLE_RATE,
-                           json.dumps(known + ["[unk]"], ensure_ascii=False))# Локальное распознавание (Vosk): слышит только эти слова — быстро и без интернета
-WAKE_WORDS_LOCAL = tuple(dict.fromkeys(
-    ("атлас", "атласик", "атласа", "атласу", "атласом", "атласе", "этлас", "атлэс", "атлес")
-    + tuple(w.strip().lower() for w in os.getenv("WAKE_WORDS_EXTRA", "").split(",") if w.strip())))   # имя и его формы + свои из .env
-INTERRUPT_WORDS_LOCAL = tuple(dict.fromkeys(
-    ("стоп", "хватит", "тихо", "замолчи", "стой", "прекрати", "перестань", "остановись",
-     "замолкни", "довольно", "отмена", "тише")
-    + tuple(w.strip().lower() for w in os.getenv("STOP_WORDS_EXTRA", "").split(",") if w.strip())))   # слова остановки + свои из .env
-VOSK_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                               "models", "vosk-model-small-ru-0.22")
-_vosk_model = None
-
-
-def _vosk_recognizer(words):
-    """Распознаватель, которому разрешено слышать только words (остальное — [unk])."""
-    global _vosk_model
-    import json
-    from vosk import Model, KaldiRecognizer, SetLogLevel
-    if _vosk_model is None:
-        SetLogLevel(-1)
-        _vosk_model = Model(VOSK_MODEL_PATH)
-    finder = getattr(_vosk_model, "find_word", None)      # есть не во всех версиях Vosk
-    known = ([w for w in words if finder(w) >= 0] if finder else list(words)) or list(words)[:1]
-    missing = [w for w in words if w not in known]
-    if missing and not _vosk_warned.get(tuple(words)):
-        _vosk_warned[tuple(words)] = True
-        print(f"[vosk] слышу: {', '.join(known)} | модель не знает: {', '.join(missing)}")
-    return KaldiRecognizer(_vosk_model, SAMPLE_RATE,
                            json.dumps(known + ["[unk]"], ensure_ascii=False))
 WAKE_WORD = "atlas"
 _push_to_talk_event = threading.Event()
@@ -432,6 +404,7 @@ def _transcribe_audio(recording: np.ndarray) -> str:
 
 WAKE_CONF = 0.9                      # ниже — «атлас» из шума, не будим
 _wake_leftover = {"audio": None}     # команда, сказанная на одном дыхании с именем
+_last_audio = {"audio": None}        # звук последней команды — для проверки голоса
 
 
 def wake_has_command() -> bool:
@@ -964,10 +937,12 @@ def listen(max_duration: int = 15, silence_limit: float = 1.2) -> str:
     """Слушает команду. После паузы недолго ждёт продолжения — чтобы можно
     было договорить мысль, а не выпаливать её на одном дыхании."""
     print("Listening...")
+    _last_audio["audio"] = None
     left = _wake_leftover.get("audio")
     _wake_leftover["audio"] = None
     if left is not None and len(left) > SAMPLE_RATE * 0.4:
         print("   (команда сказана вместе с именем)")
+        _last_audio["audio"] = left
         with _T("распознавание"):
             text = _transcribe_audio(left)
         if text:
@@ -990,6 +965,7 @@ def listen(max_duration: int = 15, silence_limit: float = 1.2) -> str:
         parts.append(more)
 
     recording = np.concatenate(parts) if len(parts) > 1 else parts[0]
+    _last_audio["audio"] = recording
     with _T("распознавание"):
         text = _transcribe_audio(recording)
 
