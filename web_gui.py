@@ -237,6 +237,7 @@ class Api:
             "mic_level": shared_state.get("mic_level", 0.0),
             "missions_running": self._missions_running(),
             "notif_count": shared_state.get("notif_seq", 0),
+            "trace_seq": shared_state.get("trace_seq", 0),
         }
 
     # ------------------------------------------------------------------
@@ -540,6 +541,34 @@ class Api:
     def set_speaker_check_ui(self, enabled: bool) -> dict:
         from core import speaker_id
         return speaker_id.set_enabled(enabled)
+
+
+    # ------------------------------------------------------------------
+    # Мастерская навыков
+    # ------------------------------------------------------------------
+    def get_forge_ui(self) -> dict:
+        from core import skill_forge
+        return {"items": skill_forge.list_items(), "installed": skill_forge.installed()}
+
+    def forge_install_ui(self, pid: int) -> dict:
+        from core import skill_forge
+        return skill_forge.install(pid)
+
+    def forge_reject_ui(self, pid: int) -> dict:
+        from core import skill_forge
+        return skill_forge.reject(pid)
+
+    def forge_remove_ui(self, name: str) -> dict:
+        from core import skill_forge
+        return skill_forge.remove(name)
+
+
+    # ------------------------------------------------------------------
+    # Ход мыслей
+    # ------------------------------------------------------------------
+    def get_trace_ui(self) -> dict:
+        import copy
+        return copy.deepcopy(shared_state.get("trace") or {"run": 0, "events": []})
 
 
 class WebGUI:

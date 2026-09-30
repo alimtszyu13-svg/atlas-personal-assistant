@@ -310,6 +310,8 @@ from core import healer
 healer.start(lambda text: _speak_and_update(text, interruptible=False))   # самолечение
 from core import routines
 routines.start(lambda text: _speak_and_update(text, interruptible=False))  # ритуалы и привычки
+from core import skill_forge
+skill_forge.start(lambda text: _speak_and_update(text, interruptible=False))  # мастерская навыков
 voice_thread = threading.Thread(target=_voice_loop, daemon=True)
 voice_thread.start()
 

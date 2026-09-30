@@ -421,7 +421,7 @@ TOOLS_SCHEMA = [
 
 conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
 MAX_HISTORY_MESSAGES = 24  # система + N последних — не даём истории расти бесконечно
-MAX_TOOL_RESULT_CHARS = 1500  # обрезаем большие результаты (поиск, чтение страницы) перед добавлением в историю
+MAX_TOOL_RESULT_CHARS = 3500  # обрезаем большие результаты (поиск, чтение страницы) перед добавлением в историю
 
 
 def _msg_role(msg):
@@ -619,10 +619,12 @@ def ask_ai(question: str, speech=None) -> str:
             # Подсказываем про скриншот только если браузерные инструменты
             # реально в наборе. Иначе модель пытается вызвать недоступный
             # инструмент, получает отказ и теряет десятки секунд.
-            if step_index == 2 and "browser" in active_groups:
+            if consecutive_failures == 2 and "browser" in active_groups:
                 conversation_history.append({
                     "role": "system",
-                    "content": "WARNING: You have made multiple unsuccessful attempts using DOM/HTML tools. Stop guessing. IMMEDIATELY use the `browser_screenshot_describe` tool to visually analyze the screen and click the required element."
+                    "content": "Two browser actions in a row failed. Look at the latest page state: re-read it "
+                               "(browser_read_page), locate the target by its text (browser_find) or scroll; use "
+                               "browser_screenshot_describe only if the element list truly lacks the target."
                 })
 
             model = MODEL_SMART if step_index == 0 else MODEL_FAST
@@ -1207,3 +1209,284 @@ def ask_ai(question: str, speech=None) -> str:
     except Exception as e:
         print(f"[ритуалы] журнал привычек: {e}")
     return reply
+
+
+# === Мастерская навыков ===
+# Навыки, которые Atlas написал сам (skills_auto/), подключаются без перезапуска.
+def _forge_register(name: str) -> bool:
+    from core import skill_forge
+    got = skill_forge.load_skill(name)
+    if not got:
+        return False
+    fn, schema = got
+    AVAILABLE_FUNCTIONS[name] = fn
+    TOOLS_SCHEMA[:] = [t for t in TOOLS_SCHEMA if t["function"]["name"] != name] + [schema]
+    tool_router.register_tool(name, "learned")
+    return True
+
+
+def _forge_unregister(name: str) -> None:
+    AVAILABLE_FUNCTIONS.pop(name, None)
+    TOOLS_SCHEMA[:] = [t for t in TOOLS_SCHEMA if t["function"]["name"] != name]
+    tool_router.GROUPS.get("learned", set()).discard(name)
+    try:
+        tool_router._tool_index["mat"] = None       # смысловой индекс пересоберётся
+    except Exception:
+        pass
+
+
+def _forge_msg(r: dict) -> str:
+    try:
+        from voice import get_response_language
+        return r["msg_ru"] if get_response_language() == "ru" else r["msg_en"]
+    except Exception:
+        return r["msg_ru"]
+
+
+def learn_skill(request: str) -> str:
+    """Starts learning a NEW ability in the background."""
+    from core import skill_forge
+    return skill_forge.learn(request)
+
+
+def install_skill(skill_id: int = 0) -> str:
+    from core import skill_forge
+    return _forge_msg(skill_forge.install(skill_id))
+
+
+def reject_skill(skill_id: int = 0) -> str:
+    from core import skill_forge
+    return _forge_msg(skill_forge.reject(skill_id))
+
+
+def list_learned_skills() -> str:
+    from core import skill_forge
+    inst = skill_forge.installed()
+    ready = [i for i in skill_forge.list_items(10) if i["status"] == "ready"]
+    parts = [f"Installed: {', '.join(m['name'] for m in inst) or 'none'}."]
+    if ready:
+        parts.append("Waiting for confirmation: " + "; ".join(f"#{i['id']} {i['name']}" for i in ready))
+    return " ".join(parts)
+
+
+def remove_skill(name: str) -> str:
+    from core import skill_forge
+    return _forge_msg(skill_forge.remove(name))
+
+
+AVAILABLE_FUNCTIONS.update({"learn_skill": learn_skill, "install_skill": install_skill, "reject_skill": reject_skill,
+                            "list_learned_skills": list_learned_skills, "remove_skill": remove_skill})
+TOOLS_SCHEMA.extend([
+    {"type": "function", "function": {"name": "learn_skill", "description": "Atlas teaches itself a NEW ability that no existing tool provides ('научись…', 'learn to…', 'можешь научиться…'): writes a new tool, checks and tests it in the background, then asks the user to install it. Don't use it for things existing tools already do.", "parameters": {"type": "object", "properties": {"request": {"type": "string", "description": "what the new skill should do, in the user's words"}}, "required": ["request"]}}},
+    {"type": "function", "function": {"name": "install_skill", "description": "Installs a learned skill that passed its tests — ONLY after the user explicitly said to install it. skill_id 0 = the latest ready one.", "parameters": {"type": "object", "properties": {"skill_id": {"type": "integer"}}}}},
+    {"type": "function", "function": {"name": "reject_skill", "description": "Rejects a learned skill waiting for confirmation. skill_id 0 = the latest.", "parameters": {"type": "object", "properties": {"skill_id": {"type": "integer"}}}}},
+    {"type": "function", "function": {"name": "list_learned_skills", "description": "Lists skills Atlas taught itself and ones waiting for confirmation.", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "remove_skill", "description": "Removes a skill Atlas taught itself, by name.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+])
+for _n in ("learn_skill", "install_skill", "reject_skill", "list_learned_skills", "remove_skill"):
+    tool_router.register_tool(_n, "forge")
+tool_router.TRIGGERS["forge"] = ("научись", "научи себя", "новый навык", "навык", "можешь научиться",
+                                 "learn to", "teach yourself", "new skill", "skill")
+try:
+    from core import skill_forge as _sf
+    _sf.start(register=_forge_register, unregister=_forge_unregister)
+    _loaded = [m["name"] for m in _sf.installed() if _forge_register(m["name"])]
+    print(f"[навыки] выученных навыков загружено: {len(_loaded)}" + (f" ({', '.join(_loaded)})" if _loaded else ""))
+except Exception as _e:
+    print(f"[навыки] мастерская недоступна: {_e}")
+
+
+# === Ход мыслей ===
+# Каждый инструмент оборачивается «датчиком»: начало, успех/ошибка, время.
+# functools.wraps сохраняет сигнатуру — фильтр аргументов в ask_ai работает как раньше.
+import functools as _ft
+
+_TRACE_FAIL = re.compile(r"something went wrong|не найден|not found|has been closed|не смог|couldn'?t|"
+                         r"failed|ошибк|error|отказываюсь|не удалось", re.I)
+_trace_lock = threading.Lock()
+
+
+def _trace_push(ev: dict) -> int:
+    from ui_state import shared_state
+    with _trace_lock:
+        tr = shared_state.setdefault("trace", {"run": 0, "events": []})
+        if ev.get("t") == "start":
+            tr["run"] += 1
+            tr["events"] = []
+        ev["ts"] = time.time()
+        tr["events"].append(ev)
+        del tr["events"][:-40]
+        shared_state["trace_seq"] = shared_state.get("trace_seq", 0) + 1
+        return len(tr["events"]) - 1
+
+
+def _trace_done(idx: int, ok: bool, result: str, t0: float) -> None:
+    from ui_state import shared_state
+    with _trace_lock:
+        evs = shared_state.get("trace", {}).get("events", [])
+        if 0 <= idx < len(evs):
+            evs[idx].update(state="ok" if ok else "fail", ms=int((time.time() - t0) * 1000),
+                            res=str(result)[:80])
+            shared_state["trace_seq"] = shared_state.get("trace_seq", 0) + 1
+
+
+def _traced(name: str, fn):
+    if getattr(fn, "_atlas_traced", False):
+        return fn
+
+    @_ft.wraps(fn)
+    def wrapper(*args, **kwargs):
+        short = {k: (v if isinstance(v, (int, float, bool)) else str(v)[:40]) for k, v in kwargs.items()}
+        ev = {"t": "tool", "name": name, "args": short, "state": "run"}
+        if name == "update_plan":
+            ev["goal"] = str(kwargs.get("goal", ""))[:80]
+            ev["steps"] = [str(s)[:50] for s in (kwargs.get("steps") or [])][:6]
+        idx = _trace_push(ev)
+        t0 = time.time()
+        try:
+            res = fn(*args, **kwargs)
+        except Exception as e:
+            _trace_done(idx, False, e, t0)
+            raise
+        _trace_done(idx, not _TRACE_FAIL.search(str(res)[:220]), res, t0)
+        return res
+    wrapper._atlas_traced = True
+    return wrapper
+
+
+def _trace_wrap_all() -> None:
+    for _name, _fn in list(AVAILABLE_FUNCTIONS.items()):
+        if callable(_fn) and not getattr(_fn, "_atlas_traced", False):
+            AVAILABLE_FUNCTIONS[_name] = _traced(_name, _fn)
+
+
+_ask_ai_prev_trace = ask_ai
+
+
+def ask_ai(question: str, speech=None) -> str:
+    _trace_wrap_all()                       # и навыки, выученные после запуска
+    _trace_push({"t": "start", "q": re.sub(r"^\s*\([^)]*\)\s*", "", question)[:90]})
+    try:
+        reply = _ask_ai_prev_trace(question, speech)
+    except Exception:
+        _trace_push({"t": "end", "ok": False})
+        raise
+    _trace_push({"t": "end", "ok": True})
+    return reply
+
+
+_trace_wrap_all()
+
+
+# === Браузер: профессиональный режим ===
+import browser_agent as _ba
+
+_BROWSER_TOOLS = {
+    "browser_open": ("Opens a URL in Atlas's own browser. Returns URL, title, scroll position and numbered interactive "
+                     "elements [n] with their state (value, checked, expanded, disabled, covered, link target).",
+                     {"url": {"type": "string"}}, ["url"]),
+    "browser_read_page": ("Fresh numbered list of interactive elements in the visible part of the current page.", {}, []),
+    "browser_read_text": ("Reads the MAIN TEXT of the current page (article, search results, product details, prices) "
+                          "without menus and ads, in parts. Use it to read; the element list shows only controls.",
+                          {"part": {"type": "integer", "description": "1 = start; next parts if the text is long"}}, []),
+    "browser_click": ("Clicks element [index] from the latest list and returns the page state after the click "
+                      "(follows new tabs automatically).", {"index": {"type": "integer"}}, ["index"]),
+    "browser_type": ("Clears input [index] and types text; submit=true presses Enter afterwards (search boxes, forms).",
+                     {"index": {"type": "integer"}, "text": {"type": "string"}, "submit": {"type": "boolean"}},
+                     ["index", "text"]),
+    "browser_select": ("Chooses an option in dropdown [index] by its visible text.",
+                       {"index": {"type": "integer"}, "option": {"type": "string"}}, ["index", "option"]),
+    "browser_scroll": ("Scrolls the page and returns the newly visible elements.",
+                       {"direction": {"type": "string", "description": "'down' or 'up'"},
+                        "amount": {"type": "integer", "description": "pixels, default 600"}}, []),
+    "browser_find": ("Finds text on the page, scrolls to it and returns the elements around it — use when the target "
+                     "isn't in the visible list.", {"text": {"type": "string"}}, ["text"]),
+    "browser_back": ("Goes back to the previous page.", {}, []),
+    "browser_forward": ("Goes forward to the next page.", {}, []),
+    "browser_tabs": ("Browser tabs: action='list' | 'switch' (index) | 'close' (index) | 'new' (url).",
+                     {"action": {"type": "string"}, "index": {"type": "integer"}, "url": {"type": "string"}}, []),
+    "browser_wait": ("Waits a little for slow pages or results to load and returns the fresh element list.",
+                     {"seconds": {"type": "number"}}, []),
+    "browser_screenshot_describe": ("Vision fallback for canvas/video players or when the element list truly lacks the "
+                                    "target: numbers every element on a screenshot, a vision model picks one, it gets clicked.",
+                                    {"instruction": {"type": "string"}}, ["instruction"]),
+}
+for _name, (_desc, _props, _req) in _BROWSER_TOOLS.items():
+    AVAILABLE_FUNCTIONS[_name] = getattr(_ba, _name)
+    TOOLS_SCHEMA[:] = [t for t in TOOLS_SCHEMA if t["function"]["name"] != _name] + [
+        {"type": "function", "function": {"name": _name, "description": _desc,
+                                          "parameters": {"type": "object", "properties": _props, "required": _req}}}]
+    tool_router.register_tool(_name, "browser")
+if "TOOL_PAIRS" in globals():
+    TOOL_PAIRS["browser_open"] = sorted(set(TOOL_PAIRS.get("browser_open", [])) | {
+        "browser_read_page", "browser_read_text", "browser_click", "browser_type", "browser_find",
+        "browser_scroll", "browser_back", "browser_tabs"})
+
+_BROWSER_RULES = (
+    " BROWSER (pro): browser_open returns numbered elements [n] with their state. To READ page content (articles, "
+    "prices, results) use browser_read_text — the element list shows controls, not text. Act with browser_click(n), "
+    "browser_type(n, text, submit=true to press Enter), browser_select(n, option). Target not listed? "
+    "browser_find('its text') or browser_scroll, then act. New tabs are followed automatically (browser_tabs to "
+    "list/switch); browser_back to return. Every action returns the fresh page state — check it before the next "
+    "step instead of assuming success. If the page reports a dialog that needs confirmation, ask the user. Use "
+    "browser_screenshot_describe only for canvas/video players or when the list truly lacks the target. Never enter "
+    "passwords or payment data without the user's explicit spoken confirmation.")
+if "BROWSER (pro)" not in SYSTEM_PROMPT:
+    SYSTEM_PROMPT = SYSTEM_PROMPT + _BROWSER_RULES
+    if conversation_history and isinstance(conversation_history[0], dict) and conversation_history[0].get("role") == "system":
+        conversation_history[0]["content"] = SYSTEM_PROMPT
+
+
+# === Управление программами Windows ===
+from core import desktop_agent as _da
+
+_DESKTOP_TOOLS = {
+    "desktop_look": ("Lists numbered controls (buttons, menus, fields, tabs, list items, checkboxes) of the active "
+                     "Windows program window with values and states; Atlas's own window is skipped. window = part of "
+                     "a window title to look at a specific program.", {"window": {"type": "string"}}, []),
+    "desktop_windows": ("Lists open program windows.", {}, []),
+    "desktop_switch": ("Brings a program window to the front by part of its title and lists its controls.",
+                       {"window": {"type": "string"}}, ["window"]),
+    "desktop_click": ("Clicks control [index] from the latest desktop_look list (double=true for double click, "
+                      "right=true for context menu).",
+                      {"index": {"type": "integer"}, "double": {"type": "boolean"}, "right": {"type": "boolean"}}, ["index"]),
+    "desktop_type": ("Types text (any language) into control [index], or where the cursor is when index is -1. "
+                     "replace=true clears the field first, enter=true presses Enter.",
+                     {"text": {"type": "string"}, "index": {"type": "integer"}, "enter": {"type": "boolean"},
+                      "replace": {"type": "boolean"}}, ["text"]),
+    "desktop_hotkey": ("Presses a key or shortcut in the program, e.g. 'ctrl+s', 'ctrl+n', 'alt+f4', 'f5', 'enter'.",
+                       {"keys": {"type": "string"}}, ["keys"]),
+    "desktop_scroll": ("Scrolls inside the program window.",
+                       {"direction": {"type": "string", "description": "'down' or 'up'"}, "times": {"type": "integer"}}, []),
+    "desktop_read_text": ("Reads the visible text of the program window (document, fields, list items).", {}, []),
+    "desktop_screenshot_describe": ("Vision fallback for programs whose controls desktop_look can't see (games, "
+                                    "Electron apps): numbers controls on a window screenshot, a vision model picks one, "
+                                    "it gets clicked.", {"instruction": {"type": "string"}}, ["instruction"]),
+}
+for _name, (_desc, _props, _req) in _DESKTOP_TOOLS.items():
+    AVAILABLE_FUNCTIONS[_name] = getattr(_da, _name)
+    TOOLS_SCHEMA[:] = [t for t in TOOLS_SCHEMA if t["function"]["name"] != _name] + [
+        {"type": "function", "function": {"name": _name, "description": _desc,
+                                          "parameters": {"type": "object", "properties": _props, "required": _req}}}]
+    tool_router.register_tool(_name, "desktop")
+tool_router.TRIGGERS["desktop"] = (
+    "в программе", "в приложении", "в окне", "окно", "блокнот", "notepad", "word", "ворд", "excel", "эксель",
+    "проводник", "explorer", "параметры windows", "настройки windows", "telegram", "телеграм", "discord", "дискорд",
+    "paint", "калькулятор", "calculator", "сохрани файл", "сохрани документ", "program", "application", "window")
+if "TOOL_PAIRS" in globals():
+    TOOL_PAIRS["desktop_look"] = ["desktop_click", "desktop_type", "desktop_hotkey", "desktop_scroll",
+                                  "desktop_read_text", "desktop_switch"]
+    TOOL_PAIRS["open_app"] = sorted(set(TOOL_PAIRS.get("open_app", [])) | {"desktop_look", "desktop_switch"})
+
+_DESKTOP_RULES = (
+    " DESKTOP (any Windows program): open the program with open_app if needed, then desktop_look lists numbered "
+    "controls of the active window (Atlas's own window is skipped). Act with desktop_click(n), desktop_type(text, "
+    "index=n, replace, enter), desktop_hotkey('ctrl+s'), desktop_scroll; desktop_windows / desktop_switch('title') "
+    "to change windows. Prefer keyboard shortcuts for menus and saving. Every action returns the fresh controls — "
+    "check them. Web pages → browser tools, not desktop. Before irreversible actions (deleting files, sending "
+    "messages, buying, closing without saving) ask the user. desktop_screenshot_describe only when the list is empty "
+    "or lacks the target.")
+if "DESKTOP (any Windows program)" not in SYSTEM_PROMPT:
+    SYSTEM_PROMPT = SYSTEM_PROMPT + _DESKTOP_RULES
+    if conversation_history and isinstance(conversation_history[0], dict) and conversation_history[0].get("role") == "system":
+        conversation_history[0]["content"] = SYSTEM_PROMPT
