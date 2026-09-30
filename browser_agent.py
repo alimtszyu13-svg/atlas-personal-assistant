@@ -45,8 +45,8 @@ _last_elements = []          # последний снимок: [{i, tag, role, 
 _events = []                 # что случилось между действиями: новые вкладки, диалоги, баннеры
 
 NETFLIX_PROFILE_DIR = "browser_profile"  # cookies/сессия хранятся тут между запусками
-MAX_ELEMENTS = 60
-READ_CHARS = 3500
+MAX_ELEMENTS = 45
+READ_CHARS = 2400
 AUTO_CONSENT = os.getenv("BROWSER_AUTO_CONSENT", "1") != "0"
 
 SENSITIVE_KEYWORDS = (

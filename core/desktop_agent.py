@@ -31,7 +31,7 @@ import os
 import re
 import time
 
-MAX_ELEMENTS = 70
+MAX_ELEMENTS = 45
 WALK_DEPTH = 14
 WALK_BUDGET_S = 2.5            # обход дерева не дольше — у тяжёлых окон тысячи элементов
 _INTERESTING = {
@@ -126,6 +126,35 @@ def _pick_target(title_hint: str = ""):
         return _target["hwnd"], _title(_target["hwnd"])
     ws = _visible_windows()
     return ws[0] if ws else (None, "")
+
+
+def _owned_popups(owner) -> list:
+    """Видимые окна, которыми владеет owner: диалоги «Сохранить как», «Заменить?» и т.п."""
+    import ctypes.wintypes as wt
+    u = ctypes.windll.user32
+    found = []
+    proc = ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
+
+    def cb(h, _lp):
+        if u.IsWindowVisible(h) and u.GetWindow(h, 4) == owner:      # GW_OWNER
+            found.append(h)
+        return True
+    u.EnumWindows(proc(cb), 0)
+    return found
+
+
+def _top_dialog(hwnd):
+    """Самый верхний диалог поверх окна (диалог поверх диалога тоже), или None."""
+    try:
+        cur, depth = hwnd, 0
+        while depth < 5:
+            pops = [h for h in _owned_popups(cur) if _title(h) and not _is_atlas(_title(h))]
+            if not pops:
+                break
+            cur, depth = pops[0], depth + 1
+        return cur if cur != hwnd else None
+    except Exception:
+        return None
 
 
 def _activate(hwnd) -> None:
@@ -257,8 +286,24 @@ def _el(index):
 
 
 def _refresh() -> str:
-    time.sleep(0.45)
-    return _snapshot(_target["hwnd"] if _target["hwnd"] else None)
+    """После действия: не появился ли диалог или другое окно — тогда работаем в нём."""
+    time.sleep(0.5)
+    h, note = _target["hwnd"], ""
+    if h:
+        dlg = _top_dialog(h)
+        if dlg:
+            h = dlg
+            note = f"⚠ Появилось окно «{_title(dlg)[:80]}» — оно ждёт ответа, работаю в нём.\n"
+        else:
+            try:
+                u = ctypes.windll.user32
+                fg = u.GetForegroundWindow()
+                if fg and fg != h and u.IsWindowVisible(fg) and not _is_atlas(_title(fg)):
+                    h = fg
+                    note = f"Теперь активно окно «{_title(fg)[:80]}».\n"
+            except Exception:
+                pass
+    return note + _snapshot(h)
 
 
 # ===========================================================================
@@ -271,6 +316,9 @@ def desktop_look(window: str = "") -> str:
         hwnd, _t = _pick_target(window)
         if hwnd and window:
             _activate(hwnd)
+        dlg = _top_dialog(hwnd) if hwnd else None
+        if dlg:                                   # поверх окна висит диалог — смотрим в него
+            return f"⚠ Поверх окна открыт диалог «{_title(dlg)[:80]}».\n" + _snapshot(dlg)
         return _snapshot(hwnd, window)
     except RuntimeError as e:
         return str(e)

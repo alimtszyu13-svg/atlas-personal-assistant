@@ -13,7 +13,7 @@ from collections import deque
 
 TPM_LIMIT = 8000          # токенов в минуту на модель (бесплатный тариф Groq)
 SAFETY = 0.95             # оценка уже подстраивается по реальности — запас можно уменьшить
-MAX_REQUEST = 6000        # один запрос не больше этого — остальное остаётся на ответ
+MAX_REQUEST = 4500        # один запрос не больше этого — остальное остаётся на ответ
 CHARS_PER_TOKEN = 4.0     # стартовая оценка; дальше подстраивается по реальному расходу
 MODEL_TPM = {"cerebras:gpt-oss-120b": 60000}   # у Cerebras запас намного больше
 
@@ -31,8 +31,12 @@ def estimate(obj) -> int:
 
 
 def _used(win: deque, now: float) -> int:
-    while win and now - win[0][0] > 60:
-        win.popleft()
+    """Расход за последние 60 с. Истёкшие записи удаляются, ГДЕ БЫ они ни стояли:
+    отметка «занята N секунд» бывает старше соседних записей, и раньше она застревала."""
+    if any(now - t > 60 for t, _ in win):
+        keep = sorted((t, n) for t, n in win if now - t <= 60)
+        win.clear()
+        win.extend(keep)
     return sum(t for _, t in win)
 
 
@@ -44,7 +48,7 @@ def _wait_for(win: deque, now: float, tokens: int, budget: int) -> float:
         return 0.0
     need = used + tokens - budget
     freed = 0
-    for t, n in win:
+    for t, n in sorted(win):                    # по времени, даже если записи добавлены не по порядку
         freed += n
         if freed >= need:
             return max(0.0, 60 - (now - t) + 0.3)
@@ -83,6 +87,7 @@ def reserve(model: str, tokens: int, cancel_check=None) -> None:
                 print(f"[gateway] {short}: запрос ~{tokens} ток., за минуту {used + tokens}/{budget}")
                 return
             wait = _wait_for(win, now, tokens, budget)   # точно под этот запрос
+            wait = max(wait, 0.25)                        # никогда не крутимся вхолостую
         print(f"[gateway] {short}: лимит минуты ({used}/{budget}), жду {wait:.1f}с")
         end = time.time() + wait
         while time.time() < end:

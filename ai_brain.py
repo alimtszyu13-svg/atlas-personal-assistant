@@ -421,7 +421,7 @@ TOOLS_SCHEMA = [
 
 conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
 MAX_HISTORY_MESSAGES = 24  # система + N последних — не даём истории расти бесконечно
-MAX_TOOL_RESULT_CHARS = 3500  # обрезаем большие результаты (поиск, чтение страницы) перед добавлением в историю
+MAX_TOOL_RESULT_CHARS = 2500  # обрезаем большие результаты (поиск, чтение страницы) перед добавлением в историю
 
 
 def _msg_role(msg):
@@ -816,6 +816,11 @@ def ask_ai(question: str, speech=None) -> str:
                     return message.content or "Done."
             except Exception as e2:
                 print(f"[Retry after rate limit also failed]: {e2}")
+        if "rate_limit" in str(e).lower() or "429" in str(e):
+            from voice import get_response_language
+            return ("Упёрся в минутный лимит запросов — дайте мне полминуты, сэр."
+                    if get_response_language() == "ru"
+                    else "I've hit the per-minute request limit — give me half a minute, sir.")
         return "Не могу сейчас ответить, проблема со связью."
 
 def remember_exchange(user_text: str, assistant_text: str) -> None:
@@ -1488,5 +1493,15 @@ _DESKTOP_RULES = (
     "or lacks the target.")
 if "DESKTOP (any Windows program)" not in SYSTEM_PROMPT:
     SYSTEM_PROMPT = SYSTEM_PROMPT + _DESKTOP_RULES
+    if conversation_history and isinstance(conversation_history[0], dict) and conversation_history[0].get("role") == "system":
+        conversation_history[0]["content"] = SYSTEM_PROMPT
+
+
+# === Правило: задача выполнена только когда это видно ===
+_DONE_RULE = (" VERIFY BEFORE CLAIMING: never say a desktop or browser task is done until the fresh state returned "
+              "by your last action confirms it (saved file name in the window title, no dialog left open, the page "
+              "shows the result). If a dialog asks to replace, overwrite, delete or send, ask the user first.")
+if "VERIFY BEFORE CLAIMING" not in SYSTEM_PROMPT:
+    SYSTEM_PROMPT = SYSTEM_PROMPT + _DONE_RULE
     if conversation_history and isinstance(conversation_history[0], dict) and conversation_history[0].get("role") == "system":
         conversation_history[0]["content"] = SYSTEM_PROMPT
