@@ -1,0 +1,48 @@
+{
+  "name": "get_exchange_rate",
+  "description_en": "Fetches the latest exchange rate for a given currency pair from a free public API (open.er-api.com) and returns a short spoken‑friendly text such as \"1 USD = 0.85 EUR\". Use when you need current conversion information.",
+  "description_ru": "Получает текущий курс обмена заданной валютной пары из бесплатного публичного API и возвращает короткий текст для озвучивания.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "base_currency": {
+        "type": "string",
+        "description": "Currency you have (ISO 4217 code).",
+        "default": "USD"
+      },
+      "target_currency": {
+        "type": "string",
+        "description": "Currency you want to convert to (ISO 4217 code).",
+        "default": "EUR"
+      }
+    },
+    "required": [
+      "base_currency",
+      "target_currency"
+    ]
+  },
+  "tests": [
+    {
+      "args": {
+        "base_currency": "USD",
+        "target_currency": "EUR"
+      },
+      "expect": "1 USD ="
+    },
+    {
+      "args": {
+        "base_currency": "GBP",
+        "target_currency": "JPY"
+      },
+      "expect": "1 GBP ="
+    },
+    {
+      "args": {
+        "base_currency": "XYZ",
+        "target_currency": "EUR"
+      },
+      "expect": "Error"
+    }
+  ],
+  "forge_id": 1
+}
