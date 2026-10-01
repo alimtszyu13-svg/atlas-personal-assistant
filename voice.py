@@ -200,6 +200,10 @@ def set_response_language(lang: str) -> str:
     if lang not in ("en", "ru", "english", "russian"):
         return "Supported languages: English or Russian."
     _response_language["lang"] = "ru" if lang.startswith("ru") else "en"
+    try:
+        _save_voice_prefs()                              # язык запоминается между запусками
+    except Exception:
+        pass
     name = "Russian" if _response_language["lang"] == "ru" else "English"
     return f"Language switched to {name}."
 
@@ -346,6 +350,26 @@ def _has_speech(recording, min_speech_s: float = 0.3) -> bool:
         return True
 
 
+STT_WHISPER = os.getenv("STT_MODEL") or "whisper-large-v3"     # полная модель: точнее turbo на русском
+_STT_BASE_PROMPT = ("Атлас, покажи Эйфелеву башню. Разверни. Сверни. Закрой. Погода в Бишкеке. Найди в интернете. "
+                    "Открой браузер. Включи музыку. Запомни. Напомни. Посмотри, что у меня в руке. Давай повторим SAT. "
+                    "Подведи итоги дня. Стоп. Хватит.")
+
+
+def _stt_prompt() -> str:
+    """Подсказка-словарь для Whisper: типичные слова Atlas + твои слова из .env (STT_VOCAB)."""
+    extra = (os.getenv("STT_VOCAB") or "").strip()
+    return (_STT_BASE_PROMPT + (" " + extra if extra else ""))[:600]
+
+
+def _stt_language():
+    """STT_LANGUAGE=ru|en — язык речи зафиксирован; иначе в русском режиме — ru, в английском — угадывает сам."""
+    fixed = (os.getenv("STT_LANGUAGE") or "").strip().lower()
+    if fixed in ("ru", "en"):
+        return fixed
+    return "ru" if _response_language["lang"] == "ru" else None
+
+
 _WHISPER_JUNK = {
     "продолжение следует", "субтитры сделал dimatorzok", "спасибо за просмотр",
     "thanks for watching", "thank you for watching", "subtitles by the amara.org community",
@@ -371,19 +395,17 @@ def _transcribe_audio(recording: np.ndarray) -> str:
     try:
         with open(temp_path, "rb") as f:
             data = f.read()
-        if _response_language["lang"] == "ru":
-            result = groq_client.audio.transcriptions.create(
-                file=(temp_path, data), model="whisper-large-v3-turbo", language="ru")
+        kw = dict(file=(temp_path, data), model=STT_WHISPER, temperature=0.0, prompt=_stt_prompt())
+        stt_lang = _stt_language()
+        if stt_lang:
+            result = groq_client.audio.transcriptions.create(language=stt_lang, **kw)
         else:
-            result = groq_client.audio.transcriptions.create(
-                file=(temp_path, data), model="whisper-large-v3-turbo",
-                response_format="verbose_json")
+            result = groq_client.audio.transcriptions.create(response_format="verbose_json", **kw)
             lang = (getattr(result, "language", "") or "").lower()
             if lang and lang not in ("en", "english", "ru", "russian"):
                 # Whisper иногда принимает русскую речь за польскую — переслушиваем как русскую
                 print(f"[Whisper] язык «{lang}» — перераспознаю как русский")
-                result = groq_client.audio.transcriptions.create(
-                    file=(temp_path, data), model="whisper-large-v3-turbo", language="ru")
+                result = groq_client.audio.transcriptions.create(language="ru", **kw)
         text = (result.text or "").strip()
         if not re.search(r"[^\W_]", text):         # ни буквы, ни цифры: «...», «?!»
             print(f"[Whisper] пустая фраза отброшена: {text!r}")
@@ -1237,19 +1259,24 @@ def _generate_ru_primary(text: str, filename: str) -> None:
 _eleven_down = {"on": False}      # True — квота исчерпана, сразу идём в Silero
 
 
+def _all_fish() -> dict:
+    """Голоса Fish многоязычные: русский голос (Володарский) может говорить и по-английски."""
+    return {**FISH_VOICES["en"], **FISH_VOICES["ru"]}
+
+
 def list_voice_choices(lang: str) -> list:
     if lang == "ru":
         base = (list(ELEVENLABS_VOICE_OPTIONS["male"].keys())
                 + list(ELEVENLABS_VOICE_OPTIONS["female"].keys()))
     else:
         base = list(KOKORO_VOICES) + VOICE_OPTIONS["male"] + VOICE_OPTIONS["female"]
-    return base + list(FISH_VOICES[lang].keys())
+    return base + list(_all_fish().keys())
 
 
 def current_voice_choice(lang: str) -> str:
     vid = _fish_choice[lang]
     if vid:
-        for name, v in FISH_VOICES[lang].items():
+        for name, v in _all_fish().items():
             if v == vid:
                 return name
     if lang == "ru":
@@ -1261,8 +1288,8 @@ def choose_voice(name: str) -> str:
     """Выбор голоса из настроек для текущего языка."""
     global KOKORO_VOICE
     lang = _response_language["lang"]
-    if name in FISH_VOICES[lang]:
-        _fish_choice[lang] = FISH_VOICES[lang][name]
+    if name in _all_fish():
+        _fish_choice[lang] = _all_fish()[name]
         result = f"Voice switched to {name}."
     else:
         _fish_choice[lang] = None
@@ -1283,7 +1310,7 @@ def _save_voice_prefs() -> None:
     import json
     try:
         with open(VOICE_PREFS, "w", encoding="utf-8") as f:
-            json.dump({"kokoro": KOKORO_VOICE, "fish": _fish_choice,
+            json.dump({"lang": _response_language["lang"], "kokoro": KOKORO_VOICE, "fish": _fish_choice,
                        "eleven": _elevenlabs_voice.get("name"),
                        "en_engine": _en_engine["name"], "groq_voice": TTS_VOICE},
                       f, ensure_ascii=False)
@@ -1300,6 +1327,8 @@ def _load_voice_prefs() -> None:
     except Exception:
         return
     KOKORO_VOICE = p.get("kokoro", KOKORO_VOICE)
+    if p.get("lang") in ("ru", "en"):
+        _response_language["lang"] = p["lang"]             # язык с прошлого запуска
     _en_engine["name"] = p.get("en_engine", "kokoro")
     if p.get("groq_voice"):
         try:
@@ -1308,7 +1337,7 @@ def _load_voice_prefs() -> None:
             pass
     for lang in ("en", "ru"):
         vid = (p.get("fish") or {}).get(lang)
-        if vid in FISH_VOICES[lang].values():
+        if vid in _all_fish().values():
             _fish_choice[lang] = vid
     if p.get("eleven"):
         try:

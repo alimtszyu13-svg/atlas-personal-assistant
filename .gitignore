@@ -53,3 +53,5 @@ credentials.json
 
 # voice fingerprint (private)
 models/speaker/
+
+holo_cache/

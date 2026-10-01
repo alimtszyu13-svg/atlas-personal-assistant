@@ -238,6 +238,7 @@ class Api:
             "missions_running": self._missions_running(),
             "notif_count": shared_state.get("notif_seq", 0),
             "trace_seq": shared_state.get("trace_seq", 0),
+            "holo_seq": shared_state.get("holo_seq", 0),
         }
 
     # ------------------------------------------------------------------
@@ -593,6 +594,22 @@ class Api:
     def get_report_ui(self, period: str = "today") -> dict:
         from core import day_report
         return day_report.collect(period)
+
+
+    # ------------------------------------------------------------------
+    # Голо-экран
+    # ------------------------------------------------------------------
+    def get_holo_ui(self) -> dict:
+        from core import holo
+        return holo.snapshot()
+
+    def holo_explain_ui(self, item_id: str, crop_b64: str) -> dict:
+        from core import holo
+        return holo.explain_region(item_id, crop_b64)
+
+    def holo_command_ui(self, action: str, item_id: str = "") -> None:
+        from core import holo
+        holo.command(action, item_id)
 
 
 class WebGUI:

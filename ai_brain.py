@@ -1853,3 +1853,51 @@ TOOLS_SCHEMA.append({"type": "function", "function": {"name": "day_report", "des
 tool_router.register_tool("day_report", "report")
 tool_router.TRIGGERS["report"] = ("итоги", "как прошёл день", "как прошел день", "как прошла неделя", "что я делал",
                                   "сколько времени", "статистик", "recap", "my day", "my week", "how was my day")
+
+
+# === Голо-экран ===
+def holo_show(query: str) -> str:
+    from core import holo
+    return holo.show_image(query)["text"]
+
+
+def holo_weather(place: str) -> str:
+    from core import holo
+    return holo.show_weather(place)["text"]
+
+
+def look(question: str = "", source: str = "camera") -> str:
+    from core import holo
+    return holo.look(question, "screen" if str(source).lower().startswith(("scr", "экр")) else "camera")["text"]
+
+
+def holo_control(action: str = "expand") -> str:
+    from core import holo
+    a = str(action).lower()
+    a = "close_all" if "all" in a or "все" in a else a
+    holo.command(a if a in ("expand", "collapse", "close", "close_all") else "expand")
+    return "OK."
+
+
+AVAILABLE_FUNCTIONS.update({"holo_show": holo_show, "holo_weather": holo_weather, "look": look, "holo_control": holo_control})
+TOOLS_SCHEMA.extend([
+    {"type": "function", "function": {"name": "holo_show", "description": "Shows a picture on Atlas's holographic screen: a landmark, place, animal, object, vehicle, artwork or a famous person BY NAME ('покажи…', 'выведи…', 'show me…'). Speak only a short sentence — the picture is on screen.", "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "what to show, e.g. 'Eiffel Tower'"}}, "required": ["query"]}}},
+    {"type": "function", "function": {"name": "holo_weather", "description": "Shows weather for a place on the holographic screen with a timeline a week back and a week ahead, and returns the current weather. Use when the user asks to show / display weather, or asks about weather in another place.", "parameters": {"type": "object", "properties": {"place": {"type": "string"}}, "required": ["place"]}}},
+    {"type": "function", "function": {"name": "look", "description": "Atlas looks through the webcam (source='camera') or at the screen (source='screen') and answers the question about what it sees ('посмотри', 'что у меня в руке', 'что ты видишь', 'what's on my screen'). The snapshot also appears on the holographic screen.", "parameters": {"type": "object", "properties": {"question": {"type": "string"}, "source": {"type": "string", "description": "'camera' or 'screen'"}}}}},
+    {"type": "function", "function": {"name": "holo_control", "description": "Controls the holographic screen: action='expand' (разверни), 'collapse' (сверни), 'close' (закрой), 'close_all' (убери всё).", "parameters": {"type": "object", "properties": {"action": {"type": "string"}}, "required": ["action"]}}},
+])
+for _n in ("holo_show", "holo_weather", "look", "holo_control"):
+    tool_router.register_tool(_n, "holo")
+tool_router.TRIGGERS["holo"] = ("покажи", "выведи", "посмотри", "что у меня в руке", "что ты видишь", "что на экране",
+                                "разверни", "сверни", "закрой экран", "убери", "погода в", "show me", "display",
+                                "look at", "what do you see", "weather in")
+
+
+# === Правило: речь распознана с ошибками ===
+_STT_RULE = (" SPEECH INPUT: the user's words come from speech recognition and may contain misheard words "
+             "(e.g. 'Эйфелеву пашню' or 'Эй, щелева башня' = 'Эйфелева башня'). Infer the most likely intended "
+             "words from context and act on them; ask only if several readings are equally likely.")
+if "SPEECH INPUT:" not in SYSTEM_PROMPT:
+    SYSTEM_PROMPT = SYSTEM_PROMPT + _STT_RULE
+    if conversation_history and isinstance(conversation_history[0], dict) and conversation_history[0].get("role") == "system":
+        conversation_history[0]["content"] = SYSTEM_PROMPT

@@ -437,7 +437,106 @@
   .rp-track { height: 8px; border-radius: 4px; background: rgba(134,214,255,.08); overflow: hidden; }
   .rp-fill { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #86D6FF, rgba(134,214,255,.45));
     box-shadow: 0 0 10px rgba(134,214,255,.35); }
+  /* ===================== Голо-экран ===================== */
+  .holo { position: absolute; right: 92px; top: 50%; transform: translateY(-50%); width: 300px; display: flex;
+    flex-direction: column; gap: 12px; z-index: 4; pointer-events: none; }
+  .hcard { pointer-events: auto; position: relative; padding: 10px 12px 12px; border-radius: 12px; color: var(--text);
+    background: linear-gradient(160deg, rgba(10,22,44,.74), rgba(4,8,18,.68)); border: 1px solid rgba(134,214,255,.22);
+    box-shadow: inset 0 0 0 1px rgba(134,214,255,.04), 0 10px 40px rgba(0,0,0,.45), 0 0 26px rgba(134,214,255,.08);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); cursor: zoom-in; overflow: hidden;
+    animation: hc-in .42s cubic-bezier(.2,.8,.2,1) both; }
+  .hcard::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(134,214,255,.035) 0 1px, transparent 1px 3px); }
+  .hcard::after { content: ""; position: absolute; inset: 3px; pointer-events: none; border-radius: 10px;
+    background: linear-gradient(#86D6FF,#86D6FF) top left/12px 1px, linear-gradient(#86D6FF,#86D6FF) top left/1px 12px,
+      linear-gradient(#86D6FF,#86D6FF) bottom right/12px 1px, linear-gradient(#86D6FF,#86D6FF) bottom right/1px 12px;
+    background-repeat: no-repeat; opacity: .7; }
+  .hcard:hover, .hcard:focus-visible { border-color: rgba(134,214,255,.45); outline: none; }
+  .hcard.out { animation: hc-out .26s ease forwards; }
+  @keyframes hc-in { from { opacity: 0; transform: translateX(18px) scale(.96); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+  @keyframes hc-out { to { opacity: 0; transform: translateX(14px) scale(.97); } }
+  .hc-head { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 8px; position: relative; z-index: 1; }
+  .hc-head b { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .02em; font-weight: 600; }
+  .hc-ico { color: #86D6FF; display: flex; }
+  .hc-btn { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; cursor: pointer; color: var(--text);
+    border: 1px solid rgba(134,214,255,.18); background: rgba(134,214,255,.06); transition: background .15s; }
+  .hc-btn:hover { background: rgba(134,214,255,.18); }
+  .hc-img { border-radius: 8px; overflow: hidden; height: 168px; background: rgba(0,0,0,.3); }
+  .hc-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .hc-cap { margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.45; display: -webkit-box;
+    -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .hc-wx { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+  .hc-temp { font: 300 40px/1 "Exo 2", sans-serif; color: #EAF6FF; text-shadow: 0 0 18px rgba(134,214,255,.45); }
+  .hc-wx small, .wx-main small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .hc-spark { width: 100%; height: 56px; display: block; margin-top: 6px; }
+  .hc-axis { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); }
+  .holo-full { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; opacity: 0; pointer-events: auto;
+    background: rgba(2,4,10,.55); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); transition: opacity .2s ease; }
+  .holo-full[hidden] { display: none; }
+  .holo-full.on { opacity: 1; }
+  .hf-panel { width: min(1280px, 88vw); height: min(860px, 84vh); display: flex; flex-direction: column; overflow: hidden;
+    border-radius: 14px; border: 1px solid rgba(134,214,255,.25); color: var(--text);
+    background: linear-gradient(160deg, rgba(8,18,38,.9), rgba(3,6,14,.92));
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 40px rgba(134,214,255,.1); transform: scale(.97);
+    transition: transform .22s cubic-bezier(.2,.8,.2,1); }
+  .holo-full.on .hf-panel { transform: none; }
+  .hf-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-size: 14px; border-bottom: 1px solid rgba(134,214,255,.12); }
+  .hf-head b { white-space: nowrap; font-weight: 600; letter-spacing: .02em; }
+  .hf-hint { flex: 1; color: var(--muted); font-size: 11.5px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hf-stage { position: relative; flex: 1; overflow: hidden; cursor: crosshair; touch-action: none; user-select: none;
+    background: radial-gradient(ellipse at center, rgba(134,214,255,.05), transparent 70%); }
+  .hf-stage.pan { cursor: grab; }
+  .hf-layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+  .hf-layer img { display: block; width: 100%; height: 100%; -webkit-user-drag: none; }
+  .hf-ann { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .hf-box { fill: rgba(134,214,255,.06); stroke: #86D6FF; stroke-width: 1.4; }
+  .hf-box.loading { stroke-dasharray: 5 4; animation: hf-dash 1s linear infinite; }
+  .hf-box.fail, .hf-lead.fail { stroke: #FFB35A; }
+  .hf-lead { fill: none; stroke: #86D6FF; stroke-width: 1.2; filter: drop-shadow(0 0 4px rgba(134,214,255,.7)); }
+  .hf-lead.fresh { stroke-dasharray: 700; stroke-dashoffset: 700; animation: hf-draw .45s ease forwards; }
+  .hf-dot { fill: #EAF6FF; filter: drop-shadow(0 0 4px #86D6FF); }
+  @keyframes hf-draw { to { stroke-dashoffset: 0; } }
+  @keyframes hf-dash { to { stroke-dashoffset: -18; } }
+  .hf-labels { position: absolute; inset: 0; pointer-events: none; }
+  .hf-note { position: absolute; left: 0; top: 0; width: 260px; pointer-events: auto; padding: 8px 10px 9px; border-radius: 8px;
+    background: rgba(4,10,24,.88); border: 1px solid rgba(134,214,255,.35); box-shadow: 0 0 18px rgba(134,214,255,.15);
+    font-size: 12.5px; color: #DDEBFF; animation: hc-in .35s ease both; }
+  .hf-note b { display: block; padding-right: 18px; color: #EAF6FF; font-size: 13px; letter-spacing: .02em; }
+  .hf-note p { margin: 4px 0 0; color: #AFC4E6; line-height: 1.45; }
+  .hf-note.loading b { background: linear-gradient(90deg, #6d8fb3, #EAF6FF, #6d8fb3); background-size: 200% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent; animation: hf-shim 1.2s linear infinite; }
+  .hf-note.fail { border-color: rgba(255,179,90,.5); }
+  @keyframes hf-shim { to { background-position: -200% 0; } }
+  .hf-x { position: absolute; right: 6px; top: 3px; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 15px; }
+  .hf-x:hover { color: #EAF6FF; }
+  .hf-sel { position: absolute; left: 0; top: 0; border: 1px dashed #EAF6FF; background: rgba(134,214,255,.1);
+    box-shadow: 0 0 0 1px rgba(134,214,255,.3); pointer-events: none; }
+  .hf-foot { padding: 10px 14px; border-top: 1px solid rgba(134,214,255,.12); font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+  .hf-wx { flex: 1; display: flex; flex-direction: column; padding: 14px 18px 18px; gap: 10px; min-height: 0; }
+  .wx-read { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px; min-height: 64px; }
+  .wx-when { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .wx-tag { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; padding: 2px 7px; border-radius: 4px; border: 1px solid; }
+  .wx-tag.now { color: #86D6FF; } .wx-tag.past { color: #8FA6CF; } .wx-tag.fut { color: #FFC478; }
+  .wx-main { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+  .wx-meta { display: flex; gap: 18px; font-size: 13px; color: #C9D8F0; }
+  .wx-chart { flex: 1; width: 100%; min-height: 200px; cursor: ew-resize; touch-action: none; }
+  .wx-range { width: 100%; accent-color: #86D6FF; }
+  .wx-days { position: relative; height: 16px; font-size: 11px; color: var(--muted); }
+  .wx-days span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .wx-days span:first-child { transform: none; }
+  body[data-theme="light"] .hcard, body[data-theme="light"] .hf-panel { background: rgba(255,255,255,.9); color: #0E1A33; border-color: rgba(30,60,120,.2); }
+  body[data-theme="light"] .hc-temp { color: #0E1A33; text-shadow: none; }
+  @media (max-width: 1100px) { .holo { right: 16px; width: 260px; } }
+  @media (prefers-reduced-motion: reduce) { .hcard, .hf-note, .hf-lead.fresh { animation: none; stroke-dashoffset: 0; } }
+  .hc-strip { display: flex; gap: 6px; margin-top: 8px; position: relative; z-index: 1; }
+  .hc-th { width: 46px; height: 34px; padding: 0; border-radius: 5px; overflow: hidden; cursor: pointer; opacity: .6;
+    border: 1px solid rgba(134,214,255,.2); background: rgba(0,0,0,.3); transition: opacity .15s, border-color .15s; flex: none; }
+  .hc-th.on, .hc-th:hover { opacity: 1; border-color: #86D6FF; box-shadow: 0 0 10px rgba(134,214,255,.3); }
+  .hc-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .hf-strip { display: flex; gap: 8px; padding: 8px 14px; border-top: 1px solid rgba(134,214,255,.12); overflow-x: auto; }
+  .hf-strip .hc-th { width: 76px; height: 50px; }
 </style>
+
 </head>
 <body data-theme="dark" class="intro">
 <canvas id="scene" aria-hidden="true"></canvas>
@@ -458,6 +557,8 @@
 
 <div class="hud">
   <svg class="trace" id="trace" aria-hidden="true"></svg>
+  <div class="holo" id="holo"></div>
+  <div class="holo-full" id="holoFull" role="dialog" aria-modal="true" hidden></div>
   <div class="clock"><span class="time" id="clockTime">--:--</span><span class="date" id="clockDate"></span></div>
   <div class="reticle" id="reticle" data-state="idle" aria-hidden="true">
     <svg viewBox="-100 -100 200 200">
@@ -1584,6 +1685,11 @@
       searching: 'Ищу…', opening: 'Открываю…',
       mem_facts: 'Граф знаний', mem_saved: 'Сохранённые факты', mem_episodes: 'Эпизоды разговоров',
       mem_empty: 'Пока пусто.', forget: 'Забыть', replaced: 'устарело', you_node: 'Вы',
+      holo_expand: 'Развернуть', holo_close: 'Закрыть', holo_analyzing: 'Смотрю…', holo_fail: 'Не получилось разобрать — выдели чуть больше.',
+      holo_hint: 'Колесо — масштаб · ЛКМ — обвести и спросить · ПКМ или пробел — двигать · двойной щелчок — по размеру · Esc — закрыть',
+      holo_hint_wx: 'Тяни по графику или ← → (Shift — по дням) · Home — сейчас · Esc — закрыть',
+      holo_now: 'Сейчас', holo_past: 'Было', holo_future: 'Прогноз', holo_feels: 'ощущается как', holo_precip: 'Осадки',
+      holo_wind: 'Ветер', holo_kmh: 'км/ч', holo_mm: 'мм', holo_days: 'дн.', holo_time: 'Время',
       nav_report: 'Итоги', rp_today: 'Сегодня', rp_yesterday: 'Вчера', rp_week: 'Неделя', rp_active: 'За компьютером',
       rp_questions: 'Вопросов', rp_study: 'Повторений', rp_commits: 'Коммитов', rp_skills: 'Новых навыков',
       rp_apps: 'Программы', rp_days: 'По дням', rp_topics: 'О чём говорили', rp_commit_list: 'Коммиты',
@@ -1600,7 +1706,7 @@
         recall_conversations: 'вспомнить', play_on_rezka: 'фильм', play_on_spotify: 'музыка', browser_open: 'браузер', browser_click: 'клик',
         read_screen: 'чтение экрана', click_on_screen: 'нажатие на экране', start_mission: 'миссия', list_today_events: 'календарь',
         get_recent_emails: 'почта', add_note: 'заметка', add_todo: 'задача', list_todos: 'задачи', set_timer: 'таймер', calculate: 'вычисление',
-        translate_text: 'перевод', tell_joke: 'шутка', learn_skill: 'учусь новому', run_routine: 'ритуал', heal_apply: 'исправление', day_report: 'итоги дня', study_start: 'тренировка', desktop_look: 'смотрю окно', desktop_click: 'нажатие', desktop_type: 'ввод текста',
+        translate_text: 'перевод', tell_joke: 'шутка', learn_skill: 'учусь новому', run_routine: 'ритуал', heal_apply: 'исправление', holo_show: 'голо-экран', holo_weather: 'погода на экране', look: 'смотрю', day_report: 'итоги дня', study_start: 'тренировка', desktop_look: 'смотрю окно', desktop_click: 'нажатие', desktop_type: 'ввод текста',
         desktop_hotkey: 'клавиши', desktop_scroll: 'прокрутка', desktop_switch: 'другое окно', desktop_windows: 'окна',
         desktop_read_text: 'чтение окна', desktop_screenshot_describe: 'смотрю на снимок', open_app: 'запуск программы',
         browser_read_text: 'читаю страницу', browser_type: 'ввод', browser_find: 'поиск на странице', browser_tabs: 'вкладки' },
@@ -1674,6 +1780,11 @@
       searching: 'Searching…', opening: 'Opening…',
       mem_facts: 'Knowledge graph', mem_saved: 'Saved facts', mem_episodes: 'Conversation episodes',
       mem_empty: 'Nothing yet.', forget: 'Forget', replaced: 'outdated', you_node: 'You',
+      holo_expand: 'Expand', holo_close: 'Close', holo_analyzing: 'Looking…', holo_fail: "Couldn't make it out — select a bit more.",
+      holo_hint: 'Wheel — zoom · Left-drag — circle and ask · Right-drag or Space — pan · Double-click — fit · Esc — close',
+      holo_hint_wx: 'Drag the chart or ← → (Shift — by day) · Home — now · Esc — close',
+      holo_now: 'Now', holo_past: 'Past', holo_future: 'Forecast', holo_feels: 'feels like', holo_precip: 'Precipitation',
+      holo_wind: 'Wind', holo_kmh: 'km/h', holo_mm: 'mm', holo_days: 'd', holo_time: 'Time',
       nav_report: 'Recap', rp_today: 'Today', rp_yesterday: 'Yesterday', rp_week: 'Week', rp_active: 'At the computer',
       rp_questions: 'Questions', rp_study: 'Reviews', rp_commits: 'Commits', rp_skills: 'New skills',
       rp_apps: 'Apps', rp_days: 'By day', rp_topics: 'What we talked about', rp_commit_list: 'Commits',
@@ -1690,7 +1801,7 @@
         recall_conversations: 'recall', play_on_rezka: 'movie', play_on_spotify: 'music', browser_open: 'browser', browser_click: 'click',
         read_screen: 'reading the screen', click_on_screen: 'clicking on screen', start_mission: 'mission', list_today_events: 'calendar',
         get_recent_emails: 'mail', add_note: 'note', add_todo: 'task', list_todos: 'tasks', set_timer: 'timer', calculate: 'calculation',
-        translate_text: 'translation', tell_joke: 'joke', learn_skill: 'learning', run_routine: 'routine', heal_apply: 'fix', day_report: 'daily recap', study_start: 'study session', desktop_look: 'looking at the window', desktop_click: 'click', desktop_type: 'typing',
+        translate_text: 'translation', tell_joke: 'joke', learn_skill: 'learning', run_routine: 'routine', heal_apply: 'fix', holo_show: 'holo screen', holo_weather: 'weather on screen', look: 'looking', day_report: 'daily recap', study_start: 'study session', desktop_look: 'looking at the window', desktop_click: 'click', desktop_type: 'typing',
         desktop_hotkey: 'shortcut', desktop_scroll: 'scroll', desktop_switch: 'switch window', desktop_windows: 'windows',
         desktop_read_text: 'reading the window', desktop_screenshot_describe: 'looking at a screenshot', open_app: 'opening app',
         browser_read_text: 'reading the page', browser_type: 'typing', browser_find: 'find on page', browser_tabs: 'tabs' },
@@ -2659,6 +2770,379 @@
     }).catch(function () { reqs.textContent = t('load_fail'); });
   }
 
+  // ======================================================================
+  // Голо-экран: карточки рядом со звездой + полноэкранный просмотр
+  // ======================================================================
+  const holoBox = document.getElementById('holo');
+  const holoCards = new Map();                 // id → { el, item }
+  let holoSeen = -1, holoView = null;
+
+  function holoHTML(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+  function holoIcon(kind) {
+    return kind === 'weather'
+      ? '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="6" cy="6" r="2.6"/><path d="M6 1v1.2M6 9.8V11M1 6h1.2M9.8 6H11M2.5 2.5l.8.8M8.7 8.7l.8.8M9.5 2.5l-.8.8"/><path d="M7 14h6a2.4 2.4 0 0 0 0-4.8 3.3 3.3 0 0 0-6.2 1"/></svg>'
+      : '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M1.5 11l4-4 3 3 2-2 4 4"/><circle cx="11" cy="5.5" r="1.2"/></svg>';
+  }
+
+  function checkHolo(seq) {
+    if (seq === undefined || seq === holoSeen) return;
+    holoSeen = seq;
+    call('get_holo_ui').then(syncHolo).catch(function () {});
+  }
+
+  function syncHolo(h) {
+    const items = (h && h.items) || [];
+    const ids = new Set(items.map(function (i) { return i.id; }));
+    holoCards.forEach(function (c, id) {                         // убрать закрытые
+      if (!ids.has(id)) { c.el.classList.add('out'); setTimeout(function () { c.el.remove(); }, 260); holoCards.delete(id); }
+    });
+    items.forEach(function (it) {                                // добавить новые, существующие не трогаем
+      if (!holoCards.has(it.id)) {
+        const el = buildCard(it);
+        holoBox.appendChild(el);
+        holoCards.set(it.id, { el: el, item: it });
+      } else holoCards.get(it.id).item = it;
+    });
+    const want = items.find(function (i) { return i.expanded; });
+    if (want && (!holoView || holoView.id !== want.id)) openHoloView(want);
+    if (!want && holoView && holoView.fromVoice) closeHoloView(false);
+  }
+
+  function buildCard(it) {
+    const el = document.createElement('section');
+    el.className = 'hcard'; el.dataset.id = it.id; el.tabIndex = 0;
+    el.setAttribute('aria-label', it.title);
+    el.innerHTML = '<div class="hc-head"><span class="hc-ico">' + holoIcon(it.kind) + '</span><b>' + holoHTML(it.title) + '</b>' +
+      '<button class="hc-btn" data-a="expand" title="' + t('holo_expand') + '" aria-label="' + t('holo_expand') + '"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M7 1.5h3.5V5M5 10.5H1.5V7M10.5 1.5L7 5M1.5 10.5L5 7"/></svg></button>' +
+      '<button class="hc-btn" data-a="close" title="' + t('holo_close') + '" aria-label="' + t('holo_close') + '"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 3l6 6M9 3L3 9"/></svg></button></div>';
+    if (it.kind === 'weather') {
+      const c = it.current || {};
+      el.insertAdjacentHTML('beforeend', '<div class="hc-wx"><span class="hc-temp">' + Math.round(c.t) + '°</span><span>' + holoHTML(c.text) +
+        '<small>' + t('holo_wind') + ' ' + Math.round(c.wind || 0) + ' ' + t('holo_kmh') + '</small></span></div><canvas class="hc-spark" width="300" height="56"></canvas>' +
+        '<div class="hc-axis"><span>−7 ' + t('holo_days') + '</span><span>' + t('holo_now') + '</span><span>+7 ' + t('holo_days') + '</span></div>');
+      requestAnimationFrame(function () { drawSpark(el.querySelector('.hc-spark'), it); });
+    } else {
+      el.insertAdjacentHTML('beforeend', '<div class="hc-img"><img alt="' + holoHTML(it.title) + '" decoding="async" src="' + holoHTML(it.src) + '"></div>' +
+        (it.caption ? '<p class="hc-cap">' + holoHTML(it.caption) + '</p>' : ''));
+      if (it.alts && it.alts.length > 1) {                       // полоска миниатюр: другие фото
+        const strip = document.createElement('div'); strip.className = 'hc-strip';
+        it.alts.forEach(function (a, i) {
+          const b = document.createElement('button'); b.className = 'hc-th' + (i ? '' : ' on'); b.setAttribute('aria-label', String(i + 1));
+          b.innerHTML = '<img alt="" decoding="async" src="' + holoHTML(a.src) + '">';
+          b.addEventListener('click', function (e) { e.stopPropagation(); holoSetAlt(it.id, i); });
+          strip.appendChild(b);
+        });
+        el.appendChild(strip);
+      }
+    }
+    el.addEventListener('click', function (e) {
+      const b = e.target.closest('.hc-btn');
+      if (b && b.dataset.a === 'close') { call('holo_command_ui', 'close', it.id).catch(console.log); return; }
+      openHoloView(holoCards.get(it.id).item);
+    });
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter') openHoloView(holoCards.get(it.id).item); });
+    return el;
+  }
+
+  function holoSetAlt(id, i) {
+    const c = holoCards.get(id); if (!c || !c.item.alts || !c.item.alts[i]) return;
+    c.cur = i;
+    const im = c.el.querySelector('.hc-img img'); if (im) im.src = c.item.alts[i].src;
+    c.el.querySelectorAll('.hc-th').forEach(function (b, k) { b.classList.toggle('on', k === i); });
+  }
+
+  // --- погода: точки, масштабы ---
+  function wxIndexNow(it) {
+    const h = it.hourly.time, now = it.now ? it.now.slice(0, 13) : '';
+    let i = h.findIndex(function (x) { return x.slice(0, 13) === now; });
+    return i < 0 ? Math.floor(h.length / 2) : i;
+  }
+  function drawSpark(cv, it) {
+    if (!cv) return;
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 300, hgt = cv.clientHeight || 56;
+    cv.width = w * dpr; cv.height = hgt * dpr;
+    const g = cv.getContext('2d'); g.scale(dpr, dpr);
+    const T = it.hourly.t, n = T.length; if (!n) return;
+    const lo = Math.min.apply(null, T) - 1, hi = Math.max.apply(null, T) + 1;
+    const X = function (i) { return i / (n - 1) * w; }, Y = function (v) { return hgt - 4 - (v - lo) / (hi - lo) * (hgt - 10); };
+    const ni = wxIndexNow(it);
+    g.fillStyle = 'rgba(134,214,255,.06)'; g.fillRect(0, 0, X(ni), hgt);
+    const grad = g.createLinearGradient(0, 0, w, 0);
+    grad.addColorStop(0, 'rgba(134,214,255,.45)'); grad.addColorStop(ni / (n - 1), '#86D6FF'); grad.addColorStop(1, 'rgba(255,196,120,.9)');
+    g.strokeStyle = grad; g.lineWidth = 1.6; g.beginPath();
+    T.forEach(function (v, i) { i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); }); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.55)'; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(X(ni), 0); g.lineTo(X(ni), hgt); g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#EAF6FF'; g.beginPath(); g.arc(X(ni), Y(T[ni]), 2.6, 0, 7); g.fill();
+  }
+
+  // ======================================================================
+  // Полноэкранный просмотр
+  // ======================================================================
+  const holoFull = document.getElementById('holoFull');
+  function openHoloView(it) {
+    if (holoView) closeHoloView(true);
+    holoFull.innerHTML = '';
+    holoFull.hidden = false;
+    requestAnimationFrame(function () { holoFull.classList.add('on'); });
+    const panel = document.createElement('div'); panel.className = 'hf-panel';
+    panel.innerHTML = '<div class="hf-head"><span class="hc-ico">' + holoIcon(it.kind) + '</span><b>' + holoHTML(it.title) + '</b>' +
+      '<small class="hf-hint">' + (it.kind === 'weather' ? t('holo_hint_wx') : t('holo_hint')) + '</small>' +
+      '<button class="hc-btn" data-a="close" aria-label="' + t('holo_close') + '"><svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 3l6 6M9 3L3 9"/></svg></button></div>';
+    holoFull.appendChild(panel);
+    panel.querySelector('[data-a="close"]').addEventListener('click', function () { closeHoloView(true); });
+    holoView = { id: it.id, item: it, fromVoice: !!it.expanded, cleanup: [] };
+    if (it.kind === 'weather') buildWeatherView(panel, it);
+    else {
+      const c = holoCards.get(it.id), i = (c && c.cur) || 0;
+      buildImageView(panel, it.alts && it.alts[i] ? Object.assign({}, it, it.alts[i], { title: it.title, caption: it.caption, cur: i }) : it);
+    }
+  }
+  function closeHoloView(tellServer) {
+    if (!holoView) return;
+    holoView.cleanup.forEach(function (f) { try { f(); } catch (e) {} });
+    if (tellServer && holoView.item.expanded) call('holo_command_ui', 'collapse', holoView.id).catch(function () {});
+    holoView = null;
+    holoFull.classList.remove('on');
+    setTimeout(function () { if (!holoView) { holoFull.hidden = true; holoFull.innerHTML = ''; } }, 220);
+  }
+  holoFull.addEventListener('pointerdown', function (e) { if (e.target === holoFull) closeHoloView(true); });
+  window.addEventListener('keydown', function (e) { if (e.key === 'Escape' && holoView) { e.stopPropagation(); closeHoloView(true); } }, true);
+
+  // --- картинка: масштаб, сдвиг, выделение, выноски ---
+  function buildImageView(panel, it) {
+    const stage = document.createElement('div'); stage.className = 'hf-stage';
+    stage.innerHTML = '<div class="hf-layer"><img alt="" draggable="false"></div><svg class="hf-ann"></svg><div class="hf-labels"></div><div class="hf-sel" hidden></div>';
+    panel.appendChild(stage);
+    if (it.caption || it.source) {
+      const foot = document.createElement('div'); foot.className = 'hf-foot';
+      foot.textContent = it.caption || '';
+      panel.appendChild(foot);
+    }
+    const layer = stage.querySelector('.hf-layer'), img = layer.querySelector('img');
+    const svg = stage.querySelector('.hf-ann'), labels = stage.querySelector('.hf-labels'), sel = stage.querySelector('.hf-sel');
+    const V = { s: 1, x: 0, y: 0, fit: 1, w: it.w || 1, h: it.h || 1 };
+    const notes = [];
+    let raf = 0;
+    function apply() {
+      if (raf) return;
+      raf = requestAnimationFrame(function () {
+        raf = 0;
+        layer.style.transform = 'translate(' + V.x + 'px,' + V.y + 'px) scale(' + V.s + ')';
+        renderNotes();
+      });
+    }
+    function fit() {
+      const r = stage.getBoundingClientRect();
+      V.fit = Math.min(r.width / V.w, r.height / V.h) * 0.96;
+      V.s = V.fit; V.x = (r.width - V.w * V.s) / 2; V.y = (r.height - V.h * V.s) / 2;
+      apply();
+    }
+    img.addEventListener('load', function () { V.w = img.naturalWidth; V.h = img.naturalHeight; layer.style.width = V.w + 'px'; layer.style.height = V.h + 'px'; fit(); });
+    img.src = it.src;
+    if (it.alts && it.alts.length > 1) {                         // лента фото внизу
+      const strip = document.createElement('div'); strip.className = 'hf-strip';
+      it.alts.forEach(function (a, i) {
+        const b = document.createElement('button'); b.className = 'hc-th' + (i === (it.cur || 0) ? ' on' : '');
+        b.innerHTML = '<img alt="" decoding="async" src="' + holoHTML(a.src) + '">';
+        b.addEventListener('click', function () {
+          notes.length = 0; labels.innerHTML = ''; svg.innerHTML = '';
+          img.src = a.src; holoSetAlt(it.id, i);
+          strip.querySelectorAll('.hc-th').forEach(function (x, k) { x.classList.toggle('on', k === i); });
+        });
+        strip.appendChild(b);
+      });
+      panel.insertBefore(strip, panel.querySelector('.hf-foot'));
+    }
+    const ro = new ResizeObserver(fit); ro.observe(stage);
+    holoView.cleanup.push(function () { ro.disconnect(); cancelAnimationFrame(raf); });
+
+    function zoomAt(mx, my, k) {
+      const ns = Math.min(V.fit * 14, Math.max(V.fit * 0.6, V.s * k));
+      V.x = mx - (mx - V.x) * ns / V.s; V.y = my - (my - V.y) * ns / V.s; V.s = ns; apply();
+    }
+    stage.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      const r = stage.getBoundingClientRect();
+      zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
+    }, { passive: false });
+    stage.addEventListener('dblclick', fit);
+    stage.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    let space = false;
+    const kd = function (e) {
+      if (e.code === 'Space') { space = true; stage.classList.add('pan'); }
+      const r = stage.getBoundingClientRect();
+      if (e.key === '+' || e.key === '=') zoomAt(r.width / 2, r.height / 2, 1.25);
+      if (e.key === '-') zoomAt(r.width / 2, r.height / 2, 0.8);
+      if (e.key === '0') fit();
+    };
+    const ku = function (e) { if (e.code === 'Space') { space = false; stage.classList.remove('pan'); } };
+    window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
+    holoView.cleanup.push(function () { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); });
+
+    let drag = null;
+    stage.addEventListener('pointerdown', function (e) {
+      if (e.target.closest('.hf-note')) return;
+      const r = stage.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      stage.setPointerCapture(e.pointerId);
+      if (e.button === 1 || e.button === 2 || space) drag = { pan: true, sx: mx, sy: my, ox: V.x, oy: V.y };
+      else if (e.button === 0) { drag = { pan: false, sx: mx, sy: my }; sel.hidden = false; placeSel(mx, my, mx, my); }
+    });
+    stage.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      const r = stage.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      if (drag.pan) { V.x = drag.ox + mx - drag.sx; V.y = drag.oy + my - drag.sy; apply(); }
+      else placeSel(drag.sx, drag.sy, mx, my);
+    });
+    stage.addEventListener('pointerup', function (e) {
+      if (!drag) return;
+      const d = drag; drag = null; sel.hidden = true;
+      if (d.pan) return;
+      const r = stage.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      if (Math.abs(mx - d.sx) < 12 || Math.abs(my - d.sy) < 12) return;
+      // экран → координаты картинки, с обрезкой по её краям
+      const x0 = Math.max(0, (Math.min(d.sx, mx) - V.x) / V.s), y0 = Math.max(0, (Math.min(d.sy, my) - V.y) / V.s);
+      const x1 = Math.min(V.w, (Math.max(d.sx, mx) - V.x) / V.s), y1 = Math.min(V.h, (Math.max(d.sy, my) - V.y) / V.s);
+      if (x1 - x0 < 6 || y1 - y0 < 6) return;
+      explain({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+    });
+    function placeSel(ax, ay, bx, by) {
+      sel.style.transform = 'translate(' + Math.min(ax, bx) + 'px,' + Math.min(ay, by) + 'px)';
+      sel.style.width = Math.abs(bx - ax) + 'px'; sel.style.height = Math.abs(by - ay) + 'px';
+    }
+
+    function explain(box) {
+      const note = { box: box, label: t('holo_analyzing'), text: '', state: 'loading', born: Date.now(), id: Math.random().toString(36).slice(2) };
+      notes.push(note); renderNotes();
+      const scale = Math.min(1, 768 / Math.max(box.w, box.h));
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(8, Math.round(box.w * scale)); cv.height = Math.max(8, Math.round(box.h * scale));
+      try {
+        cv.getContext('2d').drawImage(img, box.x, box.y, box.w, box.h, 0, 0, cv.width, cv.height);
+        const b64 = cv.toDataURL('image/jpeg', 0.86).split(',')[1];
+        call('holo_explain_ui', it.id, b64).then(function (r) {
+          note.state = r && r.ok ? 'ok' : 'fail'; note.born = Date.now();     // линия «прорисуется» к готовой подписи
+          note.label = (r && r.label) || '—'; note.text = (r && r.text) || t('holo_fail');
+          renderNotes();
+        }).catch(function () { note.state = 'fail'; note.label = '—'; note.text = t('holo_fail'); renderNotes(); });
+      } catch (e) { note.state = 'fail'; note.label = '—'; note.text = t('holo_fail'); renderNotes(); }
+    }
+
+    function renderNotes() {
+      const r = stage.getBoundingClientRect();
+      svg.setAttribute('viewBox', '0 0 ' + r.width + ' ' + r.height);
+      let html = '';
+      const placed = [];
+      notes.forEach(function (n) {
+        const bx = V.x + n.box.x * V.s, by = V.y + n.box.y * V.s, bw = n.box.w * V.s, bh = n.box.h * V.s;
+        const right = bx + bw / 2 < r.width / 2;                      // выноска уходит в сторону с бо́льшим местом
+        const lw = 260, lh = n.text ? 84 : 40;
+        let lx = right ? Math.min(r.width - lw - 12, bx + bw + 56) : Math.max(12, bx - lw - 56);
+        let ly = Math.max(12, Math.min(r.height - lh - 12, by + bh / 2 - lh / 2));
+        placed.forEach(function (p) { if (Math.abs(p.x - lx) < lw && ly < p.y + p.h + 8 && ly + lh > p.y - 8) ly = p.y + p.h + 10; });
+        ly = Math.min(ly, r.height - lh - 12);
+        placed.push({ x: lx, y: ly, h: lh });
+        const ax = right ? bx + bw : bx, ay = by + bh / 2, ex = right ? lx : lx + lw, ey = ly + 18;
+        const mid = right ? ax + 24 : ax - 24;
+        html += '<rect class="hf-box ' + n.state + '" x="' + bx + '" y="' + by + '" width="' + bw + '" height="' + bh + '" rx="3"/>' +
+          '<path class="hf-lead ' + n.state + (Date.now() - n.born < 450 ? ' fresh' : '') + '" d="M' + ax + ' ' + ay + ' L' + mid + ' ' + ay + ' L' + ex + ' ' + ey + '"/>' +
+          '<circle class="hf-dot" cx="' + ax + '" cy="' + ay + '" r="3"/>';
+        n._pos = { x: lx, y: ly };
+      });
+      svg.innerHTML = html;
+      // подписи — HTML (чёткий текст), пересоздаём только при изменении содержимого
+      notes.forEach(function (n) {
+        let el = labels.querySelector('[data-n="' + n.id + '"]');
+        const sig = n.state + '|' + n.label + '|' + n.text;
+        if (!el) {
+          el = document.createElement('div'); el.className = 'hf-note'; el.dataset.n = n.id; labels.appendChild(el);
+          el.addEventListener('click', function (e) {
+            if (!e.target.closest('.hf-x')) return;
+            notes.splice(notes.indexOf(n), 1); el.remove(); renderNotes();
+          });
+        }
+        if (el.dataset.sig !== sig) {
+          el.dataset.sig = sig; el.className = 'hf-note ' + n.state;
+          el.innerHTML = '<b>' + holoHTML(n.label) + '</b><button class="hf-x" aria-label="' + t('holo_close') + '">×</button>' + (n.text ? '<p>' + holoHTML(n.text) + '</p>' : '');
+        }
+        el.style.left = n._pos.x + 'px'; el.style.top = n._pos.y + 'px';       // не transform: его занимает анимация появления
+      });
+    }
+  }
+
+  // --- погода: шкала времени ---
+  function buildWeatherView(panel, it) {
+    const H = it.hourly, n = H.time.length, ru = lang === 'ru';
+    const box = document.createElement('div'); box.className = 'hf-wx';
+    box.innerHTML = '<div class="wx-read"></div><canvas class="wx-chart"></canvas>' +
+      '<input class="wx-range" type="range" min="0" max="' + (n - 1) + '" step="1" aria-label="' + t('holo_time') + '">' +
+      '<div class="wx-days"></div>';
+    panel.appendChild(box);
+    const read = box.querySelector('.wx-read'), cv = box.querySelector('.wx-chart'), range = box.querySelector('.wx-range'), days = box.querySelector('.wx-days');
+    const ni = wxIndexNow(it);
+    let idx = ni, raf = 0;
+    range.value = ni;
+    const dayIdx = [];
+    H.time.forEach(function (tm, i) { if (tm.slice(11, 13) === '00') dayIdx.push(i); });
+    days.innerHTML = dayIdx.map(function (i) {
+      const d = new Date(H.time[i]);
+      return '<span style="left:' + (i / (n - 1) * 100) + '%">' + d.toLocaleDateString(ru ? 'ru-RU' : 'en-GB', { weekday: 'short', day: 'numeric' }) + '</span>';
+    }).join('');
+    function fmtTime(s) { const d = new Date(s); return d.toLocaleString(ru ? 'ru-RU' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }); }
+    function update() {
+      const i = idx, past = i < ni, now = i === ni;
+      read.innerHTML = '<div class="wx-when"><span class="wx-tag ' + (now ? 'now' : past ? 'past' : 'fut') + '">' +
+        (now ? t('holo_now') : past ? t('holo_past') : t('holo_future')) + '</span>' + holoHTML(fmtTime(H.time[i])) + '</div>' +
+        '<div class="wx-main"><span class="hc-temp">' + Math.round(H.t[i]) + '°</span><span>' + holoHTML((it.codes || {})[String(H.code[i])] || '') +
+        '<small>' + t('holo_feels') + ' ' + Math.round(H.feels[i]) + '°</small></span></div>' +
+        '<div class="wx-meta"><span>' + t('holo_precip') + ': ' + (H.pp[i] == null ? '—' : H.pp[i] + '%') + (H.pr[i] ? ' · ' + H.pr[i] + ' ' + t('holo_mm') : '') + '</span>' +
+        '<span>' + t('holo_wind') + ': ' + Math.round(H.wind[i] || 0) + ' ' + t('holo_kmh') + '</span></div>';
+      draw();
+    }
+    function draw() {
+      if (raf) return;
+      raf = requestAnimationFrame(function () {
+        raf = 0;
+        const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, hgt = cv.clientHeight;
+        if (!w || !hgt) return;
+        if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); }
+        const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, hgt);
+        const T = H.t, F = H.feels, lo = Math.min.apply(null, T.concat(F)) - 2, hi = Math.max.apply(null, T.concat(F)) + 2;
+        const pad = 26, X = function (i) { return i / (n - 1) * w; }, Y = function (v) { return pad + (1 - (v - lo) / (hi - lo)) * (hgt - pad * 2); };
+        g.fillStyle = 'rgba(134,214,255,.05)'; g.fillRect(0, 0, X(ni), hgt);
+        g.strokeStyle = 'rgba(134,214,255,.08)'; g.lineWidth = 1;
+        dayIdx.forEach(function (i) { g.beginPath(); g.moveTo(X(i), 0); g.lineTo(X(i), hgt); g.stroke(); });
+        H.pp.forEach(function (p, i) { if (p) { g.fillStyle = 'rgba(110,160,255,' + (0.12 + p / 260) + ')'; const bh = p / 100 * (hgt * 0.32); g.fillRect(X(i) - 1, hgt - bh, 2.2, bh); } });
+        g.setLineDash([3, 4]); g.strokeStyle = 'rgba(255,255,255,.25)'; g.beginPath();
+        F.forEach(function (v, i) { i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); }); g.stroke(); g.setLineDash([]);
+        const grad = g.createLinearGradient(0, 0, w, 0);
+        grad.addColorStop(0, 'rgba(134,214,255,.55)'); grad.addColorStop(ni / (n - 1), '#86D6FF'); grad.addColorStop(1, 'rgba(255,196,120,.95)');
+        g.strokeStyle = grad; g.lineWidth = 2.2; g.shadowColor = 'rgba(134,214,255,.6)'; g.shadowBlur = 8; g.beginPath();
+        T.forEach(function (v, i) { i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); }); g.stroke(); g.shadowBlur = 0;
+        g.strokeStyle = 'rgba(255,255,255,.45)'; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(X(ni), 0); g.lineTo(X(ni), hgt); g.stroke(); g.setLineDash([]);
+        g.strokeStyle = '#EAF6FF'; g.lineWidth = 1; g.beginPath(); g.moveTo(X(idx), 0); g.lineTo(X(idx), hgt); g.stroke();
+        g.fillStyle = '#EAF6FF'; g.beginPath(); g.arc(X(idx), Y(T[idx]), 4.5, 0, 7); g.fill();
+        g.fillStyle = 'rgba(234,246,255,.9)'; g.font = '600 12px "Exo 2", sans-serif'; g.textAlign = X(idx) > w - 40 ? 'right' : 'left';
+        g.fillText(Math.round(T[idx]) + '°', X(idx) + (X(idx) > w - 40 ? -8 : 8), Y(T[idx]) - 8);
+      });
+    }
+    function setIdx(i) { idx = Math.max(0, Math.min(n - 1, i)); range.value = idx; update(); }
+    range.addEventListener('input', function () { setIdx(+range.value); });
+    let scrub = false;
+    const pos = function (e) { const r = cv.getBoundingClientRect(); return Math.round((e.clientX - r.left) / r.width * (n - 1)); };
+    cv.addEventListener('pointerdown', function (e) { scrub = true; cv.setPointerCapture(e.pointerId); setIdx(pos(e)); });
+    cv.addEventListener('pointermove', function (e) { if (scrub) setIdx(pos(e)); });
+    cv.addEventListener('pointerup', function () { scrub = false; });
+    const kd = function (e) {
+      if (e.key === 'ArrowLeft') { setIdx(idx - (e.shiftKey ? 24 : 1)); e.preventDefault(); }
+      if (e.key === 'ArrowRight') { setIdx(idx + (e.shiftKey ? 24 : 1)); e.preventDefault(); }
+      if (e.key === 'Home' || e.key === '0') setIdx(ni);
+    };
+    window.addEventListener('keydown', kd);
+    const ro = new ResizeObserver(draw); ro.observe(cv);
+    holoView.cleanup.push(function () { window.removeEventListener('keydown', kd); ro.disconnect(); cancelAnimationFrame(raf); });
+    update();
+  }
+
   // --- ход мыслей вокруг звезды ---
   const traceSvg = document.getElementById('trace');
   let traceSeen = -1, traceHideT = null, traceLast = null;
@@ -3228,6 +3712,7 @@
       updateCaptions(s.state === 'speaking' ? s.text : '');
       checkNotifications(s.notif_count || 0);
       checkTrace(s.trace_seq);
+      checkHolo(s.holo_seq);
       if (s.should_quit) { playShutdown(); return; }
     } catch (e) { console.log(e); }
     setTimeout(pollState, 200);
