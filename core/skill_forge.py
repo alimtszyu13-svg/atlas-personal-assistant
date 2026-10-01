@@ -41,8 +41,14 @@ BANNED_ATTRS = {"post", "put", "delete", "patch", "system", "popen", "stream"}
 _PROMPT = (
     "You extend Atlas, a Python voice assistant, with ONE new tool. Write a single top-level Python "
     "function that does what the user asked. Rules: only these imports: " + ", ".join(sorted(ALLOWED_IMPORTS)) +
-    ". No file, process, OS or shell access; no eval/exec; network ONLY via httpx.get(url, timeout=10) to "
-    "free public APIs without keys. The function takes simple JSON-able arguments with defaults where "
+    ". No file, process, OS or shell access; no eval/exec; network ONLY via "
+    "httpx.get(url, timeout=10, follow_redirects=True) to free public APIs WITHOUT keys — check the HTTP status "
+    "and JSON fields you rely on. Known good keyless APIs: currency rates incl. KGS/RUB/KZT — "
+    "https://open.er-api.com/v6/latest/USD (JSON: result, rates{CODE: rate}); weather — "
+    "https://api.open-meteo.com/v1/forecast?latitude=..&longitude=..&current=temperature_2m; geocoding — "
+    "https://geocoding-api.open-meteo.com/v1/search?name=..; Wikipedia summary — "
+    "https://ru.wikipedia.org/api/rest_v1/page/summary/<title>; countries — https://restcountries.com/v3.1/name/<name>; "
+    "public holidays — https://date.nager.at/api/v3/PublicHolidays/<year>/<CC>. Prefer these over APIs that need keys. The function takes simple JSON-able arguments with defaults where "
     "sensible, never raises for normal input (return a short error text instead), and returns a short "
     "plain-text result suitable to be read aloud or summarised. Put all imports inside the function. "
     "Return JSON only: {\"name\": \"snake_case_tool_name\", \"description_en\": \"what it does and when to "
@@ -169,16 +175,42 @@ def run_tests(code: str, name: str, tests: list):
 # ---------------------------------------------------------------------------
 # 1. Написать (и починить)
 # ---------------------------------------------------------------------------
+def _wait_quiet(max_wait: float = 300) -> None:
+    """Мастерская работает в тишине: пока Atlas не занят разговором и минутный лимит не забит."""
+    try:
+        from ui_state import shared_state
+        from ai_brain import MODEL_SMART
+        from core import llm_gateway
+    except Exception:
+        return
+    t0 = time.time()
+    while time.time() - t0 < max_wait:
+        if shared_state.get("state") == "idle" and not llm_gateway.busy(MODEL_SMART, 0.4):
+            return
+        time.sleep(3)
+
+
 def _ask(messages: list) -> dict:
+    import ai_brain as _ab
     from ai_brain import client, MODEL_SMART, MODEL_FAST
     from core import llm_gateway
     est = sum(len(m["content"]) for m in messages) // 3 + 2500
-    model = llm_gateway.reserve_any([MODEL_SMART, MODEL_FAST], est)
+    cands = _ab._candidates(MODEL_SMART, MODEL_FAST) if hasattr(_ab, "_candidates") else [MODEL_SMART, MODEL_FAST]
+    model = llm_gateway.reserve_any(cands, est)
     kw = dict(model=model, messages=messages, max_tokens=3000, response_format={"type": "json_object"})
     if "gpt-oss" in model:
         kw["reasoning_effort"] = "medium"
-    r = client.chat.completions.create(**kw)
-    raw = r.choices[0].message.content or ""
+    try:
+        cl, kw2 = _ab._client_for(kw) if hasattr(_ab, "_client_for") else (client, kw)
+        r = cl.chat.completions.create(**kw2)
+        raw = r.choices[0].message.content or ""
+    except Exception as e:
+        if model == MODEL_FAST:
+            raise
+        print(f"[навыки] {model} не ответил ({str(e)[:100]}) — пробую {MODEL_FAST.split('/')[-1]}")
+        llm_gateway.reserve(MODEL_FAST, est)
+        r = client.chat.completions.create(**dict(kw, model=MODEL_FAST, reasoning_effort="medium"))
+        raw = r.choices[0].message.content or ""
     m = re.search(r"\{.*\}", raw, re.S)
     return json.loads(m.group(0)) if m else {}
 
@@ -198,6 +230,7 @@ def _forge(request: str) -> None:
                                         f"{', '.join(sorted(_existing_names()))[:3000]}"}]
     data, report, ok, reason = {}, [], False, ""
     for rnd in range(MAX_FIX_ROUNDS + 1):
+        _wait_quiet()                           # не отнимаем лимит у разговора
         data = _ask(msgs)
         name = re.sub(r"\W", "_", str(data.get("name") or "")).strip("_").lower()[:48]
         code = str(data.get("code") or "")

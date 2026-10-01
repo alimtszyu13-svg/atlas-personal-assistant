@@ -43,7 +43,8 @@ _EXTRACT_PROMPT = (
     "user. r is short snake_case, e.g. prepares_for, exam_date, weak_area, strong_area, likes, "
     "dislikes, lives_in, studies_at, works_on, uses, goal, deadline, teacher_of, has_score. "
     "single=true when only one value can be true at a time (a date, current city, current score), "
-    "false for lists (likes). Don't invent facts; skip anything uncertain."
+    "false for lists (likes). Don't invent facts; skip anything uncertain. Never store what the user "
+    "merely asked about, searched for, or wanted to watch or listen to — only facts about the user's own life."
 )
 
 _lock = threading.Lock()

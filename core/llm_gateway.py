@@ -21,6 +21,7 @@ MODEL_TPM = {"cerebras:gpt-oss-120b": 60000}   # у Cerebras запас намн
 def _budget(model: str) -> int:
     return int(MODEL_TPM.get(model, TPM_LIMIT) * SAFETY)
 
+MODEL_PENALTY = {}   # модель → секунды «цены»: медленную берём, только если быструю ждать дольше
 _lock = threading.Lock()
 _windows = {}             # модель → deque[(время, токены)]
 
@@ -60,7 +61,7 @@ def plan(models: list, tokens: int):
     (модель, ожидание в секундах, свободное место в окне) с минимальным ожиданием.
     При равенстве предпочитается модель, стоящая в списке раньше."""
     budget = int(TPM_LIMIT * SAFETY)
-    best = None
+    best, best_eff = None, 0.0
     with _lock:
         now = time.time()
         for m in models:
@@ -68,8 +69,9 @@ def plan(models: list, tokens: int):
             budget = _budget(m)
             wait = _wait_for(win, now, tokens, budget)
             room = budget - _used(win, now)
-            if best is None or wait < best[1] - 0.05:
-                best = (m, wait, room)
+            eff = wait + MODEL_PENALTY.get(m, 0.0)
+            if best is None or eff < best_eff - 0.05:
+                best, best_eff = (m, wait, room), eff
     return best
 
 

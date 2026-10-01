@@ -695,7 +695,9 @@ def ask_ai(question: str, speech=None) -> str:
             conversation_history.append(msg_dump)
 
             if not message.tool_calls:
-                reply = message.content or "Done."
+                reply = message.content or ("Модель вернула пустой ответ — повторите, пожалуйста, сэр."
+                                            if "(Respond in Russian.)" in question
+                                            else "The model returned an empty answer — please say that again, sir.")
                 opener = " ".join(reply.split()[:4])
                 recent_openers.append(opener)
                 recent_openers = recent_openers[-4:]
@@ -1503,5 +1505,271 @@ _DONE_RULE = (" VERIFY BEFORE CLAIMING: never say a desktop or browser task is d
               "shows the result). If a dialog asks to replace, overwrite, delete or send, ask the user first.")
 if "VERIFY BEFORE CLAIMING" not in SYSTEM_PROMPT:
     SYSTEM_PROMPT = SYSTEM_PROMPT + _DONE_RULE
+    if conversation_history and isinstance(conversation_history[0], dict) and conversation_history[0].get("role") == "system":
+        conversation_history[0]["content"] = SYSTEM_PROMPT
+
+
+# === Провайдер GitHub Models (бесплатно) ===
+GH_MODEL = "gh:" + (os.getenv("GITHUB_MODELS_MODEL") or "openai/gpt-4.1-mini")
+gh_client = (OpenAI(api_key=os.getenv("GITHUB_MODELS_TOKEN"), base_url="https://models.github.ai/inference",
+                    max_retries=0) if os.getenv("GITHUB_MODELS_TOKEN") else None)
+_gh_down = {"until": 0.0}
+try:
+    llm_gateway.MODEL_TPM[GH_MODEL] = 100000
+except Exception:
+    pass
+print(f"[github models] подключён ({GH_MODEL.split(':', 1)[1]}) — подменяет Groq, когда тот занят"
+      if gh_client else "[github models] токена нет (GITHUB_MODELS_TOKEN) — работаю без него")
+
+_client_for_prev_gh = globals().get("_client_for")
+
+
+def _client_for(kwargs: dict):
+    m = str(kwargs.get("model", ""))
+    if m.startswith("gh:") and gh_client is not None:
+        kw = {k: v for k, v in kwargs.items() if k != "reasoning_effort"}
+        kw["model"] = m.split(":", 1)[1]
+        kw.setdefault("max_tokens", 4000)          # лимит бесплатного тарифа на ответ
+        return gh_client, kw
+    return _client_for_prev_gh(kwargs) if _client_for_prev_gh else (client, kwargs)
+
+
+_candidates_prev_gh = globals().get("_candidates")
+
+
+def _candidates(model: str, other: str) -> list:
+    base = list(_candidates_prev_gh(model, other)) if _candidates_prev_gh else [model, other]
+    if gh_client is not None and time.time() >= _gh_down["until"] and GH_MODEL not in base:
+        idx = [base.index(x) for x in (model, other) if x in base]
+        base.insert(max(idx) + 1 if idx else len(base), GH_MODEL)    # после двух моделей Groq
+    return base
+
+
+_call_model_stream_prev_gh = _call_model_stream
+
+
+def _call_model_stream(*args, **kwargs):
+    if not str(kwargs.get("model", "")).startswith("gh:"):
+        return _call_model_stream_prev_gh(*args, **kwargs)
+    try:
+        return _call_model_stream_prev_gh(*args, **kwargs)
+    except TaskCancelled:
+        raise
+    except Exception as e:
+        msg = str(e)
+        if "attempted to call tool" in msg:
+            raise
+        low = msg.lower()
+        daily = "per day" in low or "daily" in low or "UserByDay" in msg
+        limit = daily or "429" in msg or "rate" in low
+        pause = 3600 if daily else (30 if limit else 600)
+        _gh_down["until"] = time.time() + pause
+        print(f"[github models] {'дневной лимит' if daily else 'лимит' if limit else 'ошибка'} "
+              f"({msg[:140]}) — {pause // 60 if pause >= 60 else pause} {'мин' if pause >= 60 else 'с'} работаю через Groq")
+        kwargs = dict(kwargs)
+        kwargs["model"] = MODEL_SMART
+        return _call_model_stream_prev_gh(*args, **kwargs)
+
+
+# === GitHub Models без потока ===
+# У GitHub (Azure) потоковый ответ устроен иначе, и текст терялся — запрос целиком.
+def _gh_call(on_text, **kwargs):
+    cl, kw = _client_for(kwargs)
+    kw.pop("stream", None)
+    r = cl.chat.completions.create(**kw)
+    ch = r.choices[0] if getattr(r, "choices", None) else None
+    if ch is None:
+        raw = r if isinstance(r, str) else (getattr(r, "model_dump", lambda: r)())
+        raise RuntimeError(f"ответ без choices: {str(raw)[:300]}")
+    m = ch.message
+    content = (getattr(m, "content", None) or getattr(m, "refusal", None) or "").strip()
+    calls = [{"id": tc.id, "type": "function",
+              "function": {"name": tc.function.name, "arguments": tc.function.arguments or "{}"}}
+             for tc in (getattr(m, "tool_calls", None) or [])]
+    if not content and not calls:
+        raise RuntimeError(f"пустой ответ (finish_reason={getattr(ch, 'finish_reason', '?')})")
+    if content:
+        on_text(content)
+    msg = {"role": "assistant", "content": content or None}
+    if calls:
+        msg["tool_calls"] = calls
+    return msg, getattr(r, "usage", None)
+
+
+_call_model_stream_prev_ghfix = _call_model_stream
+
+
+def _call_model_stream(*args, **kwargs):
+    if not str(kwargs.get("model", "")).startswith("gh:") or gh_client is None:
+        return _call_model_stream_prev_ghfix(*args, **kwargs)
+    on_text = args[0] if args else kwargs.pop("on_text", lambda d: None)
+    try:
+        return _gh_call(on_text, **kwargs)
+    except TaskCancelled:
+        raise
+    except Exception as e:
+        msg = str(e)
+        low = msg.lower()
+        daily = "per day" in low or "daily" in low or "UserByDay" in msg
+        limit = daily or "429" in msg or "rate" in low
+        pause = 3600 if daily else (30 if limit else 120)
+        _gh_down["until"] = time.time() + pause
+        print(f"[github models] {msg[:160]} — {pause} с работаю через Groq")
+        kwargs = dict(kwargs)
+        kwargs["model"] = MODEL_SMART
+        return _call_model_stream_prev_ghfix(*args, **kwargs)
+
+
+# === Провайдер Gemini (бесплатный тариф Google) ===
+GEM_MODEL = "gem:" + (os.getenv("GEMINI_MODEL") or "gemini-3.8-flash")
+gem_client = (OpenAI(api_key=os.getenv("GEMINI_API_KEY"),
+                     base_url="https://generativelanguage.googleapis.com/v1beta/openai/", max_retries=0)
+              if os.getenv("GEMINI_API_KEY") else None)
+_gem_down = {"until": 0.0}
+_GEM_EFFORT = {"v": os.getenv("GEMINI_EFFORT") or "none"}   # без размышлений — быстро
+_GEM_DUMMY_SIG = {"google": {"thought_signature": "skip_thought_signature_validator"}}
+try:
+    llm_gateway.MODEL_TPM[GEM_MODEL] = 250000
+    llm_gateway.MODEL_PENALTY[GEM_MODEL] = float(os.getenv("GEMINI_PENALTY") or 3.0)
+except Exception:
+    pass
+print(f"[gemini] подключён ({GEM_MODEL.split(':', 1)[1]}) — подменяет Groq, когда тот занят"
+      if gem_client else "[gemini] ключа нет (GEMINI_API_KEY) — работаю без него")
+
+
+def _strip_gem_fields(msgs):
+    """Для Groq и остальных: убрать подписи мысли Gemini из истории."""
+    if not any(isinstance(m, dict) and any(isinstance(tc, dict) and "extra_content" in tc
+                                           for tc in (m.get("tool_calls") or [])) for m in (msgs or [])):
+        return msgs
+    out = []
+    for m in msgs:
+        if isinstance(m, dict) and m.get("tool_calls"):
+            m = dict(m)
+            m["tool_calls"] = [{k: v for k, v in tc.items() if k != "extra_content"} if isinstance(tc, dict) else tc
+                               for tc in m["tool_calls"]]
+        out.append(m)
+    return out
+
+
+def _gem_messages(msgs):
+    """Для Gemini: системные — в одно в начале; у каждого вызова инструмента есть подпись мысли."""
+    sys_parts, out = [], []
+    for m in msgs or []:
+        if not isinstance(m, dict):
+            out.append(m)
+            continue
+        m = dict(m)
+        if m.get("role") == "system":
+            if m.get("content"):
+                sys_parts.append(str(m["content"]))
+            continue
+        if m.get("role") == "assistant" and m.get("tool_calls"):
+            m["tool_calls"] = [dict(tc, extra_content=tc.get("extra_content") or _GEM_DUMMY_SIG)
+                               for tc in m["tool_calls"]]
+            if m.get("content") is None:
+                m["content"] = ""
+        out.append(m)
+    return ([{"role": "system", "content": "\n\n".join(sys_parts)}] if sys_parts else []) + out
+
+
+_client_for_prev_gem = globals().get("_client_for")
+
+
+def _client_for(kwargs: dict):
+    m = str(kwargs.get("model", ""))
+    if m.startswith("gem:") and gem_client is not None:
+        kw = {k: v for k, v in kwargs.items() if k != "reasoning_effort"}
+        kw["model"] = m.split(":", 1)[1]
+        kw["messages"] = _gem_messages(kwargs.get("messages"))
+        kw["reasoning_effort"] = _GEM_EFFORT["v"]  # без размышлений: 1–2 с вместо 3–11 с
+        return gem_client, kw
+    cl, kw = _client_for_prev_gem(kwargs) if _client_for_prev_gem else (client, kwargs)
+    if isinstance(kw, dict) and kw.get("messages"):
+        stripped = _strip_gem_fields(kw["messages"])
+        if stripped is not kw["messages"]:
+            kw = dict(kw, messages=stripped)
+    return cl, kw
+
+
+_candidates_prev_gem = globals().get("_candidates")
+
+
+def _candidates(model: str, other: str) -> list:
+    base = list(_candidates_prev_gem(model, other)) if _candidates_prev_gem else [model, other]
+    if gem_client is not None and time.time() >= _gem_down["until"] and GEM_MODEL not in base:
+        idx = [base.index(x) for x in (model, other) if x in base]
+        base.insert(max(idx) + 1 if idx else len(base), GEM_MODEL)     # сразу после двух моделей Groq
+    return base
+
+
+def _gem_call(on_text, **kwargs):
+    cl, kw = _client_for(kwargs)
+    kw.pop("stream", None)
+    for _try in range(3):
+        try:
+            r = cl.chat.completions.create(**kw)
+            break
+        except Exception as e:
+            bad = str(e).lower()
+            nxt = {"none": "minimal", "minimal": "low"}.get(kw.get("reasoning_effort"))
+            if nxt and ("reasoning" in bad or "thinking" in bad or "400" in bad):
+                print(f"[gemini] уровень размышлений «{kw['reasoning_effort']}» не принят — пробую «{nxt}»")
+                _GEM_EFFORT["v"] = kw["reasoning_effort"] = nxt
+                continue
+            raise
+    ch = r.choices[0] if getattr(r, "choices", None) else None
+    if ch is None:
+        raise RuntimeError(f"ответ без choices: {str(r)[:200]}")
+    m = ch.message
+    content = (getattr(m, "content", None) or "").strip()
+    calls = []
+    for tc in (getattr(m, "tool_calls", None) or []):
+        extra = (getattr(tc, "model_extra", None) or {}).get("extra_content")
+        c = {"id": tc.id, "type": "function",
+             "function": {"name": tc.function.name, "arguments": tc.function.arguments or "{}"}}
+        if extra:
+            c["extra_content"] = extra               # подпись мысли — вернём её Gemini в следующем шаге
+        calls.append(c)
+    if not content and not calls:
+        raise RuntimeError(f"пустой ответ (finish_reason={getattr(ch, 'finish_reason', '?')})")
+    if content:
+        on_text(content)
+    msg = {"role": "assistant", "content": content or None}
+    if calls:
+        msg["tool_calls"] = calls
+    return msg, getattr(r, "usage", None)
+
+
+_call_model_stream_prev_gem = _call_model_stream
+
+
+def _call_model_stream(*args, **kwargs):
+    if not str(kwargs.get("model", "")).startswith("gem:") or gem_client is None:
+        return _call_model_stream_prev_gem(*args, **kwargs)
+    on_text = args[0] if args else kwargs.pop("on_text", lambda d: None)
+    try:
+        return _gem_call(on_text, **kwargs)
+    except TaskCancelled:
+        raise
+    except Exception as e:
+        msg = str(e)
+        low = msg.lower()
+        daily = "perday" in low.replace("_", "").replace(" ", "") or "per day" in low
+        limit = daily or "429" in msg or "resource_exhausted" in low or "quota" in low
+        pause = 3600 if daily else (60 if limit else 300)
+        _gem_down["until"] = time.time() + pause
+        print(f"[gemini] {msg[:160]} — {pause} с работаю через Groq")
+        kwargs = dict(kwargs)
+        kwargs["model"] = MODEL_SMART
+        return _call_model_stream_prev_gem(*args, **kwargs)
+
+
+# === Правило: запоминать только факты о жизни пользователя ===
+_MEM_RULE = (" REMEMBER_FACT is ONLY for facts about the user's own life that they tell you (their goals, dates, "
+             "preferences, people, projects). Never call it for what the user asks you to look up, search, explain, "
+             "watch or listen to, and never as a separate step in the middle of a search — it costs the user time.")
+if "REMEMBER_FACT is ONLY" not in SYSTEM_PROMPT:
+    SYSTEM_PROMPT = SYSTEM_PROMPT + _MEM_RULE
     if conversation_history and isinstance(conversation_history[0], dict) and conversation_history[0].get("role") == "system":
         conversation_history[0]["content"] = SYSTEM_PROMPT

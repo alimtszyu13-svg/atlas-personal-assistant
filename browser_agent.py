@@ -155,6 +155,23 @@ def _on_new_page(p):
     _events.append("открылась новая вкладка — работаю в ней (browser_tabs покажет все)")
 
 
+def _mark_clean_exit() -> None:
+    """Atlas закрывается быстро, и Chromium не успевает отметить корректный выход —
+    при следующем запуске он спрашивает «Восстановить страницы?». Ставим отметку сами."""
+    p = os.path.join(NETFLIX_PROFILE_DIR, "Default", "Preferences")
+    try:
+        with open(p, encoding="utf-8") as f:
+            prefs = json.load(f)
+        prof = prefs.setdefault("profile", {})
+        if prof.get("exit_type") != "Normal" or prof.get("exited_cleanly") is False:
+            prof["exit_type"] = "Normal"
+            prof["exited_cleanly"] = True
+            with open(p, "w", encoding="utf-8") as f:
+                json.dump(prefs, f)
+    except Exception:
+        pass
+
+
 def _ensure_browser():
     global _playwright, _browser, _page
     if _browser is not None and not _browser_alive():
@@ -164,12 +181,14 @@ def _ensure_browser():
             print("[browser] окно браузера было закрыто — открываю заново")
             _reset_browser()
     if _browser is None:
+        _mark_clean_exit()
         _playwright = sync_playwright().start()
         _browser = _playwright.chromium.launch_persistent_context(
             NETFLIX_PROFILE_DIR,
             headless=os.getenv("BROWSER_HEADLESS") == "1",
             executable_path=os.getenv("BROWSER_EXECUTABLE") or None,
-            args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-infobars"],
+            args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-infobars",
+                  "--hide-crash-restore-bubble", "--disable-session-crashed-bubble"],
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
             viewport={"width": 1280, "height": 720},
         )

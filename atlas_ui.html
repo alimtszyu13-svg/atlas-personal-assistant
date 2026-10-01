@@ -417,6 +417,22 @@
   body[data-theme="light"] .trace text { fill: #0E1A33; stroke: rgba(255,255,255,.9); }
   @keyframes tr-pulse { 0%, 100% { r: 6px; stroke-opacity: 1; } 50% { r: 9px; stroke-opacity: .45; } }
   @media (prefers-reduced-motion: reduce) { .trace .tr-node.run { animation: none; } }
+  /* ===================== Компактные субтитры ===================== */
+  .captions { bottom: calc(26px + env(safe-area-inset-bottom, 0px)); width: fit-content !important;
+    max-width: min(620px, calc(100% - 64px)); gap: 3px; padding: 8px 16px 9px; border-radius: 14px;
+    background: rgba(6,10,22,.55); border: 1px solid rgba(134,214,255,.16);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    box-shadow: 0 8px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);
+    transition: opacity .35s ease, left .35s ease; }
+  .captions:not(:has(.you:not(:empty))):not(:has(.atlas:not(:empty))) { opacity: 0; pointer-events: none; }
+  .captions .you { font-size: 12px; min-height: 0; color: var(--muted); letter-spacing: .02em; max-width: 100%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .captions .you:not(:empty)::before { content: "› "; color: var(--ion); }
+  .captions .atlas { font-size: 15px; line-height: 1.45; font-weight: 500; min-height: 0; text-shadow: none;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .captions .you:empty, .captions .atlas:empty { display: none; }
+  body[data-theme="light"] .captions { background: rgba(255,255,255,.72); border-color: rgba(30,60,120,.14);
+    box-shadow: 0 8px 26px rgba(30,60,120,.12); }
 </style>
 </head>
 <body data-theme="dark" class="intro">
