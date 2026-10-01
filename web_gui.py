@@ -587,6 +587,14 @@ class Api:
         return study.delete_deck(deck)
 
 
+    # ------------------------------------------------------------------
+    # Итоги дня
+    # ------------------------------------------------------------------
+    def get_report_ui(self, period: str = "today") -> dict:
+        from core import day_report
+        return day_report.collect(period)
+
+
 class WebGUI:
     def __init__(self, shared_state: dict):
         self.shared_state = shared_state

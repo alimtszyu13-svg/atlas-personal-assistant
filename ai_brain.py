@@ -1839,3 +1839,17 @@ def ask_ai(question: str, speech=None) -> str:
     except Exception as e:
         print(f"[учёба] {e}")
     return _ask_ai_prev_study(question, speech)
+
+
+# === Итоги дня ===
+def day_report(period: str = "today") -> str:
+    """Facts about the user's day/week for a short spoken recap."""
+    from core import day_report as _dr
+    return _dr.report_text(period)
+
+
+AVAILABLE_FUNCTIONS["day_report"] = day_report
+TOOLS_SCHEMA.append({"type": "function", "function": {"name": "day_report", "description": "Facts about the user's day or week: time in apps, questions to Atlas and topics, study reviews, skills Atlas learned, git commits. period: 'today' | 'yesterday' | 'week'. Turn it into a short, friendly spoken recap (3-5 sentences) with one observation.", "parameters": {"type": "object", "properties": {"period": {"type": "string"}}}}})
+tool_router.register_tool("day_report", "report")
+tool_router.TRIGGERS["report"] = ("итоги", "как прошёл день", "как прошел день", "как прошла неделя", "что я делал",
+                                  "сколько времени", "статистик", "recap", "my day", "my week", "how was my day")
