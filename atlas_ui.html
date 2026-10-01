@@ -563,6 +563,7 @@
     <button data-page="notes" data-i18n-aria="nav_notes"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 2.5h10v13H4z"/><path d="M6.5 6h5M6.5 9h5M6.5 12h3"/></svg><span data-i18n="nav_notes">Заметки и день</span></button>
     <button data-page="tools" data-i18n-aria="nav_tools"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="5" height="5" rx="1"/><rect x="10.5" y="2.5" width="5" height="5" rx="1"/><rect x="2.5" y="10.5" width="5" height="5" rx="1"/><rect x="10.5" y="10.5" width="5" height="5" rx="1"/></svg><span data-i18n="nav_tools">Инструменты</span></button>
     <button data-page="journal" data-i18n-aria="nav_journal"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5l2 2 7-7"/><path d="M15.5 9v5a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 14V4A1.5 1.5 0 0 1 4 2.5h7.5"/></svg><span data-i18n="nav_journal">Журнал</span></button>
+    <button data-page="study" data-i18n-aria="nav_study"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5c2.2-1 4.5-1 7 .5 2.5-1.5 4.8-1.5 7-.5v9.5c-2.2-1-4.5-1-7 .5-2.5-1.5-4.8-1.5-7-.5z"/><path d="M9 5v9.5"/></svg><span data-i18n="nav_study">Учёба</span></button>
     <button data-page="forge" data-i18n-aria="nav_forge"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.8l1.6 3.7 3.7 1.6-3.7 1.6L9 12.4l-1.6-3.7-3.7-1.6 3.7-1.6z"/><path d="M14 11.5l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8z"/></svg><span data-i18n="nav_forge">Навыки</span></button>
     <button data-page="routines" data-i18n-aria="nav_routines"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.5 12.5a5.5 5.5 0 0 1 11 0"/><path d="M1.5 14.5h15"/><path d="M9 2.5v2M3.3 5.3l1.4 1.4M14.7 5.3l-1.4 1.4"/></svg><span data-i18n="nav_routines">Ритуалы</span></button>
     <button data-page="heal" data-i18n-aria="nav_heal"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5a3.5 3.5 0 0 0-3.3 4.6L2.8 12.5a1.5 1.5 0 0 0 2.1 2.1l5.4-5.4a3.5 3.5 0 0 0 4.6-3.3l-2 2-1.8-.3-.3-1.8z"/></svg><span data-i18n="nav_heal">Самолечение</span></button>
@@ -1578,6 +1579,11 @@
       searching: 'Ищу…', opening: 'Открываю…',
       mem_facts: 'Граф знаний', mem_saved: 'Сохранённые факты', mem_episodes: 'Эпизоды разговоров',
       mem_empty: 'Пока пусто.', forget: 'Забыть', replaced: 'устарело', you_node: 'Вы',
+      nav_study: 'Учёба', st_intro: 'Интервальное повторение голосом: скажи «Атлас, давай повторим SAT» — я задаю вопросы, ты отвечаешь без слова «Атлас», «хватит» — закончить. Хорошо знаешь — карточка вернётся через дни, ошибся — через 10 минут.',
+      st_streak: 'Серия', st_days: 'дн.', st_week: 'За неделю', st_acc: 'точность', st_review: 'Повторить', st_delete: 'Удалить',
+      st_due: 'на сегодня', st_total: 'всего', st_learned: 'выучено', st_new: 'Новые карточки', st_deck_ph: 'Колода, например SAT',
+      st_topic_ph: 'Тема, например: трудные слова SAT с переводом', st_make: 'Создать', st_making: 'Создаю карточки…',
+      st_made: 'Готово, новых карточек:', st_empty: 'Колод пока нет — создай первую ниже или скажи «сделай 10 карточек по SAT-словам».',
       fx_trace: 'Показывать ход мыслей', tr_plan: 'План',
       tr_names: { get_weather: 'погода', search_web: 'поиск в интернете', read_webpage: 'чтение страницы', search_file_content: 'поиск файлов',
         open_search_result: 'открыть файл', open_file: 'открыть файл', open_found_file: 'открыть файл', get_news: 'новости', remember_fact: 'запомнить',
@@ -1658,6 +1664,11 @@
       searching: 'Searching…', opening: 'Opening…',
       mem_facts: 'Knowledge graph', mem_saved: 'Saved facts', mem_episodes: 'Conversation episodes',
       mem_empty: 'Nothing yet.', forget: 'Forget', replaced: 'outdated', you_node: 'You',
+      nav_study: 'Study', st_intro: 'Spaced repetition by voice: say "Atlas, let\'s review SAT" — I ask, you answer without saying "Atlas", "stop" to finish. Cards you know come back in days, missed ones in 10 minutes.',
+      st_streak: 'Streak', st_days: 'days', st_week: 'This week', st_acc: 'accuracy', st_review: 'Review', st_delete: 'Delete',
+      st_due: 'due today', st_total: 'total', st_learned: 'learned', st_new: 'New cards', st_deck_ph: 'Deck, e.g. SAT',
+      st_topic_ph: 'Topic, e.g. hard SAT words with meanings', st_make: 'Create', st_making: 'Creating cards…',
+      st_made: 'Done, new cards:', st_empty: 'No decks yet — create one below or say "make 10 cards on SAT words".',
       fx_trace: 'Show my train of thought', tr_plan: 'Plan',
       tr_names: { get_weather: 'weather', search_web: 'web search', read_webpage: 'reading a page', search_file_content: 'file search',
         open_search_result: 'open file', open_file: 'open file', open_found_file: 'open file', get_news: 'news', remember_fact: 'remember',
@@ -2147,7 +2158,7 @@
     currentPage = name;
     pageTitle.textContent = t('nav_' + name);
     pageBody.textContent = '';
-    ({ chat: pageChat, files: pageFiles, memory: pageMemory, notes: pageNotes, tools: pageTools, journal: pageJournal, projects: pageProjects, heal: pageHeal, routines: pageRoutines, forge: pageForge })[name]();
+    ({ chat: pageChat, files: pageFiles, memory: pageMemory, notes: pageNotes, tools: pageTools, journal: pageJournal, projects: pageProjects, heal: pageHeal, routines: pageRoutines, forge: pageForge, study: pageStudy })[name]();
     if (page.hidden) {
       page.hidden = false;
       requestAnimationFrame(function () { page.classList.add('in'); });
@@ -2466,6 +2477,51 @@
     closePanel();
     call('send_text_command', lang === 'ru' ? 'Запомни мой голос' : 'Remember my voice').catch(console.log);
   });
+
+  // --- учёба ---
+  function pageStudy() {
+    pageBody.appendChild(el('div', 'hint', t('st_intro')));
+    const head = el('div', 'tool-grid'), box = el('div');
+    box.style.cssText = 'display:flex; flex-direction:column; gap:10px;';
+    pageBody.appendChild(head); pageBody.appendChild(box);
+    box.appendChild(el('div', 'empty', t('loading')));
+    call('get_study_ui').then(function (s) {
+      head.appendChild(el('span', 'chip', t('st_streak') + ': ' + s.streak + ' ' + t('st_days')));
+      head.appendChild(el('span', 'chip', t('st_week') + ': ' + s.week_reviews + (s.week_accuracy !== null ? ' · ' + t('st_acc') + ' ' + s.week_accuracy + '%' : '')));
+      box.textContent = '';
+      if (!s.decks.length) box.appendChild(el('div', 'empty', t('st_empty')));
+      s.decks.forEach(function (d) {
+        const it = el('div', 'item'), row = el('div', 'row');
+        row.appendChild(el('b', 'grow', d.deck));
+        row.appendChild(el('small', d.due ? 'ok-t' : 'muted', d.due + ' ' + t('st_due') + ' · ' + d.total + ' ' + t('st_total') + ' · ' + d.learned + ' ' + t('st_learned')));
+        it.appendChild(row);
+        const acts = el('div', 'acts');
+        const go = el('button', null, t('st_review')), del = el('button', null, t('st_delete'));
+        go.addEventListener('click', function () {
+          closePage();
+          call('send_text_command', (lang === 'ru' ? 'Давай повторим ' : "Let's review ") + d.deck).catch(console.log);
+        });
+        del.addEventListener('click', function () { call('study_delete_ui', d.deck).then(function () { openPage('study', true); }).catch(console.log); });
+        acts.appendChild(go); acts.appendChild(del); it.appendChild(acts);
+        box.appendChild(it);
+      });
+    }).catch(function () { box.textContent = t('load_fail'); });
+    pageBody.appendChild(sectionHead('st_new'));
+    const form = el('div', 'row');
+    const deck = el('input'); deck.placeholder = t('st_deck_ph'); deck.className = 'rt-time'; deck.style.width = '160px';
+    const topic = el('input'); topic.placeholder = t('st_topic_ph'); topic.className = 'rt-time grow';
+    const make = el('button', 'chip', t('st_make'));
+    make.addEventListener('click', function () {
+      if (!deck.value.trim() || !topic.value.trim()) return;
+      make.disabled = true; make.textContent = t('st_making');
+      call('study_generate_ui', deck.value.trim(), topic.value.trim(), 10).then(function (n) {
+        pop({ icon: 'ok', title: t('nav_study'), text: t('st_made') + ' ' + n, life: 6000 });
+        openPage('study', true);
+      }).catch(function () { make.disabled = false; make.textContent = t('st_make'); });
+    });
+    form.appendChild(deck); form.appendChild(topic); form.appendChild(make);
+    pageBody.appendChild(form);
+  }
 
   // --- навыки ---
   function pageForge() {

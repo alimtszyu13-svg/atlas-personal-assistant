@@ -277,6 +277,9 @@ def _voice_loop():
         cmd = re.sub(r"[,\s]+(?:please|пожалуйста)$", "", cmd).strip()
         if cmd in {"stop", "стоп", "хватит", "cancel", "отмена", "enough", "стой", "прекрати", "перестань",
                    "остановись", "довольно", "не надо", "отбой", "тихо", "замолчи", "wait", "pause"}:
+            from core import study                 # «хватит» во время тренировки — закончить её
+            if study.active():
+                _speak_and_update(study.stop(), interruptible=False)
             continue          # прерывать нечего — не тратим запрос к модели
         if SHUTDOWN_RE.match(cmd):
             shutdown_msg = random.choice(SHUTDOWN_RESPONSES[get_response_language()])

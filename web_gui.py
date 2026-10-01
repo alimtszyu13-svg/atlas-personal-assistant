@@ -571,6 +571,22 @@ class Api:
         return copy.deepcopy(shared_state.get("trace") or {"run": 0, "events": []})
 
 
+    # ------------------------------------------------------------------
+    # Учебный тренер
+    # ------------------------------------------------------------------
+    def get_study_ui(self) -> dict:
+        from core import study
+        return study.stats()
+
+    def study_generate_ui(self, deck: str, topic: str, count: int = 10) -> int:
+        from core import study
+        return study.generate_cards(deck, topic, count)
+
+    def study_delete_ui(self, deck: str) -> int:
+        from core import study
+        return study.delete_deck(deck)
+
+
 class WebGUI:
     def __init__(self, shared_state: dict):
         self.shared_state = shared_state

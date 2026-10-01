@@ -1773,3 +1773,69 @@ if "REMEMBER_FACT is ONLY" not in SYSTEM_PROMPT:
     SYSTEM_PROMPT = SYSTEM_PROMPT + _MEM_RULE
     if conversation_history and isinstance(conversation_history[0], dict) and conversation_history[0].get("role") == "system":
         conversation_history[0]["content"] = SYSTEM_PROMPT
+
+
+# === Учебный тренер ===
+def study_start(deck: str = "", count: int = 10) -> str:
+    from core import study
+    return study.start(deck, count)
+
+
+def study_add(deck: str, front: str, back: str) -> str:
+    from core import study
+    n = study.add_cards(deck, [{"front": front, "back": back}])
+    return f"Added {n} card to «{deck}»." if n else "That card is already in the deck."
+
+
+def study_generate(deck: str, topic: str, count: int = 10) -> str:
+    from core import study
+    n = study.generate_cards(deck, topic, count)
+    return f"Created {n} cards in deck «{deck}» on: {topic}." if n else "Couldn't create cards — try another topic."
+
+
+def study_stats() -> str:
+    from core import study
+    s = study.stats()
+    decks_txt = "; ".join(f"{d['deck']}: {d['due']} due of {d['total']}, {d['learned']} learned" for d in s["decks"]) or "no decks"
+    acc = f"{s['week_accuracy']}%" if s["week_accuracy"] is not None else "—"
+    return f"Decks: {decks_txt}. This week: {s['week_reviews']} reviews, accuracy {acc}. Streak: {s['streak']} days."
+
+
+def study_stop() -> str:
+    from core import study
+    return study.stop()
+
+
+AVAILABLE_FUNCTIONS.update({"study_start": study_start, "study_add": study_add, "study_generate": study_generate,
+                            "study_stats": study_stats, "study_stop": study_stop})
+TOOLS_SCHEMA.extend([
+    {"type": "function", "function": {"name": "study_start", "description": "Starts a spoken flashcard review session (spaced repetition). deck = deck name (e.g. 'SAT', 'IELTS'), empty = all due cards. Return the tool's text as is — it already contains the first question.", "parameters": {"type": "object", "properties": {"deck": {"type": "string"}, "count": {"type": "integer"}}}}},
+    {"type": "function", "function": {"name": "study_add", "description": "Adds one flashcard to a deck (e.g. a word and its meaning).", "parameters": {"type": "object", "properties": {"deck": {"type": "string"}, "front": {"type": "string"}, "back": {"type": "string"}}, "required": ["deck", "front", "back"]}}},
+    {"type": "function", "function": {"name": "study_generate", "description": "Creates flashcards on a topic with the model and adds them to a deck (e.g. deck 'SAT', topic 'hard SAT vocabulary', 10 cards).", "parameters": {"type": "object", "properties": {"deck": {"type": "string"}, "topic": {"type": "string"}, "count": {"type": "integer"}}, "required": ["deck", "topic"]}}},
+    {"type": "function", "function": {"name": "study_stats", "description": "Study progress: decks, cards due today, learned, weekly accuracy, streak.", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "study_stop", "description": "Ends the current review session with a summary.", "parameters": {"type": "object", "properties": {}}}},
+])
+for _n in ("study_start", "study_add", "study_generate", "study_stats", "study_stop"):
+    tool_router.register_tool(_n, "study")
+tool_router.TRIGGERS["study"] = ("повтор", "карточ", "учеб", "учёб", "тренир", "sat", "ielts", "слово", "слова",
+                                 "словар", "викторин", "flashcard", "quiz", "review", "study", "vocab")
+
+_ask_ai_prev_study = ask_ai
+
+
+def ask_ai(question: str, speech=None) -> str:
+    """Во время тренировки ответ идёт прямо в тренера — без модели, мгновенно."""
+    try:
+        from core import study
+        if study.active():
+            raw = re.sub(r"^\s*\([^)]*\)\s*", "", question)
+            if re.match(r"^\s*(?:атлас|atlas)\b", raw, re.I):
+                study.stop()                         # обратились к Atlas — значит, это уже не ответ
+            else:
+                conversation_history.append({"role": "user", "content": question})
+                text = study.answer(raw)
+                conversation_history.append({"role": "assistant", "content": text})
+                return text
+    except Exception as e:
+        print(f"[учёба] {e}")
+    return _ask_ai_prev_study(question, speech)
