@@ -1270,13 +1270,13 @@ def list_voice_choices(lang: str) -> list:
                 + list(ELEVENLABS_VOICE_OPTIONS["female"].keys()))
     else:
         base = list(KOKORO_VOICES) + VOICE_OPTIONS["male"] + VOICE_OPTIONS["female"]
-    return base + list(_all_fish().keys())
+    return base + list(FISH_VOICES[lang].keys())
 
 
 def current_voice_choice(lang: str) -> str:
     vid = _fish_choice[lang]
     if vid:
-        for name, v in _all_fish().items():
+        for name, v in FISH_VOICES[lang].items():
             if v == vid:
                 return name
     if lang == "ru":
@@ -1288,8 +1288,8 @@ def choose_voice(name: str) -> str:
     """Выбор голоса из настроек для текущего языка."""
     global KOKORO_VOICE
     lang = _response_language["lang"]
-    if name in _all_fish():
-        _fish_choice[lang] = _all_fish()[name]
+    if name in FISH_VOICES[lang]:
+        _fish_choice[lang] = FISH_VOICES[lang][name]
         result = f"Voice switched to {name}."
     else:
         _fish_choice[lang] = None
@@ -1337,7 +1337,7 @@ def _load_voice_prefs() -> None:
             pass
     for lang in ("en", "ru"):
         vid = (p.get("fish") or {}).get(lang)
-        if vid in _all_fish().values():
+        if vid in FISH_VOICES[lang].values():
             _fish_choice[lang] = vid
     if p.get("eleven"):
         try:

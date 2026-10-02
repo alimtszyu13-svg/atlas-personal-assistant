@@ -239,6 +239,8 @@ class Api:
             "notif_count": shared_state.get("notif_seq", 0),
             "trace_seq": shared_state.get("trace_seq", 0),
             "holo_seq": shared_state.get("holo_seq", 0),
+            "gest_cmd": shared_state.get("gest_cmd"),
+            "gesture_flash": shared_state.get("gesture_flash"),
         }
 
     # ------------------------------------------------------------------
@@ -607,9 +609,29 @@ class Api:
         from core import holo
         return holo.explain_region(item_id, crop_b64)
 
+    def holo_graph_forget_ui(self, edge_id: int) -> bool:
+        from core import holo
+        return holo.forget_edge(edge_id)
+
     def holo_command_ui(self, action: str, item_id: str = "") -> None:
         from core import holo
         holo.command(action, item_id)
+
+
+    # ------------------------------------------------------------------
+    # Жесты и хлопки
+    # ------------------------------------------------------------------
+    def gesture_action_ui(self, name: str) -> str:
+        from core import gestures
+        return gestures.action(name)
+
+    def get_gestures_ui(self) -> dict:
+        from core import gestures
+        return gestures.settings()
+
+    def set_claps_ui(self, on: bool) -> dict:
+        from core import gestures
+        return gestures.set_claps(on)
 
 
 class WebGUI:

@@ -427,3 +427,78 @@ def explain_region(item_id: str, crop_b64: str, context: str = "") -> dict:
         return {"ok": False, "label": "Не получилось" if _lang() == "ru" else "Couldn't check", "text": str(e)[:200]}
     lines = [l.strip(" *#-") for l in text.splitlines() if l.strip()]
     return {"ok": True, "label": (lines[0] if lines else "?")[:60], "text": " ".join(lines[1:])[:260]}
+
+
+# ---------------------------------------------------------------------------
+# Граф знаний: что Atlas знает о тебе
+# ---------------------------------------------------------------------------
+GRAPH_MAX_NODES = 140
+
+
+def _graph_rows():
+    import sqlite3
+    db = os.path.join(ROOT, "memory.db")
+    c = sqlite3.connect(db, timeout=30)
+    try:
+        nodes = c.execute("SELECT id, name, label FROM nodes").fetchall()
+        edges = c.execute("SELECT id, src, rel, dst, conf FROM edges WHERE active=1").fetchall()
+    except sqlite3.Error:
+        nodes, edges = [], []
+    c.close()
+    return nodes, edges
+
+
+def graph_data(focus: str = "") -> dict:
+    """Узлы и связи для голо-экрана. Если узлов много — ты и всё на расстоянии двух шагов, плюс самые связанные."""
+    ru = _lang() == "ru"
+    nodes, edges = _graph_rows()
+    used = {e[1] for e in edges} | {e[3] for e in edges}
+    nodes = [n for n in nodes if n[0] in used or n[1] == "user"]
+    user = next((n[0] for n in nodes if n[1] == "user"), None)
+    if len(nodes) > GRAPH_MAX_NODES:
+        adj = {}
+        for _id, s, _r, d, _c in edges:
+            adj.setdefault(s, set()).add(d)
+            adj.setdefault(d, set()).add(s)
+        keep = set()
+        if user is not None:
+            keep = {user} | adj.get(user, set())
+            for n in list(keep):
+                keep |= adj.get(n, set())
+        for n, _ in sorted(((n, len(v)) for n, v in adj.items()), key=lambda x: -x[1]):
+            if len(keep) >= GRAPH_MAX_NODES:
+                break
+            keep.add(n)
+        nodes = [n for n in nodes if n[0] in keep][:GRAPH_MAX_NODES]
+    ids = {n[0] for n in nodes}
+    out_nodes = [{"id": n[0], "label": ("Ты" if ru else "You") if n[1] == "user" else n[2], "user": n[1] == "user"}
+                 for n in nodes]
+    out_edges = [{"id": e[0], "s": e[1], "t": e[3], "rel": e[2], "conf": round(e[4] or 0.8, 2)}
+                 for e in edges if e[1] in ids and e[3] in ids]
+    return {"nodes": out_nodes, "edges": out_edges, "focus": (focus or "").strip().lower()}
+
+
+def show_graph(focus: str = "") -> dict:
+    ru = _lang() == "ru"
+    d = graph_data(focus)
+    title = "Что Atlas знает о тебе" if ru else "What Atlas knows about you"
+    _push({"kind": "graph", "title": title, **d})
+    n, m = len(d["nodes"]), len(d["edges"])
+    if not m:
+        return {"ok": True, "text": "Граф пока пустой — расскажи мне о себе, и он начнёт расти." if ru
+                else "The graph is empty so far — tell me about yourself and it will grow."}
+    return {"ok": True, "text": (f"На экране граф памяти: {n} понятий и {m} связей." if ru
+                                 else f"The memory graph is on screen: {n} concepts, {m} links.")}
+
+
+def forget_edge(edge_id: int) -> bool:
+    """«Забыть» связь: она становится неактивной (как при обновлении факта) и в ответы больше не попадает."""
+    import sqlite3
+    c = sqlite3.connect(os.path.join(ROOT, "memory.db"), timeout=30)
+    try:
+        n = c.execute("UPDATE edges SET active=0 WHERE id=?", (int(edge_id),)).rowcount
+        c.commit()
+    finally:
+        c.close()
+    print(f"[голо] забыта связь #{edge_id}")
+    return bool(n)

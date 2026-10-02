@@ -535,6 +535,99 @@
   .hc-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .hf-strip { display: flex; gap: 8px; padding: 8px 14px; border-top: 1px solid rgba(134,214,255,.12); overflow-x: auto; }
   .hf-strip .hc-th { width: 76px; height: 50px; }
+  .hc-graph { width: 100%; height: 150px; display: block; border-radius: 8px;
+    background: radial-gradient(ellipse at center, rgba(134,214,255,.07), transparent 70%); }
+  .gv-wrap { position: relative; flex: 1; min-height: 0; overflow: hidden;
+    background: radial-gradient(ellipse at center, rgba(40,60,120,.18), transparent 75%); }
+  .gv-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+  .gv-canvas.panning { cursor: grabbing; }
+  .gv-search { position: absolute; left: 14px; top: 12px; width: 240px; height: 32px; padding: 0 10px; border-radius: 8px;
+    border: 1px solid rgba(134,214,255,.25); background: rgba(2,6,16,.78); color: var(--text); font: 13px "Exo 2", sans-serif; outline: none; }
+  .gv-search:focus { border-color: #86D6FF; }
+  .gv-stats { position: absolute; left: 14px; bottom: 12px; font-size: 12px; color: var(--muted); pointer-events: none; }
+  .gv-side { position: absolute; right: 12px; top: 12px; bottom: 12px; width: 300px; overflow: auto; padding: 12px; border-radius: 10px;
+    background: rgba(4,10,24,.9); border: 1px solid rgba(134,214,255,.25); display: flex; flex-direction: column; gap: 8px;
+    animation: hc-in .3s ease both; }
+  .gv-side[hidden] { display: none; }
+  .gv-h { display: flex; align-items: center; gap: 8px; }
+  .gv-h b { flex: 1; font-size: 15px; color: #EAF6FF; }
+  .gv-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 6px 8px; border-radius: 6px; background: rgba(134,214,255,.05); }
+  .gv-row span { flex: 1; cursor: pointer; line-height: 1.4; }
+  .gv-row span:hover { color: #EAF6FF; }
+  .gv-row i { color: #86D6FF; font-style: normal; }
+  .gv-forget { border: 1px solid rgba(255,179,90,.35); background: none; color: #FFC478; border-radius: 5px; font-size: 11px;
+    padding: 2px 6px; cursor: pointer; flex: none; }
+  .gv-forget:hover { background: rgba(255,179,90,.12); }
+  /* ===================== Жесты ===================== */
+  .gest-pip { position: absolute; left: 92px; bottom: 24px; width: 260px; border-radius: 12px; overflow: hidden; z-index: 6;
+    pointer-events: auto; background: rgba(4,10,22,.82); border: 1px solid rgba(61,255,154,.28);
+    box-shadow: 0 10px 34px rgba(0,0,0,.45), 0 0 20px rgba(61,255,154,.08); -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px); animation: hc-in .35s ease both; }
+  .gest-pip[hidden] { display: none; }
+  .gest-pip video, .gest-pip canvas { display: block; width: 100%; height: 195px; object-fit: cover; }
+  .gest-pip video { transform: scaleX(-1); filter: saturate(.75) brightness(.85) contrast(1.05); }
+  .gest-pip canvas { position: absolute; left: 0; top: 0; pointer-events: none; }
+  .gest-pip.mini video, .gest-pip.mini canvas { display: none; }
+  .gp-top { position: absolute; top: 6px; left: 8px; right: 6px; display: flex; align-items: center; gap: 6px; font-size: 12px; z-index: 2; }
+  .gest-pip.mini .gp-top { position: static; padding: 6px 6px 0 8px; }
+  .gp-top b { flex: 1; color: #EAFFF4; text-shadow: 0 1px 4px rgba(0,0,0,.7); font-weight: 600; letter-spacing: .03em; }
+  .gp-top .hc-btn { width: 22px; height: 22px; background: rgba(2,6,14,.55); }
+  .gp-dot { width: 8px; height: 8px; border-radius: 50%; background: #777; flex: none; }
+  .gp-dot.on { background: #3DFF9A; box-shadow: 0 0 8px #3DFF9A; animation: gp-pulse 2s ease-in-out infinite; }
+  .gp-dot.wait { background: #FFC478; } .gp-dot.err { background: #FF6B6B; }
+  @keyframes gp-pulse { 50% { opacity: .45; } }
+  .gp-bar { display: flex; align-items: center; gap: 8px; padding: 7px 10px 8px; font-size: 12.5px; color: #D6FFE9; min-height: 24px; }
+  .gp-ring { flex: none; opacity: 0; transition: opacity .2s; }
+  .gp-ring circle { transition: stroke-dashoffset .08s linear; }
+  .gp-legend { display: none; padding: 0 12px 10px; font-size: 12px; color: rgba(214,255,233,.7); line-height: 1.5; }
+  .gest-pip.big { left: 50%; top: 50%; bottom: auto; width: min(1000px, 74vw); z-index: 55; border-color: rgba(61,255,154,.42);
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 40px rgba(61,255,154,.12); animation: gp-big-in .3s cubic-bezier(.2,.8,.2,1) both; }
+  .gest-pip.big video, .gest-pip.big canvas { height: min(55.5vw, 750px, 74vh); }
+  .gest-pip.big .gp-top { top: 10px; left: 12px; right: 10px; font-size: 14px; }
+  .gest-pip.big .gp-top .hc-btn { width: 28px; height: 28px; }
+  .gest-pip.big .gp-bar { font-size: 15px; padding: 10px 14px 6px; }
+  .gest-pip.big .gp-legend { display: block; }
+  .gest-pip.big::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 12px;
+    background: repeating-linear-gradient(0deg, rgba(61,255,154,.04) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse at center, transparent 55%, rgba(0,8,4,.45)); }
+  @keyframes gp-big-in { from { opacity: 0; transform: translate(-50%,-47%) scale(.97); } to { opacity: 1; transform: translate(-50%,-50%); } }
+  .gest-flash { position: absolute; left: 50%; top: 42%; transform: translate(-50%,-50%) scale(.6); font-size: 84px; opacity: 0;
+    pointer-events: none; z-index: 7; filter: drop-shadow(0 0 22px rgba(61,255,154,.55)); }
+  .gest-flash.on { animation: g-flash .9s cubic-bezier(.2,.8,.2,1) forwards; }
+  @keyframes g-flash { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.6); } 25% { opacity: 1; transform: translate(-50%,-50%) scale(1.05); }
+    100% { opacity: 0; transform: translate(-50%,-50%) scale(1.25); } }
+  .air-cursor { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 80; pointer-events: none; will-change: transform; }
+  .air-cursor[hidden] { display: none; }
+  .air-cursor i { position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; border-radius: 50%; border: 2px solid #3DFF9A;
+    box-shadow: 0 0 14px rgba(61,255,154,.6), inset 0 0 8px rgba(61,255,154,.4); transition: transform .12s, background .12s; }
+  .air-cursor i::after { content: ""; position: absolute; left: 11px; top: 11px; width: 4px; height: 4px; border-radius: 50%; background: #EAFFF4; }
+  .air-cursor.down i { transform: scale(.7); background: rgba(61,255,154,.35); }
+  /* ===================== Перемещение и панель возможностей ===================== */
+  .gest-pip { cursor: grab; }
+  .gest-pip.dragging, .gest-help.dragging, .hcard.dragging { transition: none !important; cursor: grabbing;
+    box-shadow: 0 20px 50px rgba(0,0,0,.55), 0 0 30px rgba(61,255,154,.15); }
+  .hcard.moved { position: fixed; z-index: 5; }
+  .gest-help { position: fixed; width: 300px; max-height: 72vh; display: flex; flex-direction: column; z-index: 56; border-radius: 12px;
+    background: rgba(4,10,22,.86); border: 1px solid rgba(61,255,154,.25); box-shadow: 0 10px 34px rgba(0,0,0,.45);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); color: var(--text); pointer-events: auto; }
+  .gest-help[hidden] { display: none; }
+  .gh-head { display: flex; align-items: center; gap: 8px; padding: 9px 10px 9px 12px; cursor: grab; border-bottom: 1px solid rgba(61,255,154,.12); }
+  .gh-head b { flex: 1; font-size: 13px; color: #EAFFF4; letter-spacing: .03em; }
+  .gest-help.collapsed .gh-body { display: none; }
+  .gest-help.collapsed .gh-head { border-bottom: 0; }
+  .gh-toggle svg { transition: transform .2s; }
+  .gest-help.collapsed .gh-toggle svg { transform: rotate(-90deg); }
+  .gh-body { overflow: auto; padding: 2px 10px 10px; }
+  .gh-body h5 { margin: 10px 2px 4px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: rgba(157,255,200,.7); font-weight: 600; }
+  .gh-row { display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px;
+    font-size: 12.5px; transition: background .2s; }
+  .gh-row b { font-weight: 500; color: #DDEBFF; }
+  .gh-row span:last-child { color: var(--muted); font-size: 12px; text-align: right; }
+  .gh-i { font-size: 15px; text-align: center; }
+  .gh-row.live { background: rgba(61,255,154,.12); box-shadow: inset 2px 0 0 #3DFF9A; }
+  .gh-row.fired { animation: gh-fire .9s ease; }
+  @keyframes gh-fire { 0% { background: rgba(61,255,154,.45); } 100% { background: transparent; } }
+  .gh-say { font-size: 12px; color: #C9D8F0; padding: 3px 6px; }
 </style>
 
 </head>
@@ -558,6 +651,12 @@
 <div class="hud">
   <svg class="trace" id="trace" aria-hidden="true"></svg>
   <div class="holo" id="holo"></div>
+  <div class="gest-pip" id="gestPip" hidden><video playsinline muted></video><canvas></canvas>
+    <div class="gp-top"><span class="gp-dot"></span><b data-i18n="gs_cam">Жесты</b><button class="hc-btn gp-big" data-i18n-aria="gs_big" aria-label="Зеркало во весь экран">⤢</button><button class="hc-btn gp-min" data-i18n-aria="gs_min" aria-label="Свернуть">–</button><button class="hc-btn gp-x" data-i18n-aria="gs_min" aria-label="Свернуть">×</button></div>
+    <div class="gp-bar"><svg class="gp-ring" width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#3DFF9A" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="62.8" stroke-dashoffset="62.8" transform="rotate(-90 12 12)"/></svg><span class="gp-label"></span></div><div class="gp-legend" data-i18n="gs_legend"></div></div>
+  <div class="gest-flash" id="gestFlash" aria-hidden="true"></div>
+  <div class="air-cursor" id="airCursor" hidden aria-hidden="true"><i></i></div>
+  <aside class="gest-help" id="gestHelp" hidden><div class="gh-head"><span class="gh-i">✨</span><b data-i18n="gh_title">Что умеет Atlas</b><button class="hc-btn gh-toggle" aria-expanded="true" data-i18n-aria="gh_toggle" aria-label="Свернуть / развернуть"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 4.5l3 3 3-3"/></svg></button></div><div class="gh-body"></div></aside>
   <div class="holo-full" id="holoFull" role="dialog" aria-modal="true" hidden></div>
   <div class="clock"><span class="time" id="clockTime">--:--</span><span class="date" id="clockDate"></span></div>
   <div class="reticle" id="reticle" data-state="idle" aria-hidden="true">
@@ -654,6 +753,11 @@
     <label class="switch"><input type="checkbox" id="spkToggle"><span data-i18n="spk_toggle">Отвечать только на мой голос</span></label>
     <button class="chip" id="spkEnroll" data-i18n="spk_enroll">Записать мой голос</button>
     <p class="hint" id="spkStatus"></p>
+    <h4 data-i18n="gs_title">Жесты и хлопки</h4>
+    <div class="tool-grid"><button class="chip" id="gestBtn" aria-pressed="false" data-i18n="gs_camera">Жесты через камеру</button>
+    <button class="chip" id="gestPrevBtn" aria-pressed="true" data-i18n="gs_preview">Показывать камеру</button>
+    <button class="chip" id="clapBtn" aria-pressed="true" data-i18n="gs_claps">Два хлопка — разбудить</button></div>
+    <p class="hint" data-i18n="gs_legend"></p>
     <h4 data-i18n="win_title">Окна</h4>
     <button class="chip" id="resetLayout" data-i18n="win_reset">Вернуть окна на места</button>
     <p class="hint" data-i18n="win_hint"></p>
@@ -1685,7 +1789,28 @@
       searching: 'Ищу…', opening: 'Открываю…',
       mem_facts: 'Граф знаний', mem_saved: 'Сохранённые факты', mem_episodes: 'Эпизоды разговоров',
       mem_empty: 'Пока пусто.', forget: 'Забыть', replaced: 'устарело', you_node: 'Вы',
-      holo_expand: 'Развернуть', holo_close: 'Закрыть', holo_analyzing: 'Смотрю…', holo_fail: 'Не получилось разобрать — выдели чуть больше.',
+      gs_title: 'Жесты и хлопки', gs_camera: 'Жесты через камеру', gs_preview: 'Показывать камеру', gs_claps: 'Два хлопка — разбудить',
+      gs_legend: '👋 помаши — Atlas слушает · ✋ подержи ладонь — замолчать · 👍 / 👎 — «да» / «нет» · ✌ — зеркало · ✊ подержи кулак — музыка (пауза / играть) · ☝ укажи пальцем — курсор, коснись большим пальцем — щелчок · 🙌 две ладони — убрать всё · смахни ← → — листать фото · ↑ — открыть · ↓ — закрыть · 🤏 щепоть и вверх/вниз — масштаб',
+      gs_cam: 'Жесты', gs_min: 'Свернуть', gs_loading: 'Загружаю распознавание рук…', gs_show_hand: 'Покажи руку в камеру', gs_hand_ok: 'Рука видна',
+      gs_no_cam: 'Камера не найдена', gs_no_cam_perm: 'Нет доступа к камере — разреши его для окна Atlas', gs_load_fail: 'Не загрузилось распознавание рук (нужен интернет)',
+      gs_no_question: 'Atlas сейчас ни о чём не спрашивает', gs_mirror: 'Atlas видит тебя', gs_g_thumbs_down: 'Дизлайк', gs_g_ok: 'Окей', gs_g_rock: 'Рок',
+      gs_g_call: 'Позвони', gs_g_two_palms: 'Две ладони', gs_a_no: '«нет»', gs_a_mirror: 'зеркало', gs_a_clear: 'убрать всё',
+      gs_cursor: 'Курсор — щепоть или касание большим пальцем = щелчок', gs_fingers: 'Б У С Б М',
+      gh_title: 'Что умеет Atlas', gh_toggle: 'Свернуть / развернуть', gh_hold: 'Подержи жест', gh_moves: 'Движения', gh_cursor: 'Курсор',
+      gh_sound: 'Звук', gh_voice: 'Голосом', gh_wave: 'Помахать', gh_wave_a: 'Atlas слушает', gh_swipe: 'Смахнуть', gh_swipe_a: 'листать фото',
+      gh_up: 'Смахнуть вверх', gh_up_a: 'открыть карточку', gh_down: 'Смахнуть вниз', gh_down_a: 'закрыть', gh_zoom_a: 'масштаб: вверх / вниз',
+      gh_point: 'Указать пальцем', gh_point_a: 'курсор', gh_tap: 'Щепоть или касание', gh_tap_a: 'щелчок', gh_clap: 'Два хлопка', gh_clap_a: 'Atlas слушает',
+      gh_v1: 'Атлас, покажи меня', gh_v2: 'покажи погоду в Турции', gh_v3: 'покажи Эйфелеву башню', gh_v4: 'посмотри, что у меня в руке',
+      gh_v5: 'покажи, что ты обо мне знаешь', gh_v6: 'научись конвертировать валюты', gh_v7: 'давай повторим SAT', gh_v8: 'подведи итоги дня',
+      gh_v9: 'выключи жесты', gs_big: 'Зеркало во весь экран', gs_right: 'Правая', gs_left: 'Левая', gs_g_palm: 'Ладонь', gs_g_fist: 'Кулак', gs_g_thumbs: 'Класс', gs_g_victory: 'Победа',
+      gs_g_point: 'Указатель', gs_g_pinch: 'Щепоть', gs_a_stop: 'замолчать', gs_a_yes: '«да»', gs_a_pause: 'музыка: пауза / играть',
+      holo_expand: 'Развернуть', holo_nodes: 'понятий', holo_edges: 'связей', holo_forget: 'Забыть',
+      holo_search: 'Найти в памяти…', holo_no_facts: 'Граф пока пустой — расскажи Atlas о себе, и он начнёт расти.',
+      holo_hint_graph: 'Тяни узлы · колесо — масштаб · тяни фон — двигать · щелчок по узлу — его связи · двойной щелчок — по размеру · Esc — закрыть',
+      rel_names: { prepares_for: 'готовится к', exam_date: 'дата экзамена', weak_area: 'слабое место', strong_area: 'сильная сторона',
+        likes: 'нравится', dislikes: 'не нравится', lives_in: 'живёт в', studies_at: 'учится в', works_on: 'работает над', uses: 'пользуется',
+        goal: 'цель', deadline: 'срок', teacher_of: 'учитель', has_score: 'результат', interested_in: 'интересуется', knows: 'знает',
+        wants: 'хочет', has: 'есть', is: '—', member_of: 'участник', friend_of: 'друг', parent_of: 'родитель', plays: 'играет' }, holo_close: 'Закрыть', holo_analyzing: 'Смотрю…', holo_fail: 'Не получилось разобрать — выдели чуть больше.',
       holo_hint: 'Колесо — масштаб · ЛКМ — обвести и спросить · ПКМ или пробел — двигать · двойной щелчок — по размеру · Esc — закрыть',
       holo_hint_wx: 'Тяни по графику или ← → (Shift — по дням) · Home — сейчас · Esc — закрыть',
       holo_now: 'Сейчас', holo_past: 'Было', holo_future: 'Прогноз', holo_feels: 'ощущается как', holo_precip: 'Осадки',
@@ -1706,7 +1831,7 @@
         recall_conversations: 'вспомнить', play_on_rezka: 'фильм', play_on_spotify: 'музыка', browser_open: 'браузер', browser_click: 'клик',
         read_screen: 'чтение экрана', click_on_screen: 'нажатие на экране', start_mission: 'миссия', list_today_events: 'календарь',
         get_recent_emails: 'почта', add_note: 'заметка', add_todo: 'задача', list_todos: 'задачи', set_timer: 'таймер', calculate: 'вычисление',
-        translate_text: 'перевод', tell_joke: 'шутка', learn_skill: 'учусь новому', run_routine: 'ритуал', heal_apply: 'исправление', holo_show: 'голо-экран', holo_weather: 'погода на экране', look: 'смотрю', day_report: 'итоги дня', study_start: 'тренировка', desktop_look: 'смотрю окно', desktop_click: 'нажатие', desktop_type: 'ввод текста',
+        translate_text: 'перевод', tell_joke: 'шутка', learn_skill: 'учусь новому', run_routine: 'ритуал', heal_apply: 'исправление', holo_graph: 'граф памяти', holo_show: 'голо-экран', holo_weather: 'погода на экране', look: 'смотрю', day_report: 'итоги дня', study_start: 'тренировка', desktop_look: 'смотрю окно', desktop_click: 'нажатие', desktop_type: 'ввод текста',
         desktop_hotkey: 'клавиши', desktop_scroll: 'прокрутка', desktop_switch: 'другое окно', desktop_windows: 'окна',
         desktop_read_text: 'чтение окна', desktop_screenshot_describe: 'смотрю на снимок', open_app: 'запуск программы',
         browser_read_text: 'читаю страницу', browser_type: 'ввод', browser_find: 'поиск на странице', browser_tabs: 'вкладки' },
@@ -1780,7 +1905,27 @@
       searching: 'Searching…', opening: 'Opening…',
       mem_facts: 'Knowledge graph', mem_saved: 'Saved facts', mem_episodes: 'Conversation episodes',
       mem_empty: 'Nothing yet.', forget: 'Forget', replaced: 'outdated', you_node: 'You',
-      holo_expand: 'Expand', holo_close: 'Close', holo_analyzing: 'Looking…', holo_fail: "Couldn't make it out — select a bit more.",
+      gs_title: 'Gestures and claps', gs_camera: 'Gestures via camera', gs_preview: 'Show camera', gs_claps: 'Two claps — wake up',
+      gs_legend: '👋 wave — Atlas listens · ✋ hold palm — stop · 👍 / 👎 — yes / no · ✌ — mirror · ✊ hold fist — music pause / play · ☝ point — cursor, tap your thumb — click · 🙌 two palms — clear all · swipe ← → — flip photos · ↑ — open · ↓ — close · 🤏 pinch and up/down — zoom',
+      gs_cam: 'Gestures', gs_min: 'Collapse', gs_loading: 'Loading hand tracking…', gs_show_hand: 'Show your hand to the camera', gs_hand_ok: 'Hand visible',
+      gs_no_cam: 'No camera found', gs_no_cam_perm: 'No camera access — allow it for the Atlas window', gs_load_fail: "Hand tracking didn't load (needs internet)",
+      gs_no_question: "Atlas isn't asking anything right now", gs_mirror: 'Atlas sees you', gs_g_thumbs_down: 'Thumbs down', gs_g_ok: 'OK', gs_g_rock: 'Rock',
+      gs_g_call: 'Call me', gs_g_two_palms: 'Two palms', gs_a_no: '"no"', gs_a_mirror: 'mirror', gs_a_clear: 'clear all',
+      gs_cursor: 'Cursor — pinch or tap your thumb to click', gs_fingers: 'T I M R P',
+      gh_title: 'What Atlas can do', gh_toggle: 'Collapse / expand', gh_hold: 'Hold a gesture', gh_moves: 'Motions', gh_cursor: 'Cursor',
+      gh_sound: 'Sound', gh_voice: 'By voice', gh_wave: 'Wave', gh_wave_a: 'Atlas listens', gh_swipe: 'Swipe', gh_swipe_a: 'flip photos',
+      gh_up: 'Swipe up', gh_up_a: 'open card', gh_down: 'Swipe down', gh_down_a: 'close', gh_zoom_a: 'zoom: up / down',
+      gh_point: 'Point a finger', gh_point_a: 'cursor', gh_tap: 'Pinch or thumb tap', gh_tap_a: 'click', gh_clap: 'Two claps', gh_clap_a: 'Atlas listens',
+      gh_v1: 'Atlas, show me', gh_v2: 'show the weather in Turkey', gh_v3: 'show the Eiffel Tower', gh_v4: "look at what's in my hand",
+      gh_v5: 'show what you know about me', gh_v6: 'learn to convert currencies', gh_v7: "let's review SAT", gh_v8: 'recap my day',
+      gh_v9: 'turn off gestures', gs_big: 'Full mirror view', gs_right: 'Right', gs_left: 'Left', gs_g_palm: 'Palm', gs_g_fist: 'Fist', gs_g_thumbs: 'Thumbs up', gs_g_victory: 'Victory',
+      gs_g_point: 'Pointing', gs_g_pinch: 'Pinch', gs_a_stop: 'stop', gs_a_yes: '"yes"', gs_a_pause: 'music: pause / play',
+      holo_expand: 'Expand', holo_nodes: 'concepts', holo_edges: 'links', holo_forget: 'Forget',
+      holo_search: 'Search memory…', holo_no_facts: 'The graph is empty so far — tell Atlas about yourself and it will grow.',
+      holo_hint_graph: 'Drag nodes · wheel — zoom · drag background — pan · click a node — its links · double-click — fit · Esc — close',
+      rel_names: { prepares_for: 'prepares for', exam_date: 'exam date', weak_area: 'weak area', strong_area: 'strong area',
+        lives_in: 'lives in', studies_at: 'studies at', works_on: 'works on', teacher_of: 'teacher of', has_score: 'score',
+        interested_in: 'interested in', member_of: 'member of', friend_of: 'friend of', parent_of: 'parent of' }, holo_close: 'Close', holo_analyzing: 'Looking…', holo_fail: "Couldn't make it out — select a bit more.",
       holo_hint: 'Wheel — zoom · Left-drag — circle and ask · Right-drag or Space — pan · Double-click — fit · Esc — close',
       holo_hint_wx: 'Drag the chart or ← → (Shift — by day) · Home — now · Esc — close',
       holo_now: 'Now', holo_past: 'Past', holo_future: 'Forecast', holo_feels: 'feels like', holo_precip: 'Precipitation',
@@ -1801,7 +1946,7 @@
         recall_conversations: 'recall', play_on_rezka: 'movie', play_on_spotify: 'music', browser_open: 'browser', browser_click: 'click',
         read_screen: 'reading the screen', click_on_screen: 'clicking on screen', start_mission: 'mission', list_today_events: 'calendar',
         get_recent_emails: 'mail', add_note: 'note', add_todo: 'task', list_todos: 'tasks', set_timer: 'timer', calculate: 'calculation',
-        translate_text: 'translation', tell_joke: 'joke', learn_skill: 'learning', run_routine: 'routine', heal_apply: 'fix', holo_show: 'holo screen', holo_weather: 'weather on screen', look: 'looking', day_report: 'daily recap', study_start: 'study session', desktop_look: 'looking at the window', desktop_click: 'click', desktop_type: 'typing',
+        translate_text: 'translation', tell_joke: 'joke', learn_skill: 'learning', run_routine: 'routine', heal_apply: 'fix', holo_graph: 'memory graph', holo_show: 'holo screen', holo_weather: 'weather on screen', look: 'looking', day_report: 'daily recap', study_start: 'study session', desktop_look: 'looking at the window', desktop_click: 'click', desktop_type: 'typing',
         desktop_hotkey: 'shortcut', desktop_scroll: 'scroll', desktop_switch: 'switch window', desktop_windows: 'windows',
         desktop_read_text: 'reading the window', desktop_screenshot_describe: 'looking at a screenshot', open_app: 'opening app',
         browser_read_text: 'reading the page', browser_type: 'typing', browser_find: 'find on page', browser_tabs: 'tabs' },
@@ -2779,6 +2924,7 @@
 
   function holoHTML(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
   function holoIcon(kind) {
+    if (kind === 'graph') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2.2"/><circle cx="2.8" cy="3.5" r="1.4"/><circle cx="13.2" cy="4" r="1.4"/><circle cx="4" cy="13" r="1.4"/><circle cx="13" cy="12.5" r="1.4"/><path d="M6.3 6.6L3.9 4.5M9.8 6.8l2.3-2M6.5 9.6L4.9 12M9.7 9.4l2.3 2.3"/></svg>';
     return kind === 'weather'
       ? '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="6" cy="6" r="2.6"/><path d="M6 1v1.2M6 9.8V11M1 6h1.2M9.8 6H11M2.5 2.5l.8.8M8.7 8.7l.8.8M9.5 2.5l-.8.8"/><path d="M7 14h6a2.4 2.4 0 0 0 0-4.8 3.3 3.3 0 0 0-6.2 1"/></svg>'
       : '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M1.5 11l4-4 3 3 2-2 4 4"/><circle cx="11" cy="5.5" r="1.2"/></svg>';
@@ -2815,7 +2961,11 @@
     el.innerHTML = '<div class="hc-head"><span class="hc-ico">' + holoIcon(it.kind) + '</span><b>' + holoHTML(it.title) + '</b>' +
       '<button class="hc-btn" data-a="expand" title="' + t('holo_expand') + '" aria-label="' + t('holo_expand') + '"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M7 1.5h3.5V5M5 10.5H1.5V7M10.5 1.5L7 5M1.5 10.5L5 7"/></svg></button>' +
       '<button class="hc-btn" data-a="close" title="' + t('holo_close') + '" aria-label="' + t('holo_close') + '"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 3l6 6M9 3L3 9"/></svg></button></div>';
-    if (it.kind === 'weather') {
+    if (it.kind === 'graph') {
+      el.insertAdjacentHTML('beforeend', '<canvas class="hc-graph" width="300" height="150"></canvas><p class="hc-cap">' +
+        it.nodes.length + ' ' + t('holo_nodes') + ' · ' + it.edges.length + ' ' + t('holo_edges') + '</p>');
+      requestAnimationFrame(function () { drawGraphPreview(el.querySelector('.hc-graph'), it); });
+    } else if (it.kind === 'weather') {
       const c = it.current || {};
       el.insertAdjacentHTML('beforeend', '<div class="hc-wx"><span class="hc-temp">' + Math.round(c.t) + '°</span><span>' + holoHTML(c.text) +
         '<small>' + t('holo_wind') + ' ' + Math.round(c.wind || 0) + ' ' + t('holo_kmh') + '</small></span></div><canvas class="hc-spark" width="300" height="56"></canvas>' +
@@ -2836,11 +2986,13 @@
       }
     }
     el.addEventListener('click', function (e) {
+      if (el._dragged && Date.now() - el._dragged < 400) return;      // это было перетаскивание, а не щелчок
       const b = e.target.closest('.hc-btn');
       if (b && b.dataset.a === 'close') { call('holo_command_ui', 'close', it.id).catch(console.log); return; }
       openHoloView(holoCards.get(it.id).item);
     });
     el.addEventListener('keydown', function (e) { if (e.key === 'Enter') openHoloView(holoCards.get(it.id).item); });
+    makeMovable(el, el, null);                                      // карточку можно утащить в любое место экрана
     return el;
   }
 
@@ -2886,12 +3038,13 @@
     requestAnimationFrame(function () { holoFull.classList.add('on'); });
     const panel = document.createElement('div'); panel.className = 'hf-panel';
     panel.innerHTML = '<div class="hf-head"><span class="hc-ico">' + holoIcon(it.kind) + '</span><b>' + holoHTML(it.title) + '</b>' +
-      '<small class="hf-hint">' + (it.kind === 'weather' ? t('holo_hint_wx') : t('holo_hint')) + '</small>' +
+      '<small class="hf-hint">' + (it.kind === 'graph' ? t('holo_hint_graph') : it.kind === 'weather' ? t('holo_hint_wx') : t('holo_hint')) + '</small>' +
       '<button class="hc-btn" data-a="close" aria-label="' + t('holo_close') + '"><svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 3l6 6M9 3L3 9"/></svg></button></div>';
     holoFull.appendChild(panel);
     panel.querySelector('[data-a="close"]').addEventListener('click', function () { closeHoloView(true); });
     holoView = { id: it.id, item: it, fromVoice: !!it.expanded, cleanup: [] };
-    if (it.kind === 'weather') buildWeatherView(panel, it);
+    if (it.kind === 'graph') buildGraphView(panel, it);
+    else if (it.kind === 'weather') buildWeatherView(panel, it);
     else {
       const c = holoCards.get(it.id), i = (c && c.cur) || 0;
       buildImageView(panel, it.alts && it.alts[i] ? Object.assign({}, it, it.alts[i], { title: it.title, caption: it.caption, cur: i }) : it);
@@ -3069,6 +3222,217 @@
     }
   }
 
+  // ======================================================================
+  // Граф знаний: созвездие памяти
+  // ======================================================================
+  function relName(r) {
+    const m = (I18N[lang] || {}).rel_names || {};
+    return m[r] || String(r || '').replace(/_/g, ' ');
+  }
+  function graphDepths(it) {                                   // расстояние каждого узла от «тебя»
+    const adj = new Map(); it.nodes.forEach(function (n) { adj.set(n.id, []); });
+    it.edges.forEach(function (e) { if (adj.has(e.s) && adj.has(e.t)) { adj.get(e.s).push(e.t); adj.get(e.t).push(e.s); } });
+    const root = (it.nodes.find(function (n) { return n.user; }) || it.nodes[0] || {}).id;
+    const depth = new Map(); if (root === undefined) return { depth: depth, adj: adj, root: root };
+    depth.set(root, 0); const q = [root];
+    while (q.length) { const v = q.shift(); adj.get(v).forEach(function (w) { if (!depth.has(w)) { depth.set(w, depth.get(v) + 1); q.push(w); } }); }
+    it.nodes.forEach(function (n) { if (!depth.has(n.id)) depth.set(n.id, 3); });
+    return { depth: depth, adj: adj, root: root };
+  }
+  function drawGraphPreview(cv, it) {                          // карточка: кольца по удалённости от тебя
+    if (!cv) return;
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 300, h = cv.clientHeight || 150;
+    cv.width = w * dpr; cv.height = h * dpr;
+    const g = cv.getContext('2d'); g.scale(dpr, dpr);
+    const D = graphDepths(it), pos = new Map(), rings = {};
+    it.nodes.forEach(function (n) { const d = Math.min(3, D.depth.get(n.id)); (rings[d] = rings[d] || []).push(n.id); });
+    Object.keys(rings).forEach(function (d) {
+      const list = rings[d], R = d * Math.min(w, h * 1.6) * 0.16;
+      list.forEach(function (id, i) { const a = i / list.length * Math.PI * 2 + d * 0.7; pos.set(id, [w / 2 + Math.cos(a) * R * 1.5, h / 2 + Math.sin(a) * R * 0.82]); });
+    });
+    g.strokeStyle = 'rgba(134,214,255,.18)'; g.lineWidth = 0.8;
+    it.edges.forEach(function (e) { const a = pos.get(e.s), b = pos.get(e.t); if (a && b) { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); } });
+    it.nodes.forEach(function (n) {
+      const p = pos.get(n.id), r = n.user ? 4.5 : 2;
+      g.fillStyle = n.user ? '#FFE6A8' : (D.depth.get(n.id) === 1 ? '#86D6FF' : '#8E9CFF');
+      g.shadowColor = g.fillStyle; g.shadowBlur = n.user ? 14 : 6;
+      g.beginPath(); g.arc(p[0], p[1], r, 0, 7); g.fill();
+    });
+    g.shadowBlur = 0;
+  }
+
+  function buildGraphView(panel, it) {
+    if (!it.edges.length) { const e = document.createElement('div'); e.className = 'empty'; e.style.margin = '40px auto'; e.textContent = t('holo_no_facts'); panel.appendChild(e); return; }
+    const wrap = document.createElement('div'); wrap.className = 'gv-wrap';
+    wrap.innerHTML = '<canvas class="gv-canvas"></canvas><input class="gv-search" type="search" placeholder="' + t('holo_search') + '" aria-label="' + t('holo_search') + '">' +
+      '<div class="gv-stats"></div><aside class="gv-side" hidden></aside>';
+    panel.appendChild(wrap);
+    const cv = wrap.querySelector('canvas'), search = wrap.querySelector('.gv-search'), side = wrap.querySelector('.gv-side');
+    const D = graphDepths(it);
+    const N = it.nodes.map(function (n) {
+      const d = D.depth.get(n.id), a = Math.random() * Math.PI * 2, r = n.user ? 0 : 80 + d * 90 + Math.random() * 40;
+      return { id: n.id, label: n.label, user: n.user, depth: d, deg: (D.adj.get(n.id) || []).length, x: Math.cos(a) * r, y: Math.sin(a) * r, vx: 0, vy: 0, fixed: n.user };
+    });
+    const byId = new Map(N.map(function (n) { return [n.id, n]; }));
+    let E = it.edges.filter(function (e) { return byId.has(e.s) && byId.has(e.t); }).map(function (e) { return { id: e.id, s: byId.get(e.s), t: byId.get(e.t), rel: e.rel }; });
+    const stats = wrap.querySelector('.gv-stats');
+    function updStats() { stats.textContent = N.length + ' ' + t('holo_nodes') + ' · ' + E.length + ' ' + t('holo_edges'); }
+    updStats();
+    const V = { s: 1, x: 0, y: 0 }; let alpha = 1, raf = 0, sel = null, hover = null, query = (it.focus || '');
+    search.value = query;
+    const stars = []; for (let i = 0; i < 220; i++) stars.push([Math.random(), Math.random(), Math.random() * 1.1 + 0.2, Math.random()]);
+
+    function size() {
+      const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+      if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+      return { w: w, h: h, dpr: dpr };
+    }
+    function fit() {
+      const S = size(); let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      N.forEach(function (n) { x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y); x1 = Math.max(x1, n.x); y1 = Math.max(y1, n.y); });
+      const k = Math.min(S.w / Math.max(200, x1 - x0 + 160), S.h / Math.max(200, y1 - y0 + 160));
+      V.s = Math.max(0.25, Math.min(2.2, k)); V.x = S.w / 2 - (x0 + x1) / 2 * V.s; V.y = S.h / 2 - (y0 + y1) / 2 * V.s;
+      kick(0);
+    }
+    function step() {                                          // физика: отталкивание, пружины связей, притяжение к центру
+      const k = 0.06 * alpha;
+      for (let i = 0; i < N.length; i++) {
+        const a = N[i];
+        for (let j = i + 1; j < N.length; j++) {
+          const b = N[j]; let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy + 0.01;
+          if (d2 > 250000) continue;
+          const f = 2600 / d2, d = Math.sqrt(d2); dx /= d; dy /= d;
+          a.vx += dx * f * k; a.vy += dy * f * k; b.vx -= dx * f * k; b.vy -= dy * f * k;
+        }
+      }
+      E.forEach(function (e) {
+        const dx = e.t.x - e.s.x, dy = e.t.y - e.s.y, d = Math.sqrt(dx * dx + dy * dy) || 1, rest = e.s.user || e.t.user ? 150 : 110;
+        const f = (d - rest) * 0.02 * alpha; e.s.vx += dx / d * f; e.s.vy += dy / d * f; e.t.vx -= dx / d * f; e.t.vy -= dy / d * f;
+      });
+      N.forEach(function (n) {
+        if (n.fixed || n === drag.node) { n.vx = n.vy = 0; return; }
+        n.vx -= n.x * 0.0015 * alpha; n.vy -= n.y * 0.0015 * alpha;
+        n.vx *= 0.82; n.vy *= 0.82; n.x += n.vx; n.y += n.vy;
+      });
+      alpha *= 0.985;
+    }
+    const W2S = function (n) { return [V.x + n.x * V.s, V.y + n.y * V.s]; };
+    function match(n) { return query && n.label.toLowerCase().indexOf(query) >= 0; }
+    function neighbors(n) { const s = new Set(); E.forEach(function (e) { if (e.s === n) s.add(e.t); if (e.t === n) s.add(e.s); }); return s; }
+    function draw() {
+      const S = size(), g = cv.getContext('2d'); g.setTransform(S.dpr, 0, 0, S.dpr, 0, 0); g.clearRect(0, 0, S.w, S.h);
+      stars.forEach(function (st) { g.fillStyle = 'rgba(200,220,255,' + (0.15 + st[3] * 0.35) + ')'; g.fillRect(st[0] * S.w, st[1] * S.h, st[2], st[2]); });
+      const focusSet = sel ? neighbors(sel) : null;
+      E.forEach(function (e) {
+        const a = W2S(e.s), b = W2S(e.t), on = sel && (e.s === sel || e.t === sel);
+        g.strokeStyle = on ? 'rgba(134,214,255,.85)' : (sel ? 'rgba(134,214,255,.06)' : 'rgba(134,214,255,.2)');
+        g.lineWidth = on ? 1.6 : 1; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+        if (on || (V.s > 1.4 && !sel)) {
+          g.fillStyle = on ? 'rgba(234,246,255,.9)' : 'rgba(170,190,230,.55)'; g.font = '500 11px "Exo 2", sans-serif'; g.textAlign = 'center';
+          g.fillText(relName(e.rel), (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - 4);
+        }
+      });
+      N.forEach(function (n) {
+        const p = W2S(n), dim = sel && n !== sel && !focusSet.has(n), hit = match(n);
+        const r = (n.user ? 9 : 3.5 + Math.min(5, n.deg * 0.8)) * Math.max(0.7, Math.min(1.4, V.s));
+        const col = n.user ? '255,230,168' : (n.depth === 1 ? '134,214,255' : '150,160,255');
+        const glow = g.createRadialGradient(p[0], p[1], 0, p[0], p[1], r * 3.2);
+        glow.addColorStop(0, 'rgba(' + col + ',' + (dim ? 0.15 : 0.55) + ')'); glow.addColorStop(1, 'rgba(' + col + ',0)');
+        g.fillStyle = glow; g.beginPath(); g.arc(p[0], p[1], r * 3.2, 0, 7); g.fill();
+        g.fillStyle = 'rgba(' + col + ',' + (dim ? 0.3 : 1) + ')'; g.beginPath(); g.arc(p[0], p[1], r, 0, 7); g.fill();
+        if (hit || n === sel) { g.strokeStyle = hit ? '#FFC478' : '#EAF6FF'; g.lineWidth = 1.5; g.beginPath(); g.arc(p[0], p[1], r + 5, 0, 7); g.stroke(); }
+        if (!dim && (n.user || n === hover || n === sel || hit || n.deg >= 3 || V.s > 1.1 || (sel && focusSet.has(n)))) {
+          g.font = (n.user ? '600 14px' : '500 12px') + ' "Exo 2", sans-serif'; g.textAlign = 'center';
+          g.lineWidth = 3; g.strokeStyle = 'rgba(2,4,10,.85)'; g.strokeText(n.label, p[0], p[1] + r + 14);
+          g.fillStyle = n.user ? '#FFE6A8' : '#D6E4FF'; g.fillText(n.label, p[0], p[1] + r + 14);
+        }
+      });
+    }
+    function loop() {
+      raf = 0;
+      if (alpha > 0.02) step();
+      draw();
+      if (alpha > 0.02 || drag.node) raf = requestAnimationFrame(loop);
+    }
+    function kick(a) { alpha = Math.max(alpha, a); if (!raf) raf = requestAnimationFrame(loop); }
+
+    function nodeAt(mx, my) {
+      let best = null, bd = 18;
+      N.forEach(function (n) { const p = W2S(n), d = Math.hypot(p[0] - mx, p[1] - my); if (d < bd) { bd = d; best = n; } });
+      return best;
+    }
+    const drag = { node: null, pan: false, sx: 0, sy: 0, ox: 0, oy: 0, moved: false };
+    let space = false;
+    cv.addEventListener('pointerdown', function (e) {
+      const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, n = nodeAt(mx, my);
+      cv.setPointerCapture(e.pointerId); drag.moved = false; drag.sx = mx; drag.sy = my;
+      if (n && e.button === 0 && !space) { drag.node = n; kick(0.3); }
+      else { drag.pan = true; drag.ox = V.x; drag.oy = V.y; cv.classList.add('panning'); }
+    });
+    cv.addEventListener('pointermove', function (e) {
+      const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      if (Math.hypot(mx - drag.sx, my - drag.sy) > 4) drag.moved = true;
+      if (drag.node) { drag.node.x = (mx - V.x) / V.s; drag.node.y = (my - V.y) / V.s; kick(0.3); }
+      else if (drag.pan) { V.x = drag.ox + mx - drag.sx; V.y = drag.oy + my - drag.sy; kick(0); }
+      else { const h = nodeAt(mx, my); if (h !== hover) { hover = h; cv.style.cursor = h ? 'pointer' : 'grab'; kick(0); } }
+    });
+    cv.addEventListener('pointerup', function () {
+      const n = drag.node;
+      if (n && !drag.moved) select(n);
+      if (!n && !drag.moved && !drag.pan) select(null);
+      if (drag.pan && !drag.moved) select(null);
+      drag.node = null; drag.pan = false; cv.classList.remove('panning'); kick(0);
+    });
+    cv.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      const ns = Math.min(4, Math.max(0.2, V.s * Math.exp(-e.deltaY * 0.0015)));
+      V.x = mx - (mx - V.x) * ns / V.s; V.y = my - (my - V.y) * ns / V.s; V.s = ns; kick(0);
+    }, { passive: false });
+    cv.addEventListener('dblclick', fit);
+    cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    const kd = function (e) { if (e.code === 'Space' && document.activeElement !== search) { space = true; } };
+    const ku = function (e) { if (e.code === 'Space') space = false; };
+    window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
+
+    function select(n) {
+      sel = n;
+      if (!n) { side.hidden = true; kick(0); return; }
+      const rows = E.filter(function (e) { return e.s === n || e.t === n; });
+      side.hidden = false;
+      side.innerHTML = '<div class="gv-h"><b>' + holoHTML(n.label) + '</b><button class="hc-btn" data-a="x" aria-label="' + t('holo_close') + '">×</button></div>' +
+        '<small class="muted">' + rows.length + ' ' + t('holo_edges') + '</small>';
+      rows.forEach(function (e) {
+        const out = e.s === n, other = out ? e.t : e.s;
+        const row = document.createElement('div'); row.className = 'gv-row';
+        row.innerHTML = '<span>' + (out ? '' : holoHTML(other.label) + ' → ') + '<i>' + holoHTML(relName(e.rel)) + '</i>' + ' → ' + holoHTML(out ? other.label : n.label) + '</span>' +
+          '<button class="gv-forget" title="' + t('holo_forget') + '">' + t('holo_forget') + '</button>';
+        row.querySelector('span').addEventListener('click', function () { center(other); select(other); });
+        row.querySelector('.gv-forget').addEventListener('click', function () {
+          call('holo_graph_forget_ui', e.id).then(function () {
+            E = E.filter(function (x) { return x !== e; });
+            N.forEach(function (m) { m.deg = E.filter(function (x) { return x.s === m || x.t === m; }).length; });
+            updStats(); select(n); kick(0.15);
+          }).catch(console.log);
+        });
+        side.appendChild(row);
+      });
+      side.querySelector('[data-a="x"]').addEventListener('click', function () { select(null); });
+      kick(0);
+    }
+    function center(n) { const S = size(); V.x = S.w / 2 - n.x * V.s; V.y = S.h / 2 - n.y * V.s; kick(0); }
+    search.addEventListener('input', function () { query = search.value.trim().toLowerCase(); kick(0); });
+    search.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { const n = N.find(match); if (n) { center(n); select(n); } }
+      e.stopPropagation();
+    });
+    for (let i = 0; i < 160; i++) step();                      // раскладка «в уме», чтобы граф появился уже красивым
+    alpha = 0.35;
+    const ro = new ResizeObserver(function () { fit(); }); ro.observe(cv);
+    holoView.cleanup.push(function () { ro.disconnect(); cancelAnimationFrame(raf); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); });
+    if (query) setTimeout(function () { const n = N.find(match); if (n) { center(n); select(n); } }, 50);
+  }
+
   // --- погода: шкала времени ---
   function buildWeatherView(panel, it) {
     const H = it.hourly, n = H.time.length, ru = lang === 'ru';
@@ -3141,6 +3505,548 @@
     const ro = new ResizeObserver(draw); ro.observe(cv);
     holoView.cleanup.push(function () { window.removeEventListener('keydown', kd); ro.disconnect(); cancelAnimationFrame(raf); });
     update();
+  }
+
+  // ======================================================================
+  // Жесты: MediaPipe Hand Landmarker прямо в окне Atlas (видеокарта) — v3
+  // ======================================================================
+  const GV = '0.10.14';
+  const GEST = { on: false, starting: false, lm: null, stream: null, raf: 0, lastT: -1, lastRun: 0,
+                 hist: [], votes: [], cand: null, candSince: 0, cool: 0, swipeCool: 0, pinch: null,
+                 trails: [[], []], lastG: null, two: { since: 0 }, cal: { agree: 0, disagree: 0 },
+                 cur: { on: false, since: 0, lost: 0, x: 0, y: 0, pressed: false, ready: true } };
+  const gPip = document.getElementById('gestPip'), gVideo = gPip.querySelector('video'), gCanvas = gPip.querySelector('canvas');
+  const gLabel = gPip.querySelector('.gp-label'), gDot = gPip.querySelector('.gp-dot'), gRing = gPip.querySelector('.gp-ring circle');
+  const gFlash = document.getElementById('gestFlash'), airCur = document.getElementById('airCursor');
+  const BONES = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12],
+                 [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]];
+  const G_ICON = { palm: '✋', fist: '✊', thumbs: '👍', thumbs_down: '👎', victory: '✌️', point: '☝️', pinch: '🤏', ok: '👌',
+                   rock: '🤘', call: '🤙', wave: '👋', two_palms: '🙌', left: '⬅️', right: '➡️', up: '⬆️', down: '⬇️', clap: '👏', tap: '👆' };
+  // что делает удержание жеста; кулак держится чуть дольше — меньше случайных срабатываний
+  const HOLD = { palm: 700, thumbs: 600, thumbs_down: 600, victory: 700, fist: 800 };
+  const ACTION = { palm: 'stop', thumbs: 'yes', thumbs_down: 'no', victory: 'mirror', fist: 'pause' };
+
+  function gPrefs() { return (typeof layout !== 'undefined' && layout._prefs) || {}; }
+  function gSetPref(k, v) { layout._prefs = Object.assign({}, layout._prefs, { [k]: v }); saveLayout(); }
+  function syncGestures() {
+    const p = gPrefs();
+    document.getElementById('gestBtn').setAttribute('aria-pressed', String(!!p.gestures));
+    document.getElementById('gestPrevBtn').setAttribute('aria-pressed', String(p.gestPreview !== false));
+    gPip.classList.toggle('big', !!p.gestBig && p.gestPreview !== false);
+    gPip.classList.toggle('mini', p.gestPreview === false);
+    gPip.querySelector('.gp-top b').textContent = gPip.classList.contains('big') ? t('gs_mirror') : t('gs_cam');
+    clearPos(gPip); restorePos(gPip, gPip.classList.contains('big') ? 'pipBig' : 'pip');
+    gHelp.hidden = !p.gestures;
+    gHelp.classList.toggle('collapsed', p.helpOpen === false);
+    if (!gHelp.querySelector('.gh-row')) buildHelp();
+    requestAnimationFrame(placeHelp);
+    if (p.gestures && !GEST.on) gestStart(); else if (!p.gestures && GEST.on) gestStop();
+  }
+
+  async function gestStart() {
+    if (GEST.on || GEST.starting) return;
+    GEST.starting = true;
+    gPip.hidden = false; gLabel.textContent = t('gs_loading'); gDot.className = 'gp-dot wait';
+    try {
+      if (!GEST.lm) {
+        const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + GV + '/vision_bundle.mjs');
+        const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + GV + '/wasm');
+        const opts = function (delegate) {
+          return { baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task', delegate: delegate },
+                   runningMode: 'VIDEO', numHands: 2, minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5 };
+        };
+        try { GEST.lm = await vision.HandLandmarker.createFromOptions(files, opts('GPU')); }
+        catch (e) { GEST.lm = await vision.HandLandmarker.createFromOptions(files, opts('CPU')); }
+      }
+      GEST.stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user', frameRate: { ideal: 30 } }, audio: false });
+      gVideo.srcObject = GEST.stream; await gVideo.play();
+      GEST.on = true; gDot.className = 'gp-dot on'; gLabel.textContent = t('gs_show_hand');
+      GEST.raf = requestAnimationFrame(gestLoop);
+    } catch (e) {
+      console.log('gestures:', e);
+      gDot.className = 'gp-dot err';
+      gLabel.textContent = /Permission|NotAllowed/i.test(String(e)) ? t('gs_no_cam_perm') : /NotFound|Overconstrained/i.test(String(e)) ? t('gs_no_cam') : t('gs_load_fail');
+    }
+    GEST.starting = false;
+  }
+  function gestStop() {
+    GEST.on = false; cancelAnimationFrame(GEST.raf); cursorOff();
+    if (GEST.stream) GEST.stream.getTracks().forEach(function (tr) { tr.stop(); });
+    GEST.stream = null; gVideo.srcObject = null; gPip.hidden = true; gHelp.hidden = true;
+  }
+
+  // ----------------------------------------------------------------------
+  // Геометрия руки: углы в суставах в 3D — не зависят от наклона и расстояния до камеры
+  // ----------------------------------------------------------------------
+  const sub = function (a, b) { return [a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0)]; };
+  const len = function (v) { return Math.hypot(v[0], v[1], v[2]); };
+  const dist = function (a, b) { return len(sub(a, b)); };
+  function angle(a, b, c) {                                     // угол в суставе b, градусы (180 — палец прямой)
+    const u = sub(a, b), v = sub(c, b), d = len(u) * len(v) || 1;
+    return Math.acos(Math.max(-1, Math.min(1, (u[0] * v[0] + u[1] * v[1] + u[2] * v[2]) / d))) * 180 / Math.PI;
+  }
+  function fingerState(W, mcp) {                                // 1 — выпрямлен, 0 — согнут, 0.5 — непонятно
+    const pip = angle(W[mcp], W[mcp + 1], W[mcp + 2]), dip = angle(W[mcp + 1], W[mcp + 2], W[mcp + 3]);
+    const farther = dist(W[mcp + 3], W[0]) > dist(W[mcp + 1], W[0]);
+    if (pip > 150 && dip > 135 && farther) return 1;
+    if (pip < 140 || !farther) return 0;
+    return 0.5;
+  }
+  function classify(W, L, vw, vh, out) {
+    // W — 3D-координаты в метрах (worldLandmarks), L — точки кадра; vw/vh — пропорции кадра
+    const size = dist(W[0], W[9]) || 0.08;
+    const fi = fingerState(W, 5), fm = fingerState(W, 9), fr = fingerState(W, 13), fp = fingerState(W, 17);
+    const thumbStraight = angle(W[2], W[3], W[4]) > 145 && angle(W[1], W[2], W[3]) > 135;
+    const thumbOut = dist(W[4], W[5]) > size * 0.45 && dist(W[4], W[9]) > size * 0.6;
+    const ft = thumbStraight && thumbOut ? 1 : 0;
+    if (out) out.st = [ft, fi, fm, fr, fp];
+    const ext = [fi, fm, fr, fp].filter(function (v) { return v === 1; }).length;
+    const curled = [fi, fm, fr, fp].filter(function (v) { return v === 0; }).length;
+    const pinchD = dist(W[4], W[8]) / size;
+    const indexOpen = angle(W[5], W[6], W[7]) > 125;           // в кулаке указательный согнут туго — это не щепоть
+    if (pinchD < 0.3 && indexOpen && fm === 1 && fr !== 0) return 'ok';
+    if (pinchD < 0.3 && indexOpen) return 'pinch';
+    if (ext === 4 && ft) return 'palm';
+    if (curled === 4 && ft) {
+      const dx = (L[4].x - L[2].x) * vw, dy = (L[4].y - L[2].y) * vh, l = Math.hypot(dx, dy) || 1;
+      if (dy < -0.65 * l) return 'thumbs';
+      if (dy > 0.65 * l) return 'thumbs_down';
+      return null;
+    }
+    if (curled === 4) return 'fist';
+    if (fi === 1 && fm === 1 && fr === 0 && fp === 0) return 'victory';
+    if (fi === 1 && fm === 0 && fr === 0 && fp === 0) return 'point';
+    if (fi === 1 && fp === 1 && fm === 0 && fr === 0) return 'rock';
+    if (ft && fp === 1 && fi === 0 && fm === 0 && fr === 0) return 'call';
+    return ext >= 3 ? 'open' : null;
+  }
+  function vote(g) {                                            // жест считается, только если держится 5 из 7 кадров
+    GEST.votes.push(g); if (GEST.votes.length > 7) GEST.votes.shift();
+    const cnt = {}; GEST.votes.forEach(function (v) { cnt[v] = (cnt[v] || 0) + 1; });
+    let best = null, n = 0; Object.keys(cnt).forEach(function (k) { if (cnt[k] > n) { n = cnt[k]; best = k; } });
+    return n >= 4 && best !== 'null' ? best : null;
+  }
+
+  // ----------------------------------------------------------------------
+  // Какая рука — с самокалибровкой
+  // ----------------------------------------------------------------------
+  function palmCenter(L) { return { x: 1 - (L[0].x + L[5].x + L[9].x + L[13].x + L[17].x) / 5, y: (L[0].y + L[5].y + L[9].y + L[13].y + L[17].y) / 5 }; }
+  function sides(hands, handed) {
+    const mp = function (i) { return ((handed[i] && handed[i][0]) || {}).categoryName; };
+    if (hands.length === 2) {                                   // две руки: в зеркале правая — та, что правее
+      const right = palmCenter(hands[0]).x > palmCenter(hands[1]).x ? 0 : 1;
+      if (mp(right) === 'Right') GEST.cal.agree++; else if (mp(right) === 'Left') GEST.cal.disagree++;
+      const n = GEST.cal.agree + GEST.cal.disagree;
+      if (n >= 20) {                                            // запоминаем, как MediaPipe подписывает руки на этой камере
+        const swap = GEST.cal.disagree > GEST.cal.agree;
+        if (gPrefs().handSwap !== swap) gSetPref('handSwap', swap);
+        GEST.cal = { agree: 0, disagree: 0 };
+      }
+      return right === 0 ? ['R', 'L'] : ['L', 'R'];
+    }
+    if (hands.length === 1) {
+      const lab = mp(0), swap = gPrefs().handSwap;
+      if (lab && typeof swap === 'boolean') return [(lab === 'Right') !== swap ? 'R' : 'L'];
+      return [palmCenter(hands[0]).x > 0.5 ? 'R' : 'L'];       // ещё не откалибровано — по положению в кадре
+    }
+    return [];
+  }
+
+  // ----------------------------------------------------------------------
+  // Главный цикл
+  // ----------------------------------------------------------------------
+  function gestLoop(now) {
+    GEST.raf = requestAnimationFrame(gestLoop);
+    if (!GEST.on || gVideo.readyState < 2 || gVideo.currentTime === GEST.lastT || now - GEST.lastRun < 38) return;
+    GEST.lastT = gVideo.currentTime; GEST.lastRun = now;
+    let res;
+    try { res = GEST.lm.detectForVideo(gVideo, now); } catch (e) { return; }
+    const hands = (res && res.landmarks) || [], world = (res && res.worldLandmarks) || [], handed = (res && res.handedness) || [];
+    const vw = gVideo.videoWidth || 640, vh = gVideo.videoHeight || 480;
+    const side = sides(hands, handed);
+    const info = hands.map(function () { return {}; });
+    const gs = hands.map(function (L, i) { return classify(world[i] || L, L, vw, vh, info[i]); });
+    // основная рука — правая, если видны обе
+    const main = hands.length === 2 && side[1] === 'R' ? 1 : 0;
+    const L = hands[main];
+    const g = L ? vote(gs[main]) : null;
+    GEST.lastG = g; GEST.states = info[main] ? info[main].st : null;
+    helpLive(g);
+    drawHands(hands, side, main, gs);
+    if (!L) { GEST.hist = []; GEST.votes = []; GEST.cand = null; GEST.pinch = null; cursorLost(now); setLabel(t('gs_show_hand'), 0); return; }
+    const pc = palmCenter(L);
+    GEST.hist.push({ t: now, x: pc.x, y: pc.y, open: g === 'palm' || g === 'open' });
+    while (GEST.hist.length && now - GEST.hist[0].t > 1500) GEST.hist.shift();
+    if (twoPalms(hands, gs, now)) return;
+    if (cursor(L, world[main] || L, g, now)) return;
+    if (dynamicGestures(now)) return;
+    pinchZoom(g, pc.y);
+    staticGesture(g, now);
+  }
+
+  function twoPalms(hands, gs, now) {                           // 🙌 обе ладони — убрать всё с голо-экрана
+    if (hands.length === 2 && gs[0] === 'palm' && gs[1] === 'palm') {
+      if (!GEST.two.since) GEST.two.since = now;
+      const p = Math.min(1, (now - GEST.two.since) / 800);
+      setLabel(G_ICON.two_palms + ' ' + t('gs_g_two_palms') + ' → ' + t('gs_a_clear'), p);
+      if (p >= 1 && now > GEST.cool) {
+        GEST.cool = now + 1500; GEST.two.since = 0; flash('two_palms');
+        if (holoView) closeHoloView(true);
+        call('holo_command_ui', 'close_all').catch(function () {});
+      }
+      return true;
+    }
+    GEST.two.since = 0;
+    return false;
+  }
+
+  // ----------------------------------------------------------------------
+  // Воздушный курсор: ☝ указательный — курсор, касание большим пальцем — щелчок
+  // ----------------------------------------------------------------------
+  function cursorOff() { GEST.cur.on = false; GEST.cur.pressed = false; airCur.hidden = true; airCur.classList.remove('down'); }
+  function cursorLost(now) { if (GEST.cur.on && now - GEST.cur.lost > 500) cursorOff(); }
+  function segDist(p, a, b) {                                  // расстояние от точки до отрезка (3D)
+    const ab = sub(b, a), ap = sub(p, a), l2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2] || 1e-9;
+    const t = Math.max(0, Math.min(1, (ap[0] * ab[0] + ap[1] * ab[1] + ap[2] * ab[2]) / l2));
+    return len([ap[0] - ab[0] * t, ap[1] - ab[1] * t, ap[2] - ab[2] * t]);
+  }
+  function cursor(L, W, g, now) {
+    const C = GEST.cur;
+    if (!C.on) {
+      if (g === 'point') { if (!C.since) C.since = now; if (now - C.since > 300) { C.on = true; C.lost = now; C.x = innerWidth / 2; C.y = innerHeight / 2; airCur.hidden = false; flash('point'); } }
+      else C.since = 0;
+      if (!C.on) return false;
+    }
+    if (g === 'palm' || g === 'fist' || g === 'two_palms') { if (now - C.lost > 500) { cursorOff(); C.since = 0; return false; } }
+    else C.lost = now;
+    // опора — основание и средняя фаланга указательного: при щелчке они почти не сдвигаются
+    const ax = 1 - (L[5].x * 0.4 + L[6].x * 0.6), ay = L[5].y * 0.4 + L[6].y * 0.6;
+    const tx = Math.min(1, Math.max(0, (ax - 0.25) / 0.5)) * innerWidth;
+    const ty = Math.min(1, Math.max(0, (ay - 0.2) / 0.45)) * innerHeight;
+    const sp = Math.hypot(tx - C.x, ty - C.y), a = Math.min(0.85, Math.max(0.2, sp / 240));
+    if (!C.pressed) { C.x += (tx - C.x) * a; C.y += (ty - C.y) * a; }   // во время нажатия курсор стоит на месте
+    airCur.style.transform = 'translate(' + C.x + 'px,' + C.y + 'px)';
+    // щелчок: щепоть (большой + указательный) или касание большим пальцем боковины указательного
+    const size = dist(W[0], W[9]) || 0.08;
+    const pinch = dist(W[4], W[8]) / size, side = Math.min(segDist(W[4], W[5], W[6]), segDist(W[4], W[6], W[7])) / size;
+    const press = pinch < 0.3 || side < 0.24, release = pinch > 0.42 && side > 0.36;
+    if (!C.pressed && C.ready && press) { C.pressed = true; C.ready = false; airCur.classList.add('down'); airClick(C.x, C.y); }
+    else if (C.pressed && release) { C.pressed = false; airCur.classList.remove('down'); }
+    if (!C.ready && release) C.ready = true;
+    setLabel(G_ICON.point + ' ' + t('gs_cursor'), 0);
+    return true;
+  }
+  function airClick(x, y) {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return;
+    flash('tap');
+    const opts = { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 };
+    el.dispatchEvent(new MouseEvent('mousedown', opts)); el.dispatchEvent(new MouseEvent('mouseup', opts));
+    if (typeof el.click === 'function') el.click(); else el.dispatchEvent(new MouseEvent('click', opts));
+    if (el.matches && el.matches('input, textarea')) el.focus();
+  }
+
+  // ----------------------------------------------------------------------
+  // Движения: смахивания и взмах
+  // ----------------------------------------------------------------------
+  function dynamicGestures(now) {
+    const H = GEST.hist; if (H.length < 4 || now < GEST.swipeCool) return false;
+    const recent = H.filter(function (p) { return now - p.t < 400; });
+    if (recent.length >= 3 && recent.filter(function (p) { return p.open; }).length >= recent.length * 0.6) {
+      const dx = recent[recent.length - 1].x - recent[0].x, dy = recent[recent.length - 1].y - recent[0].y;
+      if (Math.abs(dx) > 0.22 && Math.abs(dx) > Math.abs(dy) * 1.8) return fireDynamic(dx > 0 ? 'right' : 'left', now);
+      if (Math.abs(dy) > 0.22 && Math.abs(dy) > Math.abs(dx) * 1.8) return fireDynamic(dy > 0 ? 'down' : 'up', now);
+    }
+    const Wv = H.filter(function (p) { return now - p.t < 1400 && p.open; });
+    if (Wv.length >= 8) {
+      let turns = 0, dir = 0, ext = Wv[0].x;
+      for (let i = 1; i < Wv.length; i++) {
+        const v = Wv[i].x - Wv[i - 1].x; if (Math.abs(v) < 0.006) continue;
+        const nd = v > 0 ? 1 : -1;
+        if (dir && nd !== dir && Math.abs(Wv[i - 1].x - ext) > 0.035) { turns++; ext = Wv[i - 1].x; }
+        if (!dir) ext = Wv[i - 1].x;
+        dir = nd;
+      }
+      if (turns >= 3 && Math.abs(Wv[Wv.length - 1].x - Wv[0].x) < 0.15) return fireDynamic('wave', now);
+    }
+    return false;
+  }
+  function fireDynamic(g, now) {
+    GEST.swipeCool = now + 900; GEST.hist = []; GEST.cand = null; GEST.votes = [];
+    flash(g);
+    if (g === 'wave') { gAction('wake'); return true; }
+    holoGesture(g);
+    return true;
+  }
+
+  function staticGesture(g, now) {
+    const H = GEST.hist, k = Math.max(0, H.length - 8);
+    const still = H.length > 3 && Math.hypot(H[H.length - 1].x - H[k].x, H[H.length - 1].y - H[k].y) < 0.05;
+    if (!HOLD[g] || !still || now < GEST.cool) {
+      GEST.cand = null;
+      setLabel(g && G_ICON[g] ? G_ICON[g] + ' ' + t('gs_g_' + g) : t('gs_hand_ok'), 0);
+      return;
+    }
+    if (GEST.cand !== g) { GEST.cand = g; GEST.candSince = now; }
+    const p = Math.min(1, (now - GEST.candSince) / HOLD[g]);
+    setLabel(G_ICON[g] + ' ' + t('gs_g_' + g) + ' → ' + t('gs_a_' + ACTION[g]), p);
+    if (p >= 1) {
+      GEST.cool = now + 1500; GEST.cand = null; flash(g);
+      if (ACTION[g] === 'mirror') { gSetPref('gestBig', !gPip.classList.contains('big')); gSetPref('gestPreview', true); syncGestures(); }
+      else gAction(ACTION[g]);
+    }
+  }
+
+  function pinchZoom(g, y) {                                    // 🤏 щепоть и вверх/вниз — масштаб на голо-экране
+    if (g !== 'pinch' || !holoView) { GEST.pinch = null; return; }
+    const target = document.querySelector('.hf-stage, .gv-canvas, .wx-chart'); if (!target) return;
+    if (GEST.pinch === null) { GEST.pinch = y; return; }
+    const dy = y - GEST.pinch;
+    if (Math.abs(dy) > 0.03) {
+      const r = target.getBoundingClientRect();
+      target.dispatchEvent(new WheelEvent('wheel', { deltaY: dy > 0 ? 160 : -160, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, cancelable: true }));
+      GEST.pinch = y;
+    }
+  }
+
+  function holoGesture(g) {
+    if (holoView) {
+      if (g === 'down') { closeHoloView(true); return; }
+      const strip = document.querySelector('.hf-strip');
+      if ((g === 'left' || g === 'right') && strip) {
+        const th = [...strip.querySelectorAll('.hc-th')], i = th.findIndex(function (b) { return b.classList.contains('on'); });
+        const j = (i + (g === 'right' ? 1 : -1) + th.length) % th.length; if (th[j]) th[j].click(); return;
+      }
+      if ((g === 'left' || g === 'right') && document.querySelector('.wx-chart')) {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: g === 'right' ? 'ArrowRight' : 'ArrowLeft', shiftKey: true }));
+      }
+      return;
+    }
+    const cards = [...document.querySelectorAll('.hcard:not(.out)')];
+    if (!cards.length) return;
+    const last = cards[cards.length - 1];
+    if (g === 'up') { last.click(); return; }
+    if (g === 'down') { call('holo_command_ui', 'close', last.dataset.id).catch(function () {}); return; }
+    if (g === 'left' || g === 'right') {
+      const th = [...last.querySelectorAll('.hc-th')], i = th.findIndex(function (b) { return b.classList.contains('on'); });
+      if (th.length) th[(i + (g === 'right' ? 1 : -1) + th.length) % th.length].click();
+    }
+  }
+
+  function gAction(name) {
+    call('gesture_action_ui', name).then(function (r) {
+      if (r === 'no_question') pop({ icon: 'warn', title: t('gs_title'), text: t('gs_no_question'), life: 3500 });
+    }).catch(console.log);
+  }
+  function flash(g) {
+    helpFired(g);
+    gFlash.textContent = G_ICON[g] || '•';
+    gFlash.classList.remove('on'); void gFlash.offsetWidth; gFlash.classList.add('on');
+  }
+  function setLabel(text, p) {
+    if (gLabel.textContent !== text) gLabel.textContent = text;
+    gRing.style.strokeDashoffset = String(62.8 * (1 - p));
+    gRing.parentNode.style.opacity = p > 0 ? 1 : 0;
+  }
+
+  // ----------------------------------------------------------------------
+  // Отрисовка: скелет, рамка, подпись руки и жеста, перекрестие, след пальца
+  // ----------------------------------------------------------------------
+  function drawHands(hands, side, main, gs) {
+    if (gPip.classList.contains('mini')) return;
+    const dpr = window.devicePixelRatio || 1, w = gCanvas.clientWidth, h = gCanvas.clientHeight;
+    if (gCanvas.width !== Math.round(w * dpr) || gCanvas.height !== Math.round(h * dpr)) { gCanvas.width = Math.round(w * dpr); gCanvas.height = Math.round(h * dpr); }
+    const c = gCanvas.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+    const k = Math.min(1.9, Math.max(1, w / 420));
+    const vw = gVideo.videoWidth || 640, vh = gVideo.videoHeight || 480, sc = Math.max(w / vw, h / vh);
+    const ox = (w - vw * sc) / 2, oy = (h - vh * sc) / 2;
+    const P = function (p) { return [w - (ox + p.x * vw * sc), oy + p.y * vh * sc]; };
+    [0, 1].forEach(function (i) { if (!hands[i]) GEST.trails[i] = []; });
+    hands.slice(0, 2).forEach(function (L, i) {
+      const pts = L.map(P), isMain = i === main;
+      const tr = GEST.trails[i]; tr.push(pts[8]); if (tr.length > 22) tr.shift();
+      for (let j = 1; j < tr.length; j++) {
+        c.strokeStyle = 'rgba(61,255,154,' + (j / tr.length * 0.55) + ')'; c.lineWidth = 1.5 * k * j / tr.length + 0.5;
+        c.beginPath(); c.moveTo(tr[j - 1][0], tr[j - 1][1]); c.lineTo(tr[j][0], tr[j][1]); c.stroke();
+      }
+      c.lineCap = 'round'; c.shadowColor = '#3DFF9A'; c.shadowBlur = 8 * k;
+      c.strokeStyle = isMain ? 'rgba(61,255,154,.92)' : 'rgba(61,255,154,.6)'; c.lineWidth = 2.6 * k;
+      BONES.forEach(function (b) { const a = pts[b[0]], z = pts[b[1]]; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(z[0], z[1]); c.stroke(); });
+      c.shadowBlur = 0;
+      pts.forEach(function (q, j) {
+        const tip = j === 4 || j === 8 || j === 12 || j === 16 || j === 20;
+        c.fillStyle = tip ? '#EAFFF4' : '#3DFF9A'; c.beginPath(); c.arc(q[0], q[1], (tip ? 3.6 : 2.4) * k, 0, 7); c.fill();
+      });
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      pts.forEach(function (q) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); });
+      const pad = 14 * k; x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
+      const cl = Math.min(22 * k, (x1 - x0) / 4);
+      c.strokeStyle = 'rgba(134,255,190,.85)'; c.lineWidth = 1.6 * k;
+      [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]].forEach(function (q) {
+        c.beginPath(); c.moveTo(q[0] + cl * q[2], q[1]); c.lineTo(q[0], q[1]); c.lineTo(q[0], q[1] + cl * q[3]); c.stroke();
+      });
+      const pc = [(pts[0][0] + pts[5][0] + pts[17][0]) / 3, (pts[0][1] + pts[5][1] + pts[17][1]) / 3];
+      c.strokeStyle = 'rgba(234,255,244,.7)'; c.lineWidth = 1 * k;
+      c.beginPath(); c.arc(pc[0], pc[1], 6 * k, 0, 7); c.moveTo(pc[0] - 11 * k, pc[1]); c.lineTo(pc[0] - 3 * k, pc[1]);
+      c.moveTo(pc[0] + 3 * k, pc[1]); c.lineTo(pc[0] + 11 * k, pc[1]); c.stroke();
+      const g = isMain ? GEST.lastG : gs[i];
+      const tag = (side[i] === 'R' ? t('gs_right') : t('gs_left')).toUpperCase() +
+                  (g && G_ICON[g] ? '   ' + G_ICON[g] + ' ' + t('gs_g_' + g) : '');
+      const fs = Math.round(Math.min(15, 10.5 * k)), bh = fs + 7;
+      c.font = '600 ' + fs + 'px "Exo 2", sans-serif'; c.textBaseline = 'bottom';
+      const tw = c.measureText(tag).width + 14, ty = Math.max(bh + 2, y0 - 4);
+      c.fillStyle = 'rgba(2,14,8,.72)'; c.fillRect(x0, ty - bh, tw, bh);
+      c.fillStyle = '#3DFF9A'; c.fillRect(x0, ty - bh, 2, bh);
+      c.fillStyle = '#9DFFC8'; c.fillText(tag, x0 + 8, ty - 3);
+      if (isMain && GEST.states && gPip.classList.contains('big')) {           // какие пальцы Atlas считает прямыми
+        const names = (I18N[lang] || {}).gs_fingers || 'Б У С Б М';
+        const lab = names.split(' '), cx0 = x0 + tw + 10, cy0 = ty - bh / 2;
+        GEST.states.forEach(function (v, j) {
+          const col = v === 1 ? '#3DFF9A' : v === 0 ? '#FF6B6B' : '#FFC478';
+          c.fillStyle = col; c.beginPath(); c.arc(cx0 + j * 18, cy0, 4, 0, 7); c.fill();
+          c.fillStyle = 'rgba(214,255,233,.8)'; c.font = '600 9px "Exo 2", sans-serif'; c.textAlign = 'center';
+          c.fillText(lab[j] || '', cx0 + j * 18, cy0 + 15); c.textAlign = 'left';
+        });
+      }
+    });
+  }
+
+  // ----------------------------------------------------------------------
+  // Перемещение окон по экрану: камера, панель возможностей, голо-карточки
+  // ----------------------------------------------------------------------
+  function clearPos(el) {
+    ['position', 'left', 'top', 'right', 'bottom', 'transform', 'animation', 'width'].forEach(function (k) { el.style[k] = ''; });
+    el.classList.remove('moved');
+  }
+  function placeAt(el, x, y, w) {
+    el.style.position = 'fixed'; el.style.right = 'auto'; el.style.bottom = 'auto'; el.style.transform = 'none'; el.style.animation = 'none';
+    if (w) el.style.width = w + 'px';
+    const r = el.getBoundingClientRect();
+    el.style.left = Math.min(innerWidth - 80, Math.max(80 - r.width, x)) + 'px';
+    el.style.top = Math.min(innerHeight - 40, Math.max(0, y)) + 'px';
+    el.classList.add('moved');
+  }
+  function restorePos(el, key) {
+    const p = ((gPrefs().pos || {})[key]);
+    if (p) placeAt(el, p[0], p[1], p[2]);
+    return !!p;
+  }
+  function makeMovable(el, handle, keyFn) {
+    handle.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0 || e.target.closest('button, input, select, a, .hf-stage')) return;
+      const r = el.getBoundingClientRect(), sx = e.clientX, sy = e.clientY;
+      let moved = false;
+      const mv = function (ev) {
+        const dx = ev.clientX - sx, dy = ev.clientY - sy;
+        if (!moved) {
+          if (Math.hypot(dx, dy) < 5) return;
+          moved = true; el.classList.add('dragging');
+          if (el.parentElement && el.parentElement.id === 'holo') document.querySelector('.hud').appendChild(el);   // карточка выходит из колонки
+          placeAt(el, r.left, r.top, r.width);
+        }
+        placeAt(el, r.left + dx, r.top + dy);
+      };
+      const up = function () {
+        window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+        el.classList.remove('dragging');
+        if (!moved) return;
+        el._dragged = Date.now();
+        const key = keyFn && keyFn();
+        if (key) {
+          const pos = Object.assign({}, gPrefs().pos || {});
+          pos[key] = [parseFloat(el.style.left), parseFloat(el.style.top), el.getBoundingClientRect().width];
+          gSetPref('pos', pos);
+        }
+      };
+      window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+    });
+  }
+
+  // ----------------------------------------------------------------------
+  // Панель «Что умеет Atlas» — справа от камеры, сворачивается и перемещается
+  // ----------------------------------------------------------------------
+  const gHelp = document.getElementById('gestHelp');
+  function buildHelp() {
+    const sec = [
+      ['gh_hold', [['palm', '✋', 'gs_g_palm', 'gs_a_stop'], ['thumbs', '👍', 'gs_g_thumbs', 'gs_a_yes'], ['thumbs_down', '👎', 'gs_g_thumbs_down', 'gs_a_no'],
+                   ['victory', '✌️', 'gs_g_victory', 'gs_a_mirror'], ['fist', '✊', 'gs_g_fist', 'gs_a_pause'],
+                   ['two_palms', '🙌', 'gs_g_two_palms', 'gs_a_clear']]],
+      ['gh_moves', [['wave', '👋', 'gh_wave', 'gh_wave_a'], ['left', '↔️', 'gh_swipe', 'gh_swipe_a'], ['up', '⬆️', 'gh_up', 'gh_up_a'],
+                    ['down', '⬇️', 'gh_down', 'gh_down_a'], ['pinch', '🤏', 'gs_g_pinch', 'gh_zoom_a']]],
+      ['gh_cursor', [['point', '☝️', 'gh_point', 'gh_point_a'], ['tap', '🤏', 'gh_tap', 'gh_tap_a']]],
+      ['gh_sound', [['clap', '👏👏', 'gh_clap', 'gh_clap_a']]],
+    ];
+    let html = '';
+    sec.forEach(function (s0) {
+      html += '<h5>' + t(s0[0]) + '</h5>';
+      s0[1].forEach(function (r) {
+        html += '<div class="gh-row" data-g="' + r[0] + '"><span class="gh-i">' + r[1] + '</span><b>' + t(r[2]) + '</b><span>' + t(r[3]) + '</span></div>';
+      });
+    });
+    html += '<h5>' + t('gh_voice') + '</h5>';
+    for (let i = 1; i <= 9; i++) html += '<div class="gh-say">«' + t('gh_v' + i) + '»</div>';
+    gHelp.querySelector('.gh-body').innerHTML = html;
+  }
+  let helpG = null;
+  function helpLive(g) {
+    if (g === helpG || gHelp.hidden) return;
+    helpG = g;
+    gHelp.querySelectorAll('.gh-row.live').forEach(function (r) { r.classList.remove('live'); });
+    const row = g && gHelp.querySelector('.gh-row[data-g="' + (g === 'right' ? 'left' : g) + '"]');
+    if (row) row.classList.add('live');
+  }
+  function helpFired(g) {
+    const row = gHelp.querySelector('.gh-row[data-g="' + (g === 'right' ? 'left' : g) + '"]');
+    if (!row) return;
+    row.classList.remove('fired'); void row.offsetWidth; row.classList.add('fired');
+  }
+  function placeHelp() {
+    if (gHelp.hidden || restorePos(gHelp, 'help')) return;
+    clearPos(gHelp);
+    const r = gPip.getBoundingClientRect();
+    if (!r.width) return;
+    const hr = gHelp.getBoundingClientRect();
+    if (r.right + 12 + hr.width < innerWidth) placeAt(gHelp, r.right + 12, Math.max(10, r.bottom - hr.height));
+    else placeAt(gHelp, Math.max(10, r.left - hr.width - 12), Math.max(10, r.bottom - hr.height));
+    gHelp.classList.remove('moved');                             // это место по умолчанию, не сохраняем
+  }
+  gHelp.querySelector('.gh-toggle').addEventListener('click', function () {
+    const open = gHelp.classList.contains('collapsed');
+    gHelp.classList.toggle('collapsed', !open); gSetPref('helpOpen', open);
+    this.setAttribute('aria-expanded', String(open));
+  });
+  makeMovable(gHelp, gHelp.querySelector('.gh-head'), function () { return 'help'; });
+  makeMovable(gPip, gPip, function () { return gPip.classList.contains('big') ? 'pipBig' : 'pip'; });
+
+  // --- настройки и кнопки ---
+  document.getElementById('gestBtn').addEventListener('click', function () { gSetPref('gestures', !gPrefs().gestures); syncGestures(); });
+  document.getElementById('gestPrevBtn').addEventListener('click', function () { gSetPref('gestPreview', gPrefs().gestPreview === false); syncGestures(); });
+  gPip.querySelector('.gp-x').addEventListener('click', function () { gSetPref('gestPreview', false); syncGestures(); });
+  gPip.querySelector('.gp-min').addEventListener('click', function () { gSetPref('gestPreview', gPip.classList.contains('mini')); syncGestures(); });
+  gPip.querySelector('.gp-big').addEventListener('click', function () {
+    const big = !gPip.classList.contains('big');
+    layout._prefs = Object.assign({}, layout._prefs, { gestBig: big, gestPreview: true }); saveLayout(); syncGestures();
+  });
+  gVideo.addEventListener('dblclick', function () { gPip.querySelector('.gp-big').click(); });
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && gPip.classList.contains('big') && !holoView) { gSetPref('gestBig', false); syncGestures(); }
+  });
+  document.getElementById('clapBtn').addEventListener('click', function () {
+    const on = this.getAttribute('aria-pressed') !== 'true';
+    call('set_claps_ui', on).then(function (s) { document.getElementById('clapBtn').setAttribute('aria-pressed', String(!!(s && s.claps))); }).catch(console.log);
+  });
+  call('get_gestures_ui').then(function (s) { if (s) document.getElementById('clapBtn').setAttribute('aria-pressed', String(!!s.claps)); }).catch(function () {});
+  let gestSeen = -1, flashSeen = 0;
+  function checkGestures(s) {
+    if (s.gest_cmd && s.gest_cmd.seq !== gestSeen) {
+      gestSeen = s.gest_cmd.seq;
+      if (gestSeen > 0 && typeof s.gest_cmd.camera === 'boolean') {
+        layout._prefs = Object.assign({}, layout._prefs, { gestures: s.gest_cmd.camera },
+          typeof s.gest_cmd.mirror === 'boolean' ? { gestBig: s.gest_cmd.mirror, gestPreview: true } : {});
+        saveLayout(); syncGestures();
+      }
+    }
+    if (s.gesture_flash && s.gesture_flash.t !== flashSeen) { if (flashSeen) flash(s.gesture_flash.g); flashSeen = s.gesture_flash.t; }
   }
 
   // --- ход мыслей вокруг звезды ---
@@ -3713,6 +4619,7 @@
       checkNotifications(s.notif_count || 0);
       checkTrace(s.trace_seq);
       checkHolo(s.holo_seq);
+      checkGestures(s);
       if (s.should_quit) { playShutdown(); return; }
     } catch (e) { console.log(e); }
     setTimeout(pollState, 200);
@@ -3732,7 +4639,7 @@
     call('get_ui_layout').then(function (txt) {
       try { layout = JSON.parse(txt || '{}') || {}; } catch (e) { layout = {}; }
       Object.keys(wins).forEach(function (id) { if (!wins[id].el.hidden) applyGeom(id); });
-      syncIntroChip(); syncTraceChip();
+      syncIntroChip(); syncTraceChip(); syncGestures();
       startIntro();
     }).catch(function () { startIntro(); });
     populateSettings();

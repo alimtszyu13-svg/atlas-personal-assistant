@@ -1901,3 +1901,44 @@ if "SPEECH INPUT:" not in SYSTEM_PROMPT:
     SYSTEM_PROMPT = SYSTEM_PROMPT + _STT_RULE
     if conversation_history and isinstance(conversation_history[0], dict) and conversation_history[0].get("role") == "system":
         conversation_history[0]["content"] = SYSTEM_PROMPT
+
+
+# === Граф знаний на голо-экране ===
+def holo_graph(focus: str = "") -> str:
+    from core import holo
+    return holo.show_graph(focus)["text"]
+
+
+AVAILABLE_FUNCTIONS["holo_graph"] = holo_graph
+TOOLS_SCHEMA.append({"type": "function", "function": {"name": "holo_graph", "description": "Shows Atlas's memory about the user as an interactive knowledge graph on the holographic screen ('покажи, что ты обо мне знаешь', 'покажи граф памяти', 'what do you know about me'). focus = optional word to highlight (e.g. 'SAT').", "parameters": {"type": "object", "properties": {"focus": {"type": "string"}}}}})
+tool_router.register_tool("holo_graph", "holo")
+tool_router.TRIGGERS["holo"] = tuple(set(tool_router.TRIGGERS.get("holo", ())) | {
+    "что ты обо мне знаешь", "что ты знаешь обо мне", "граф", "памят", "what do you know about me", "knowledge graph"})
+
+
+# === Жесты и хлопки ===
+def gestures_control(action: str) -> str:
+    """camera_on | camera_off | claps_on | claps_off"""
+    from core import gestures
+    from ui_state import shared_state
+    a = str(action).lower()
+    if "clap" in a or "хлоп" in a:
+        on = not any(w in a for w in ("off", "выкл", "disable"))
+        gestures.set_claps(on)
+        return "Claps " + ("on: two claps wake Atlas." if on else "off.")
+    on = not any(w in a for w in ("off", "выкл", "disable", "stop"))
+    mirror = any(w in a for w in ("mirror", "зеркал", "look_at_me", "big"))
+    cmd = shared_state.get("gest_cmd") or {"seq": 0}
+    new = {"seq": cmd.get("seq", 0) + 1, "camera": on or mirror}
+    if mirror or not on:
+        new["mirror"] = bool(mirror and on)
+    shared_state["gest_cmd"] = new
+    if mirror and on:
+        return "Mirror view on: the user sees themselves through the camera, Atlas tracks their hands."
+    return "Gesture camera " + ("on — show your hand to the camera." if on else "off.")
+
+
+AVAILABLE_FUNCTIONS["gestures_control"] = gestures_control
+TOOLS_SCHEMA.append({"type": "function", "function": {"name": "gestures_control", "description": "Gesture control via webcam: 'включи жесты' → camera_on, 'выключи жесты' → camera_off; live mirror view where the user sees themselves and Atlas tracks their hands ('покажи меня', 'включи зеркало', 'смотри на меня', 'посмотри на мои руки') → mirror; claps wake-up: claps_on | claps_off.", "parameters": {"type": "object", "properties": {"action": {"type": "string"}}, "required": ["action"]}}})
+tool_router.register_tool("gestures_control", "gestures")
+tool_router.TRIGGERS["gestures"] = ("жест", "хлоп", "камер", "зеркал", "смотри на меня", "покажи меня", "мои руки", "gesture", "clap", "mirror")
