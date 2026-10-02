@@ -30,6 +30,9 @@ def _fmt_ts(value) -> str:
         return str(value or "")[:16]
 
 
+_GUI = {}   # ссылка на окна — для мини-Atlas
+
+
 class Api:
     # ------------------------------------------------------------------
     # Всё, что было в прежнем интерфейсе — без изменений
@@ -634,12 +637,34 @@ class Api:
         return gestures.set_claps(on)
 
 
+    # ------------------------------------------------------------------
+    # Мини-Atlas
+    # ------------------------------------------------------------------
+    def mini_open_main(self) -> None:
+        g = _GUI.get("gui")
+        if g:
+            g.show_main()
+
+    def mini_hide(self) -> None:
+        g = _GUI.get("gui")
+        if g:
+            g.hide_mini(by_user=True)
+
+    def mini_mode_ui(self, on: bool) -> None:
+        g = _GUI.get("gui")
+        if g:
+            g.enter_mini() if on else g.show_main()
+
+
 class WebGUI:
     def __init__(self, shared_state: dict):
         self.shared_state = shared_state
         self.api = Api()
         self.window = None
         self._is_hidden = False
+        self.mini = None
+        self._mini_closed = False
+        _GUI["gui"] = self
 
     def run(self):
         self.window = webview.create_window(
@@ -650,6 +675,87 @@ class WebGUI:
         os.environ.setdefault("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
                               "--autoplay-policy=no-user-gesture-required")
         webview.start(debug=True)
+
+    # --- мини-Atlas поверх окон ---
+    _MINI_FILE = "mini_window.json"
+
+    def _mini_prefs(self) -> dict:
+        import json
+        try:
+            with open(self._MINI_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _save_mini_prefs(self, **kw) -> None:
+        import json
+        p = self._mini_prefs()
+        p.update(kw)
+        try:
+            with open(self._MINI_FILE, "w", encoding="utf-8") as f:
+                json.dump(p, f)
+        except Exception:
+            pass
+
+    def _create_mini(self) -> None:
+        p = self._mini_prefs()
+        try:
+            import ctypes
+            sw, sh = ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1)
+        except Exception:
+            sw, sh = 1920, 1080
+        x = min(max(0, int(p.get("x", sw - 384))), sw - 120)
+        y = min(max(0, int(p.get("y", sh - 172))), sh - 80)
+        try:
+            self.mini = webview.create_window(
+                "Atlas mini", "atlas_mini.html", js_api=self.api, width=360, height=104, x=x, y=y,
+                frameless=True, on_top=True, resizable=False, hidden=True, background_color="#04070E")
+            try:
+                self.mini.events.moved += self._mini_moved
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"[мини] окно не создано: {e}")
+            self.mini = None
+
+    def _mini_moved(self, x, y) -> None:
+        self._save_mini_prefs(x=x, y=y)
+
+    def _show_mini(self) -> None:
+        if self.mini is not None and self._mini_prefs().get("enabled", True) and not self._mini_closed:
+            try:
+                self.mini.show()
+            except Exception as e:
+                print(f"[мини] {e}")
+
+    def hide_mini(self, by_user: bool = False) -> None:
+        if by_user:
+            self._mini_closed = True
+        if self.mini is not None:
+            try:
+                self.mini.hide()
+            except Exception:
+                pass
+
+    def enter_mini(self) -> None:
+        """Свернуть Atlas в мини-окно поверх программ."""
+        self._mini_closed = False
+        if not self._is_hidden:
+            self.toggle_visibility()
+        else:
+            self._show_mini()
+
+    def show_main(self) -> None:
+        """Развернуть Atlas из мини-окна."""
+        if self._is_hidden:
+            self.toggle_visibility()
+        else:
+            try:
+                self.window.show()
+                self.window.restore()
+            except Exception:
+                pass
+        self.hide_mini()
 
     def show_window(self):
         if self.window:
@@ -685,3 +791,175 @@ class WebGUI:
                 return
 
         self._is_hidden = not self._is_hidden
+        if self._is_hidden:                      # главное окно скрыто → мини-Atlas поверх программ
+            self._mini_closed = False
+            self._show_mini()
+        else:
+            self.hide_mini()
+
+
+# =============================================================================
+# === Мини-Atlas: надёжное подключение ===
+# Не зависит от того, как выглядят run() и toggle_visibility(): оборачивает их.
+# Окно создаётся при запуске, а если не получилось — в момент, когда нужно.
+# =============================================================================
+import json as _mjson
+
+try:
+    _GUI
+except NameError:
+    _GUI = {}
+
+_MINI_FILE = "mini_window.json"
+
+
+def _mini_prefs() -> dict:
+    try:
+        with open(_MINI_FILE, encoding="utf-8") as f:
+            return _mjson.load(f)
+    except Exception:
+        return {}
+
+
+def _mini_save(**kw) -> None:
+    p = _mini_prefs()
+    p.update(kw)
+    try:
+        with open(_MINI_FILE, "w", encoding="utf-8") as f:
+            _mjson.dump(p, f)
+    except Exception:
+        pass
+
+
+def _mini_create(self, visible: bool = False) -> None:
+    if getattr(self, "mini", None) is not None:
+        return
+    p = _mini_prefs()
+    try:
+        import ctypes
+        sw, sh = ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1)
+    except Exception:
+        sw, sh = 1920, 1080
+    x = min(max(0, int(p.get("x", sw - 384))), sw - 120)
+    y = min(max(0, int(p.get("y", sh - 172))), sh - 80)
+    try:
+        self.mini = webview.create_window(
+            "Atlas mini", "atlas_mini.html", js_api=self.api, width=360, height=104, x=x, y=y,
+            frameless=True, on_top=True, resizable=False, hidden=not visible, background_color="#04070E")
+        print(f"[мини] окно создано ({x}, {y}){' и показано' if visible else ''}")
+        try:
+            self.mini.events.moved += lambda mx, my: _mini_save(x=mx, y=my)
+        except Exception:
+            pass
+    except Exception as e:
+        print(f"[мини] окно не создано: {e}")
+        self.mini = None
+
+
+def _mini_show(self) -> None:
+    if getattr(self, "_mini_closed", False) or not _mini_prefs().get("enabled", True):
+        return
+    if getattr(self, "mini", None) is None:
+        _mini_create(self, visible=True)              # не создалось при запуске — создаём сейчас
+        return
+    try:
+        self.mini.show()
+        print("[мини] показываю мини-Atlas")
+    except Exception as e:
+        print(f"[мини] не показался ({e}) — пересоздаю")
+        self.mini = None
+        _mini_create(self, visible=True)
+
+
+def _mini_hide(self, by_user: bool = False) -> None:
+    if by_user:
+        self._mini_closed = True
+    if getattr(self, "mini", None) is not None:
+        try:
+            self.mini.hide()
+        except Exception:
+            pass
+
+
+def _mini_enter(self) -> None:
+    self._mini_closed = False
+    if not self._is_hidden:
+        self.toggle_visibility()
+    else:
+        _mini_show(self)
+
+
+def _mini_show_main(self) -> None:
+    if self._is_hidden:
+        self.toggle_visibility()
+    else:
+        try:
+            self.window.show()
+            self.window.restore()
+        except Exception:
+            pass
+    _mini_hide(self)
+
+
+_wg_run_prev = WebGUI.run
+_wg_toggle_prev = WebGUI.toggle_visibility
+
+
+def _wg_run(self):
+    _GUI["gui"] = self
+    self.mini = getattr(self, "mini", None)
+    self._mini_closed = False
+    orig_start = webview.start
+
+    def start_with_mini(*a, **k):
+        _mini_create(self)                            # создаём до запуска — так надёжнее всего
+        return orig_start(*a, **k)
+    webview.start = start_with_mini
+    try:
+        return _wg_run_prev(self)
+    finally:
+        webview.start = orig_start
+
+
+def _wg_toggle(self):
+    was = self._is_hidden
+    _wg_toggle_prev(self)
+    if self._is_hidden == was:
+        return
+    if self._is_hidden:                               # главное окно скрыто → мини поверх программ
+        self._mini_closed = False
+        _mini_show(self)
+    else:
+        _mini_hide(self)
+
+
+WebGUI.run = _wg_run
+WebGUI.toggle_visibility = _wg_toggle
+WebGUI._create_mini = lambda self: _mini_create(self)
+WebGUI._show_mini = _mini_show
+WebGUI.hide_mini = _mini_hide
+WebGUI.enter_mini = _mini_enter
+WebGUI.show_main = _mini_show_main
+
+
+def _api_mini_open_main(self) -> None:
+    g = _GUI.get("gui")
+    if g:
+        _mini_show_main(g)
+
+
+def _api_mini_hide(self) -> None:
+    g = _GUI.get("gui")
+    if g:
+        _mini_hide(g, by_user=True)
+
+
+def _api_mini_mode_ui(self, on: bool) -> None:
+    g = _GUI.get("gui")
+    if g:
+        _mini_enter(g) if on else _mini_show_main(g)
+
+
+Api.mini_open_main = _api_mini_open_main
+Api.mini_hide = _api_mini_hide
+Api.mini_mode_ui = _api_mini_mode_ui

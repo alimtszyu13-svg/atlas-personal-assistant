@@ -1942,3 +1942,340 @@ AVAILABLE_FUNCTIONS["gestures_control"] = gestures_control
 TOOLS_SCHEMA.append({"type": "function", "function": {"name": "gestures_control", "description": "Gesture control via webcam: 'включи жесты' → camera_on, 'выключи жесты' → camera_off; live mirror view where the user sees themselves and Atlas tracks their hands ('покажи меня', 'включи зеркало', 'смотри на меня', 'посмотри на мои руки') → mirror; claps wake-up: claps_on | claps_off.", "parameters": {"type": "object", "properties": {"action": {"type": "string"}}, "required": ["action"]}}})
 tool_router.register_tool("gestures_control", "gestures")
 tool_router.TRIGGERS["gestures"] = ("жест", "хлоп", "камер", "зеркал", "смотри на меня", "покажи меня", "мои руки", "gesture", "clap", "mirror")
+
+
+# =============================================================================
+# === Мозг v2: планировщик → исполнитель, рабочая память, чистая инструкция ===
+# =============================================================================
+# Было: каждый шаг — отдельный круг через модель (4–5 запросов на «открой и запиши»),
+# инструкция из заплаток, без памяти о текущей цели.
+# Стало: модель один раз продумывает задачу и отдаёт весь план в execute_plan —
+# действия выполняются подряд без модели; модель зовётся снова, только если шаг
+# не удался или нужно сначала что-то увидеть. Долгое — в фоне, разговор не ждёт.
+
+SYSTEM_PROMPT_V2 = (
+    "You are Atlas — a voice AI assistant living on the user's Windows PC, in the spirit of JARVIS: composed, warm, "
+    "quietly witty, genuinely helpful. The user lives in Bishkek, Kyrgyzstan.\n\n"
+    "HOW YOU SPEAK. Everything you say is read aloud: one or two natural sentences, no markdown, no lists. Fold "
+    "results into a human sentence with the concrete detail that matters ('A pleasant 24 degrees out, sir'). Say "
+    "'sir' now and then, not every time. Use the language from the (Respond in …) hint.\n\n"
+    "HOW YOU THINK. First understand what the user actually wants and why, using the Situation note, the recent "
+    "conversation and the active window; resolve 'it / this / there / его / туда' from them. The words come from "
+    "speech recognition and may be misheard — infer the intended ones. Then act:\n"
+    "• One action → call that tool.\n"
+    "• Several actions whose arguments you already know (open an app and type text, open a site and search, set a "
+    "timer and add a todo) → ONE call to execute_plan with every step in order and a short done_message in the "
+    "user's language. The steps run instantly without you, so plan them completely.\n"
+    "• Slow work the user doesn't need to watch (research, comparing many things, long browsing) → start_mission, "
+    "or execute_plan with background=true.\n"
+    "• When you must look before you can act (page content, program controls, search results) → call the looking "
+    "tool first, then decide.\n"
+    "If a step fails, try a genuinely different approach before giving up. Ask the user only for credentials, "
+    "payment, or a preference you truly cannot infer — and offer your best guess. Never claim something is done "
+    "unless a tool result confirms it. Ask before irreversible actions (deleting, sending, buying, overwriting).\n\n"
+    "TOOL HINTS. Files by their content → search_file_content (never the browser for local files). Current facts → "
+    "search_web, then read_webpage or browser_read_text. Music → play_on_spotify, play_pause_media, next_track. "
+    "Movies and series → play_on_rezka; don't lecture about sources or legality. Show something visual → holo_show, "
+    "holo_weather, holo_graph. What's on the camera or screen → look. Any Windows program → open_app, then "
+    "desktop_type (index -1 types where the cursor is) or desktop_hotkey; desktop_look only when you must find a "
+    "specific control. Web pages → browser_open, browser_read_text to read, browser_click/browser_type to act. "
+    "Writing text INTO a program the user named (Notepad, Word…) is desktop_type, not add_note. remember_fact only "
+    "for durable facts about the user's own life; recall_conversations for 'do you remember'. A new ability no tool "
+    "has → learn_skill."
+)
+
+_situation = {"goal": "", "actions": [], "reply": ""}
+_announce = {"fn": None}
+_AUTO_WAIT_AFTER = {"open_app", "launch_steam_game", "open_url", "open_file", "open_found_file", "open_deep_link",
+                    "play_on_spotify", "open_youtube", "open_vscode_project"}
+
+
+def set_announcer(fn) -> None:
+    """main.py даёт функцию «сказать вслух» — ею объявляются итоги фоновых задач."""
+    _announce["fn"] = fn
+
+
+def _short_args(args: dict) -> str:
+    return ", ".join(f"{k}={str(v)[:30]}" for k, v in (args or {}).items())[:90]
+
+
+def _note_action(name: str, args: dict, ok: bool) -> None:
+    if name in ("execute_plan", "update_plan"):
+        return
+    _situation["actions"].append(f"{name}({_short_args(args)}) {'ok' if ok else 'FAILED'}")
+    del _situation["actions"][:-8]
+
+
+def _situation_msg():
+    parts = []
+    if _situation["goal"]:
+        parts.append(f"current goal: {_situation['goal']}")
+    if _situation["actions"]:
+        parts.append("recent actions: " + "; ".join(_situation["actions"][-6:]))
+    if _situation["reply"]:
+        parts.append(f"your last reply: {_situation['reply'][:160]}")
+    if not parts:
+        return None
+    return {"role": "system", "content": "Situation (use it to continue tasks and resolve 'it/this/there'): "
+                                         + " | ".join(parts)}
+
+
+def _exec_steps(steps: list, cancellable: bool = True):
+    """Шаги плана подряд, без модели. → (всё ли удалось, отчёт по шагам)."""
+    lines = []
+    for i, st in enumerate(steps or [], 1):
+        if cancellable:
+            _check_cancel()
+        if not isinstance(st, dict):
+            continue
+        name = str(st.get("tool") or "").strip()
+        if not name and st.get("wait") is not None:
+            time.sleep(min(10.0, max(0.0, float(st.get("wait") or 0))))
+            continue
+        if name not in AVAILABLE_FUNCTIONS or name == "execute_plan":
+            lines.append(f"{i}. {name}: no such tool — use a real tool name")
+            return False, lines
+        args = st.get("args") if isinstance(st.get("args"), dict) else {}
+        res, ok, _ms = _run_one_tool(name, dict(args))
+        ok = ok and not _TRACE_FAIL.search(str(res)[:220])
+        _note_action(name, args, ok)
+        lines.append(f"{i}. {name} → {'OK' if ok else 'FAILED'}: {str(res)[:300]}")
+        if not ok:
+            return False, lines
+        nxt = steps[i] if i < len(steps) else None
+        if (name in _AUTO_WAIT_AFTER and isinstance(nxt, dict) and nxt.get("wait") is None
+                and str(nxt.get("tool") or "").startswith(("desktop_", "browser_"))):
+            time.sleep(1.5)                       # окно программы должно успеть появиться
+        if st.get("wait"):
+            time.sleep(min(10.0, float(st["wait"])))
+    return True, lines
+
+
+def execute_plan(goal: str, steps: list, done_message: str = "", background: bool = False) -> str:
+    """Runs several actions in order, instantly, in one go."""
+    _situation["goal"] = str(goal)[:160]
+    if background:
+        def run():
+            ok, lines = _exec_steps(steps, cancellable=False)
+            try:
+                from voice import get_response_language
+                ru = get_response_language() == "ru"
+            except Exception:
+                ru = True
+            if ok:
+                text = done_message or ("Готово, сэр." if ru else "Done, sir.")
+            else:
+                last = lines[-1] if lines else ""
+                text = (f"Фоновая задача остановилась: {last[:160]}" if ru else f"The background task stopped: {last[:160]}")
+            print(f"[мозг] фоновая задача «{goal}»: {'готово' if ok else 'остановилась'}")
+            try:
+                from ui_state import notify
+                notify("ok" if ok else "warn", "task_done", text[:200])
+            except Exception:
+                pass
+            if _announce["fn"]:
+                _announce["fn"](text)
+        threading.Thread(target=run, daemon=True, name="plan-bg").start()
+        return "BACKGROUND_STARTED"
+    ok, lines = _exec_steps(steps)
+    return ("ALL_DONE\n" if ok else "STOPPED — a step failed; decide what to do next:\n") + "\n".join(lines)
+
+
+AVAILABLE_FUNCTIONS["execute_plan"] = execute_plan
+TOOLS_SCHEMA[:] = [t for t in TOOLS_SCHEMA if t["function"]["name"] != "execute_plan"] + [
+    {"type": "function", "function": {"name": "execute_plan", "description": (
+        "Runs several actions in order, instantly, without further thinking. Use for any request needing 2+ actions "
+        "whose arguments you know upfront (e.g. open_app notepad → desktop_type text; open a site → type a search). "
+        "steps: [{tool, args}] with real tool names; {wait: seconds} pauses. done_message: what to say if every step "
+        "succeeds, in the user's language. background=true: long work that runs while the user keeps talking; the "
+        "result is announced aloud when finished."),
+        "parameters": {"type": "object", "properties": {
+            "goal": {"type": "string", "description": "the user's goal in a few words"},
+            "steps": {"type": "array", "items": {"type": "object", "properties": {
+                "tool": {"type": "string"}, "args": {"type": "object"}, "wait": {"type": "number"}}}},
+            "done_message": {"type": "string"},
+            "background": {"type": "boolean"}},
+            "required": ["goal", "steps", "done_message"]}}}]
+tool_router.CORE.add("execute_plan")
+
+
+def _brain_ask(question: str, speech=None) -> str:
+    """Один ход разговора: понять → (план → выполнить) → ответить. Модель зовётся как можно реже."""
+    global conversation_history, consecutive_failures, current_plan
+
+    def on_text(delta):
+        if speech is not None:
+            if _stop_speaking.is_set():
+                raise TaskCancelled()
+            speech.feed(delta)
+
+    current_plan = None
+    _cancel_event.clear()
+    conversation_history.append({"role": "user", "content": question})
+    context_msg = {"role": "system", "content": _context_snapshot(question)}
+    active_groups = tool_router.groups_for(question)
+    active_schema = _with_learned(_with_pairs(tool_router.smart_schema(question, TOOLS_SCHEMA, active_groups)))
+    _qwords = re.sub(r"^\s*\([^)]*\)\s*", "", question).split()
+    mem_block = memory.recall_block(question) if len(_qwords) > 2 else None
+    names = {t["function"]["name"] for t in active_schema}
+    first_effort = _effort_for(question, {"browser"} if "browser_open" in names else set())
+    print(f"[мозг] инструментов: {len(active_schema)} | {sorted(names)}")
+
+    try:
+        step_index = 0
+        for _ in range(10):
+            _check_cancel()
+            _trim_history()
+            extra = [context_msg]
+            sit = _situation_msg()
+            if sit:
+                extra.append(sit)
+            if mem_block:
+                extra.append({"role": "system", "content": mem_block})
+            if _lesson_msg:
+                extra.append(_lesson_msg)
+            if current_plan:
+                extra.append({"role": "system", "content": "Active plan: " + json.dumps(current_plan, ensure_ascii=False)})
+            if consecutive_failures >= 2:
+                extra.append({"role": "system", "content": "The last actions failed. Don't repeat them — rethink the "
+                              "approach, or tell the user plainly what blocks you."})
+            model = MODEL_SMART if step_index == 0 else MODEL_FAST
+            effort = first_effort if step_index == 0 else "low"
+            for attempt in range(3):
+                try:
+                    _t0 = time.time()
+                    base_msgs = clean_messages_for_api(conversation_history) + extra
+                    msgs = llm_gateway.fit(base_msgs, active_schema)
+                    est = llm_gateway.estimate(msgs) + llm_gateway.estimate(active_schema)
+                    other = MODEL_FAST if model == MODEL_SMART else MODEL_SMART
+                    _m, _wait, _room = llm_gateway.plan(_candidates(model, other), est)
+                    if _wait > 3 and _room >= 2500:
+                        msgs = llm_gateway.fit(base_msgs, active_schema, limit=_room - 200)
+                        est = llm_gateway.estimate(msgs) + llm_gateway.estimate(active_schema)
+                    model = llm_gateway.reserve_any(_candidates(model, other), est, _check_cancel)
+                    response, usage = _call_model_stream(on_text, model=model, messages=msgs,
+                                                         tools=active_schema, reasoning_effort=effort)
+                    llm_gateway.record(model, est, usage, llm_gateway.chars(msgs) + llm_gateway.chars(active_schema),
+                                       fallback=llm_gateway.estimate(response) + (600 if effort == "high" else 150))
+                    print(f"[время] модель ({model.split('/')[-1]}, шаг {step_index}, {effort}): {time.time() - _t0:.2f}с")
+                    break
+                except TaskCancelled:
+                    raise
+                except Exception as api_err:
+                    err, low = str(api_err), str(api_err).lower()
+                    if attempt < 2 and ("rate_limit" in low or "429" in err):
+                        wait = _retry_after(err)
+                        llm_gateway.cooldown(model, wait)
+                        if wait <= 3 and _cancel_event.wait(wait):
+                            raise TaskCancelled()
+                        continue
+                    if attempt < 2 and ("tool_use_failed" in low or "tool call validation" in low):
+                        model = MODEL_SMART
+                        continue
+                    raise
+
+            message = _as_message(response)
+            dump = message.model_dump()
+            dump.pop("annotations", None)
+            conversation_history.append(dump)
+
+            if not message.tool_calls:
+                reply = (message.content or "").strip() or (
+                    "Не расслышал, повторите, пожалуйста, сэр." if "(Respond in Russian.)" in question
+                    else "I didn't quite catch that — say it again, sir?")
+                _situation["reply"] = reply
+                return reply
+
+            finished = None
+            calls = message.tool_calls
+            read_only = len(calls) > 1 and all(c.function.name in READ_ONLY_TOOLS for c in calls)
+            parsed = []
+            for c in calls:
+                try:
+                    a = json.loads(c.function.arguments or "{}")
+                except Exception:
+                    a = {}
+                parsed.append((c, c.function.name, {k: v for k, v in a.items() if k} if isinstance(a, dict) else {}))
+            if read_only:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+                    outcomes = list(ex.map(lambda p: _run_one_tool(p[1], p[2]), parsed))
+            else:
+                outcomes = []
+                for c, n, a in parsed:
+                    _check_cancel()
+                    print(f"[мозг] → {n}({_short_args(a)})")
+                    outcomes.append(_run_one_tool(n, a))
+            for (c, n, a), (result, success, ms) in zip(parsed, outcomes):
+                step_index += 1
+                g = tool_router.group_of_tool(n)
+                tool_router.mark_used(n)
+                if g and g not in active_groups:
+                    active_groups.add(g)
+                    active_schema = tool_router.add_group(active_schema, TOOLS_SCHEMA, g)
+                rs = str(result)
+                ok = success and not _TRACE_FAIL.search(rs[:220])
+                _note_action(n, a, ok)
+                consecutive_failures = 0 if ok else consecutive_failures + 1
+                threading.Thread(target=log_task, args=(n, a, result, success, ms), daemon=True).start()
+                conversation_history.append({"role": "tool", "tool_call_id": c.id,
+                                             "content": rs[:MAX_TOOL_RESULT_CHARS]})
+                if n == "execute_plan" and len(calls) == 1:
+                    if rs.startswith("ALL_DONE") and a.get("done_message"):
+                        finished = a["done_message"]           # всё выполнено — отвечаем без ещё одного круга
+                    elif rs == "BACKGROUND_STARTED":
+                        ru = "(Respond in Russian.)" in question
+                        finished = a.get("done_message") and (
+                            "Занимаюсь этим в фоне — сообщу, когда будет готово." if ru
+                            else "On it in the background — I'll let you know when it's done.")
+            if finished:
+                conversation_history.append({"role": "assistant", "content": finished})
+                _situation["reply"] = finished
+                return finished
+        return ("Слишком много шагов — давайте попробуем проще." if "(Respond in Russian.)" in question
+                else "That took too many steps — let's try something simpler.")
+
+    except TaskCancelled:
+        print("[мозг] прервано пользователем")
+        _drop_dangling_tool_calls()
+        conversation_history.append({"role": "assistant", "content": "[Task was cancelled by the user.]"})
+        from voice import get_response_language
+        return "Хорошо, остановился." if get_response_language() == "ru" else "Alright, stopped."
+    except Exception as e:
+        print(f"[мозг] ошибка: {e}")
+        _heal_report(e, "ask_ai")
+        _drop_dangling_tool_calls()
+        from voice import get_response_language
+        ru = get_response_language() == "ru"
+        if "rate_limit" in str(e).lower() or "429" in str(e):
+            return ("Упёрся в минутный лимит запросов — дайте мне полминуты, сэр." if ru
+                    else "I've hit the per-minute request limit — give me half a minute, sir.")
+        return "Не получилось связаться с моделью — попробуйте ещё раз." if ru else "I couldn't reach the model — please try again."
+
+
+# новое ядро встаёт под все обёртки (уроки, ритуалы, ход мыслей, учёба) — они вызывают _ask_ai_base
+_ask_ai_base = _brain_ask
+SYSTEM_PROMPT = SYSTEM_PROMPT_V2
+if conversation_history and isinstance(conversation_history[0], dict) and conversation_history[0].get("role") == "system":
+    conversation_history[0]["content"] = SYSTEM_PROMPT
+print("[мозг] v2: планировщик → исполнитель, рабочая память, фоновые задачи")
+
+
+# === Мини-Atlas поверх окон ===
+def mini_mode(on: bool = True) -> str:
+    """Collapses Atlas into the floating mini window (on=True) or brings the full window back (on=False)."""
+    try:
+        import web_gui
+        g = web_gui._GUI.get("gui")
+    except Exception:
+        g = None
+    if g is None:
+        return "The interface isn't running."
+    (g.enter_mini() if on else g.show_main())
+    return "Mini mode on — I'm in the corner above your windows." if on else "Full window is back."
+
+
+AVAILABLE_FUNCTIONS["mini_mode"] = mini_mode
+TOOLS_SCHEMA.append({"type": "function", "function": {"name": "mini_mode", "description": "Collapses Atlas into a small always-on-top window in the screen corner ('сверни себя', 'мини-режим', 'не мешай, будь в углу') — on=true; brings the full window back ('разверни себя', 'вернись') — on=false.", "parameters": {"type": "object", "properties": {"on": {"type": "boolean"}}, "required": ["on"]}}})
+tool_router.register_tool("mini_mode", "settings")
+tool_router.TRIGGERS["settings"] = tuple(set(tool_router.TRIGGERS.get("settings", ())) | {
+    "сверни себя", "мини-режим", "мини режим", "мини-атлас", "в угол", "разверни себя", "mini mode", "minimize yourself"})

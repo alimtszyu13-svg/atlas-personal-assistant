@@ -319,6 +319,8 @@ from core import day_report
 day_report.start()                                                          # учёт времени для итогов
 from core import gestures
 gestures.start()                                                            # хлопки (жесты — в интерфейсе)
+import ai_brain as _brain
+_brain.set_announcer(lambda text: _speak_and_update(text, interruptible=False))   # итоги фоновых задач — вслух
 voice_thread = threading.Thread(target=_voice_loop, daemon=True)
 voice_thread.start()
 

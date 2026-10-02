@@ -159,6 +159,9 @@ def try_fast_command(text: str):
     t = text.lower().strip().strip('«»"\'“”„').rstrip(".!?").strip()
     if not t:
         return None
+    # составная просьба («открой блокнот и запиши…») — целиком в модель, иначе вторая часть теряется
+    _multi = bool(re.search(r"\s(?:и|а потом|потом|затем|после этого|and|then)\s|,\s*(?:и\s+)?"
+                            r"(?:запиши|напиши|открой|включи|найди|сделай|поставь|write|open|play|find)", t))
 
     # «в фоне …» / «на фоне …» — сразу фоновая миссия, решение не за моделью
     if re.search(r"(?:^|\s)(?:в|на) фоне\b|in the background", t):
@@ -291,7 +294,7 @@ def try_fast_command(text: str):
         r"^(?:включи|поставь|запусти|врубай|play|put on|turn on)\s+"
         r"(?:мне\s+|us\s+|some\s+)?(.+?)"
         r"(?:\s+(?:на|in|on)\s+(спотифае|спотифай|spotify|ютуб музыке|youtube music))?$", t)
-    if m:
+    if m and not _multi:
         what = m.group(1).strip()
         service = (m.group(2) or "").strip()
         is_music_word = any(w in what for w in (
@@ -314,7 +317,7 @@ def try_fast_command(text: str):
 
     # ---------- приложения ----------
     m = re.match(r"^(?:открой|запусти|включи приложение|open|launch|start)\s+(.+)$", t)
-    if m:
+    if m and not _multi:
         target = m.group(1).strip()
         # "открой фильм X" / "открой сайт Y" — это не про приложения, пусть
         # разбирается модель
@@ -325,7 +328,7 @@ def try_fast_command(text: str):
             return _ok(open_app(_match_app(target) or target))
 
     m = re.match(r"^(?:закрой|выключи приложение|close|quit)\s+(.+)$", t)
-    if m:
+    if m and not _multi:
         target = m.group(1).strip()
         if not any(w in target for w in NOT_AN_APP):
             from system_control import close_app
