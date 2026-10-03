@@ -127,6 +127,9 @@ def _wiki_lookup(query: str):
                 s = _json(httpx.get(f"https://{lang}.wikipedia.org/api/rest_v1/page/summary/{hit['title'].replace(' ', '_')}",
                                     headers=UA, timeout=12, follow_redirects=True), f"Википедия ({lang}), статья")
                 src = (s.get("originalimage") or s.get("thumbnail") or {}).get("source")
+                th, ow = (s.get("thumbnail") or {}).get("source", ""), (s.get("originalimage") or {}).get("width", 0)
+                if ow > 1280 and re.search(r"/\d+px-", th):   # копия 1280 px вместо оригинала на мегабайты
+                    src = re.sub(r"/\d+px-", "/1280px-", th)
                 if src:
                     extract = re.split(r"(?<=[.!?])\s", s.get("extract") or "", maxsplit=1)[0]
                     return s.get("title") or hit["title"], extract, src, (s.get("content_urls", {}).get("desktop", {}) or {}).get("page", "")

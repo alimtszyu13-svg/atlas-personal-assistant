@@ -2531,3 +2531,322 @@ def _run_one_tool(name, args):
 
 
 print("[мозг] доводка: ожидание Cerebras вместо медленного Gemini, печать только по просьбе")
+
+
+# =============================================================================
+# === Мгновенные команды, проверка памяти, Gemini — крайний вариант ===
+# =============================================================================
+from datetime import datetime as _dt
+
+try:                                   # Gemini отвечает 6–8 с и быстро выбирает дневную квоту — только в крайнем случае
+    llm_gateway.MODEL_PENALTY[GEM_MODEL] = float(os.getenv("GEMINI_PENALTY") or 15.0)
+except Exception:
+    pass
+
+# --- мгновенные команды: без большого запроса к модели ---
+_RU_MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября",
+              "ноября", "декабря"]
+_RU_DAYS = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
+_CUR = {"доллар": "USD", "долл": "USD", "бакс": "USD", "евро": "EUR", "рубл": "RUB", "юан": "CNY", "тенге": "KZT",
+        "фунт": "GBP", "лир": "TRY", "dollar": "USD", "euro": "EUR", "ruble": "RUB"}
+_MULTI = re.compile(r"\s(?:и|а потом|потом|затем|после этого|and|then)\s|,\s*(?:и\s+)?(?:запиши|открой|включи|найди|покажи)")
+
+
+def _calc_local(expr: str):
+    e = expr.lower().replace(",", ".")
+    for a, b in (("умножить на", "*"), ("умножь на", "*"), ("помножить на", "*"), ("times", "*"), ("multiplied by", "*"),
+                 ("разделить на", "/"), ("делить на", "/"), ("divided by", "/"), ("плюс", "+"), ("plus", "+"),
+                 ("минус", "-"), ("minus", "-"), ("на", "*"), ("х", "*"), ("x", "*"), ("×", "*"), ("÷", "/")):
+        e = e.replace(a, f" {b} ")
+    e = re.sub(r"[?=]", "", e).strip()
+    if not re.fullmatch(r"[\d\s.+\-*/()]+", e) or not re.search(r"\d", e) or "**" in e or len(e) > 60:
+        return None
+    try:
+        v = eval(e, {"__builtins__": {}}, {})
+    except Exception:
+        return None
+    if isinstance(v, float):
+        v = round(v, 6)
+        if v == int(v):
+            v = int(v)
+    return v
+
+
+def _instant_route(t: str):
+    """Фраза → ('local', ответ) | ('tool', имя, аргументы) | None."""
+    if len(t.split()) > 10 or _MULTI.search(t):
+        return None
+    ru = bool(re.search(r"[а-яё]", t))
+    if re.fullmatch(r"(?:а\s+)?(?:который час|сколько (?:сейчас )?времени|какое (?:сейчас )?время|what time is it)", t):
+        n = _dt.now()
+        return ("local", f"Сейчас {n:%H:%M}." if ru else f"It's {n:%H:%M}.")
+    if re.fullmatch(r"(?:а\s+)?(?:какое (?:сегодня )?число|какой (?:сегодня )?день(?: недели)?|какая (?:сегодня )?дата|"
+                    r"what(?:'s| is) the date(?: today)?|what day is (?:it|today))", t):
+        n = _dt.now()
+        return ("local", f"Сегодня {_RU_DAYS[n.weekday()]}, {n.day} {_RU_MONTHS[n.month - 1]}." if ru
+                else f"Today is {n:%A, %B} {n.day}.")
+    m = re.fullmatch(r"(?:сколько будет|посчитай|вычисли|what is|what's|how much is|calculate)\s+(.+)", t)
+    if m:
+        v = _calc_local(m.group(1))
+        if v is not None:
+            return ("local", f"{v}.")
+    if re.fullmatch(r"(?:а\s+)?(?:какая\s+)?(?:сейчас\s+)?погода(?:\s+(?:сейчас|на улице|сегодня))?|сколько (?:сейчас )?градусов"
+                    r"(?: на улице)?|что (?:там )?на улице|холодно (?:ли )?(?:сегодня|на улице)?|"
+                    r"what(?:'s| is) the weather(?: like)?(?: today| now)?|how(?:'s| is) the weather", t):
+        return ("tool", "get_weather", {})
+    if re.search(r"(?:сколько|много ли|осталось).*(?:мест|свободн).*диск|free (?:disk|space)", t):
+        drive = "D" if re.search(r"\bд\b|диск[еа]? d\b|\bd\b", t) else "C"
+        return ("tool", "get_disk_usage", {"drive": drive})
+    if re.search(r"(?:загрузк|нагрузк|загружен).*(?:процессор|цп|cpu)|cpu (?:usage|load)", t):
+        return ("tool", "get_cpu_usage", {})
+    if re.search(r"(?:оперативн|ram usage|memory usage)", t):
+        return ("tool", "get_memory_usage", {})
+    if re.search(r"(?:заряд|батаре|battery)", t):
+        return ("tool", "get_battery_status", {})
+    m = re.search(r"курс\s+(\w+)|сколько стоит\s+(\w+)|(dollar|euro|ruble) (?:rate|exchange)", t)
+    if m and "get_exchange_rate" in AVAILABLE_FUNCTIONS:
+        word = next(g for g in m.groups() if g)
+        base = next((v for k, v in _CUR.items() if word.startswith(k)), None)
+        if base:
+            target = "RUB" if re.search(r"рубл|ruble", t) and base != "RUB" else "KGS"
+            return ("tool", "get_exchange_rate", {"base_currency": base, "target_currency": target})
+    if re.fullmatch(r"(?:какие |расскажи |главные |последние )*(?:новости|что нового)(?: сегодня| в мире)?|"
+                    r"(?:what's the |latest )?news(?: today)?", t):
+        return ("tool", "get_news", {"count": 5})
+    if re.search(r"(?:какие|покажи|что в|что у меня в).*(?:задач|списке дел|список дел|дел на сегодня)", t) \
+            and not re.search(r"добав|удали|отмет", t):
+        return ("tool", "list_todos", {})
+    return None
+
+
+def _instant(question: str, speech=None):
+    raw = re.sub(r"^\s*\([^)]*\)\s*", "", question)
+    t = re.sub(r"^(?:атлас|atlas)[,\s]+", "", raw.lower().strip()).strip(" .!?«»\"")
+    route = _instant_route(t)
+    if not route:
+        return None
+
+    def on_text(d):
+        if speech is not None:
+            speech.feed(d)
+    t0 = time.time()
+    if route[0] == "local":
+        reply = route[1]
+        print(f"[мгновенно] «{t}» → без модели, {time.time() - t0:.2f}с")
+    else:
+        name, args = route[1], route[2]
+        if name not in AVAILABLE_FUNCTIONS:
+            return None
+        result, ok, ms = _run_one_tool(name, dict(args))
+        if not ok or _TRACE_FAIL.search(str(result)[:220]):
+            print(f"[мгновенно] {name} не сработал — передаю обычному мозгу")
+            return None
+        _note_action(name, args, True)
+        fake = _NS(id="instant")
+        reply = _slim_answer(question, [(fake, name, args)], [(result, ok, ms)], on_text) or str(result)[:300]
+        print(f"[мгновенно] «{t}» → {name} + короткий ответ, {time.time() - t0:.2f}с")
+    conversation_history.append({"role": "user", "content": question})
+    conversation_history.append({"role": "assistant", "content": reply})
+    _situation["reply"] = reply
+    return reply
+
+
+_ask_ai_prev_instant = ask_ai
+
+
+def ask_ai(question: str, speech=None) -> str:
+    try:
+        from core import study
+        if study.active():                                   # во время тренировки ответы идут тренеру
+            return _ask_ai_prev_instant(question, speech)
+    except Exception:
+        pass
+    try:
+        from core import routines
+        if routines.match_trigger(question):                 # фраза ритуала — ритуалу
+            return _ask_ai_prev_instant(question, speech)
+    except Exception:
+        pass
+    try:
+        r = _instant(question, speech)
+        if r:
+            return r
+    except TaskCancelled:
+        raise
+    except Exception as e:
+        print(f"[мгновенно] {e} — передаю обычному мозгу")
+    return _ask_ai_prev_instant(question, speech)
+
+
+# --- проверка памяти: неверные, устаревшие и случайные «факты» ---
+_mem_review = {"flagged": []}
+
+
+def _json_call(system: str, user: str, max_tokens: int = 900) -> dict:
+    est = (len(system) + len(user)) // 3 + max_tokens
+    model = llm_gateway.reserve_any(_candidates(MODEL_SMART, MODEL_FAST), est)
+    kw = dict(model=model, max_tokens=max_tokens, response_format={"type": "json_object"},
+              messages=[{"role": "system", "content": system}, {"role": "user", "content": user}])
+    if "gpt-oss" in model:
+        kw["reasoning_effort"] = "low"
+    cl, kw2 = _client_for(kw)
+    raw = cl.chat.completions.create(**kw2).choices[0].message.content or ""
+    m = re.search(r"\{.*\}", raw, re.S)
+    return json.loads(m.group(0)) if m else {}
+
+
+def memory_review(apply: bool = False) -> str:
+    """Checks Atlas's memory about the user for wrong, outdated or junk facts; apply=True removes the flagged ones."""
+    import sqlite3
+    db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory.db")
+    if apply:
+        ids = [f["id"] for f in _mem_review["flagged"]]
+        if not ids:
+            return "Nothing is waiting for removal — run the check first."
+        c = sqlite3.connect(db, timeout=10)
+        c.executemany("UPDATE edges SET active=0 WHERE id=?", [(i,) for i in ids])
+        c.commit()
+        c.close()
+        _mem_review["flagged"] = []
+        try:
+            _profile_cache["t"] = 0.0
+        except Exception:
+            pass
+        return f"Removed {len(ids)} wrong or outdated facts from memory."
+    c = sqlite3.connect(db, timeout=10)
+    rows = c.execute("SELECT e.id, s.label, e.rel, d.label, e.updated FROM edges e JOIN nodes s ON s.id=e.src "
+                     "JOIN nodes d ON d.id=e.dst WHERE e.active=1 ORDER BY e.updated DESC LIMIT 120").fetchall()
+    c.close()
+    if not rows:
+        return "Memory is empty — nothing to check."
+    lines = "\n".join(f"{i} | {s} — {r} → {d} | saved {_dt.fromtimestamp(u or 0):%Y-%m-%d}" for i, s, r, d, u in rows)
+    data = _json_call(
+        "You audit a personal assistant's memory graph about its user. Flag facts that are wrong or junk: "
+        "contradictions (keep the newer one), dates in the past presented as upcoming plans or with an obviously wrong "
+        "year, things the user merely asked about or searched (news, exchange rates, a famous person's death) stored as "
+        "'likes'/'interests', duplicates, meaningless entries. Keep real facts about the user's life. "
+        f"Today is {_dt.now():%Y-%m-%d}. Return JSON only: {{\"remove\": [{{\"id\": int, \"why\": \"short reason\"}}]}}.",
+        lines)
+    known = {r[0]: f"{r[1]} — {r[2]} → {r[3]}" for r in rows}
+    flagged = [{"id": int(x["id"]), "fact": known[int(x["id"])], "why": str(x.get("why", ""))[:80]}
+               for x in (data.get("remove") or []) if str(x.get("id", "")).isdigit() and int(x["id"]) in known]
+    _mem_review["flagged"] = flagged
+    if not flagged:
+        return f"Checked {len(rows)} facts — nothing looks wrong."
+    listing = "; ".join(f"«{f['fact']}» ({f['why']})" for f in flagged[:8])
+    return (f"Checked {len(rows)} facts; {len(flagged)} look wrong or outdated: {listing}"
+            + (" …" if len(flagged) > 8 else "") + ". Ask the user whether to remove them (then call memory_review with apply=true).")
+
+
+AVAILABLE_FUNCTIONS["memory_review"] = memory_review
+TOOLS_SCHEMA.append({"type": "function", "function": {"name": "memory_review", "description": "Checks what Atlas remembers about the user and finds wrong, contradictory, outdated or junk facts ('проверь свою память', 'почисти память', 'там неправильно'). First call without apply, tell the user what was found and ask; only after they agree call apply=true to remove them.", "parameters": {"type": "object", "properties": {"apply": {"type": "boolean"}}}}})
+tool_router.register_tool("memory_review", "memory")
+tool_router.TRIGGERS["memory"] = ("памят", "запомнил", "почисти", "неправильн", "неверн", "ошибся", "memory", "remember")
+print("[мозг] мгновенные команды (время, дата, счёт, погода, система, курс, новости, дела) и проверка памяти")
+
+
+# =============================================================================
+# === Шлифовка: честное «запомнил», важные инструменты не выпадают, быстрые погода и процессор ===
+# =============================================================================
+import functools as _ftp
+
+# --- «Запомни» без содержания → переспросить; никогда не говорить «запомнил» без сохранения ---
+_REMEMBER_EMPTY = re.compile(r"(?:запомни|запиши в памят\w*|remember(?: this| that)?)(?:[,\s]+(?:это|знаешь|пожалуйста|please|ok|ладно))*")
+_instant_route_prev_mem = _instant_route
+
+
+def _instant_route(t: str):
+    if _REMEMBER_EMPTY.fullmatch(t.strip(" ,.!?")):
+        ru = bool(re.search(r"[а-яё]", t))
+        return ("local", "Что именно запомнить, сэр?" if ru else "What exactly should I remember, sir?")
+    return _instant_route_prev_mem(t)
+
+
+_HONEST_MEMORY = (" HONESTY ABOUT MEMORY: never say you saved or remembered something unless remember_fact (or add_note / "
+                  "add_todo) succeeded in this turn. If the user says 'remember' without saying what, ask what to remember.")
+if "HONESTY ABOUT MEMORY" not in SYSTEM_PROMPT_V2:
+    SYSTEM_PROMPT_V2 = SYSTEM_PROMPT_V2 + _HONEST_MEMORY
+SYSTEM_PROMPT = SYSTEM_PROMPT_V2
+if conversation_history and isinstance(conversation_history[0], dict) and conversation_history[0].get("role") == "system":
+    conversation_history[0]["content"] = SYSTEM_PROMPT
+
+# --- отбор инструментов: быстрые «макросы» и инструменты из опыта не выкидываются ---
+_PIN_TOOLS = {"play_on_rezka", "play_on_netflix", "play_on_spotify", "play_on_youtube_music", "launch_steam_game",
+              "open_deep_link", "holo_show", "holo_weather", "holo_graph", "look", "open_app", "desktop_type",
+              "search_file_content", "open_found_file", "start_mission", "learn_skill", "memory_review"}
+
+
+def _trim_schema(question: str, schema: list, k: int = MAX_TOOLS) -> list:
+    if len(schema) <= k:
+        return schema
+    have = [t["function"]["name"] for t in schema]
+    learned = set()
+    try:
+        from core import lessons
+        learned = set(lessons.learned_tools(question))
+    except Exception:
+        pass
+    keep = (set(tool_router.CORE) | {"execute_plan"} | ((_PIN_TOOLS | learned) & set(have)))
+    try:
+        rank = [n for n, _ in tool_router._semantic_ranking(question, TOOLS_SCHEMA)]
+    except Exception:
+        return schema
+    ordered = [n for n in rank if n in have and n not in keep]
+    allowed = (keep & set(have)) | set(ordered[:max(0, k - len(keep & set(have)))])
+    print(f"[мозг] инструментов {len(schema)} → {len(allowed)} (по смыслу запроса; важные сохранены)")
+    return [t for t in schema if t["function"]["name"] in allowed]
+
+
+# --- погода: запоминаем на 10 минут (за это время она почти не меняется) ---
+_weather_cache = {}
+
+
+def _cached_weather(fn):
+    @_ftp.wraps(fn)
+    def wrapper(*a, **kw):
+        key = (tuple(a), tuple(sorted(kw.items())))
+        hit = _weather_cache.get(key)
+        if hit and time.time() - hit[0] < 600:
+            return hit[1]
+        res = fn(*a, **kw)
+        if res and not _TRACE_FAIL.search(str(res)[:200]):
+            _weather_cache[key] = (time.time(), res)
+        return res
+    return wrapper
+
+
+if "get_weather" in AVAILABLE_FUNCTIONS:
+    _wf = AVAILABLE_FUNCTIONS["get_weather"]
+    _inner = getattr(_wf, "__wrapped__", _wf)                # под «датчиком» хода мыслей
+    AVAILABLE_FUNCTIONS["get_weather"] = _cached_weather(_inner)
+
+# --- процессор: замеряем в фоне раз в 2 секунды, ответ мгновенный ---
+_cpu_now = {"v": None}
+
+
+def _cpu_sampler():
+    try:
+        import psutil
+    except ImportError:
+        return
+    while True:
+        try:
+            _cpu_now["v"] = psutil.cpu_percent(interval=2)
+        except Exception:
+            time.sleep(5)
+
+
+threading.Thread(target=_cpu_sampler, daemon=True, name="cpu-sampler").start()
+_cpu_orig = AVAILABLE_FUNCTIONS.get("get_cpu_usage")
+
+
+def get_cpu_usage() -> str:
+    """Current CPU usage percentage."""
+    if _cpu_now["v"] is None and _cpu_orig:
+        return _cpu_orig()
+    return f"CPU usage: {_cpu_now['v']:.0f}%"
+
+
+if _cpu_orig:
+    AVAILABLE_FUNCTIONS["get_cpu_usage"] = get_cpu_usage
+print("[мозг] шлифовка: честное «запомнил», важные инструменты сохраняются, погода и процессор быстрее")

@@ -351,9 +351,8 @@ def _has_speech(recording, min_speech_s: float = 0.3) -> bool:
 
 
 STT_WHISPER = os.getenv("STT_MODEL") or "whisper-large-v3"     # полная модель: точнее turbo на русском
-_STT_BASE_PROMPT = ("Атлас, покажи Эйфелеву башню. Разверни. Сверни. Закрой. Погода в Бишкеке. Найди в интернете. "
-                    "Открой браузер. Включи музыку. Запомни. Напомни. Посмотри, что у меня в руке. Давай повторим SAT. "
-                    "Подведи итоги дня. Стоп. Хватит.")
+_STT_BASE_PROMPT = ("Это обычный разговор с голосовым ассистентом Атлас: вопросы и просьбы на русском языке, "
+                    "иногда с английскими словами. Бишкек.")      # без слов-команд: Whisper не подгоняет под них речь
 
 
 def _stt_prompt() -> str:
@@ -368,6 +367,51 @@ def _stt_language():
     if fixed in ("ru", "en"):
         return fixed
     return "ru" if _response_language["lang"] == "ru" else None
+
+
+
+def _stt_best(temp_path, data):
+    """Два распознавания параллельно (с подсказкой и без) → берём то, в котором Whisper увереннее."""
+    from concurrent.futures import ThreadPoolExecutor
+    lang = _stt_language()
+
+    def run(prompt):
+        kw = dict(file=(temp_path, data), model=STT_WHISPER, temperature=0.0, response_format="verbose_json")
+        if prompt:
+            kw["prompt"] = prompt
+        if lang:
+            kw["language"] = lang
+        r = groq_client.audio.transcriptions.create(**kw)
+        segs = getattr(r, "segments", None) or (getattr(r, "model_extra", None) or {}).get("segments") or []
+        lps = [(sg.get("avg_logprob") if isinstance(sg, dict) else getattr(sg, "avg_logprob", None)) for sg in segs]
+        lps = [x for x in lps if x is not None]
+        return r, (sum(lps) / len(lps) if lps else -1.0)
+
+    results = []
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        futs = [ex.submit(run, _stt_prompt()), ex.submit(run, "")]
+        for f in futs:
+            try:
+                results.append(f.result())
+            except Exception as e:
+                print(f"[Whisper] один из вариантов не получился: {e}")
+    if not results:
+        raise RuntimeError("распознавание не удалось")
+    best = max(results, key=lambda x: x[1])
+    if len(results) == 2:
+        (r1, s1), (r2, s2) = results
+        t1, t2 = (r1.text or "").strip(), (r2.text or "").strip()
+        if t1.lower().strip(".!? ") != t2.lower().strip(".!? "):
+            print(f"[Whisper] варианты: «{t1}» ({s1:.2f}) / «{t2}» ({s2:.2f}) → «{(best[0].text or '').strip()}»")
+    r = best[0]
+    if not lang:
+        lg = (getattr(r, "language", "") or "").lower()
+        if lg and lg not in ("en", "english", "ru", "russian"):
+            # Whisper иногда принимает русскую речь за польскую — переслушиваем как русскую
+            print(f"[Whisper] язык «{lg}» — перераспознаю как русский")
+            r = groq_client.audio.transcriptions.create(file=(temp_path, data), model=STT_WHISPER,
+                                                        temperature=0.0, language="ru")
+    return r
 
 
 _WHISPER_JUNK = {
@@ -395,17 +439,7 @@ def _transcribe_audio(recording: np.ndarray) -> str:
     try:
         with open(temp_path, "rb") as f:
             data = f.read()
-        kw = dict(file=(temp_path, data), model=STT_WHISPER, temperature=0.0, prompt=_stt_prompt())
-        stt_lang = _stt_language()
-        if stt_lang:
-            result = groq_client.audio.transcriptions.create(language=stt_lang, **kw)
-        else:
-            result = groq_client.audio.transcriptions.create(response_format="verbose_json", **kw)
-            lang = (getattr(result, "language", "") or "").lower()
-            if lang and lang not in ("en", "english", "ru", "russian"):
-                # Whisper иногда принимает русскую речь за польскую — переслушиваем как русскую
-                print(f"[Whisper] язык «{lang}» — перераспознаю как русский")
-                result = groq_client.audio.transcriptions.create(language="ru", **kw)
+        result = _stt_best(temp_path, data)        # два варианта параллельно → самый уверенный
         text = (result.text or "").strip()
         if not re.search(r"[^\W_]", text):         # ни буквы, ни цифры: «...», «?!»
             print(f"[Whisper] пустая фраза отброшена: {text!r}")

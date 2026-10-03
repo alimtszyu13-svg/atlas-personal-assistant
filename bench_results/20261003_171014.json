@@ -1,0 +1,279 @@
+{
+ "summary": {
+  "when": "2026-10-03 17:10",
+  "cases": 14,
+  "ok": 14,
+  "median_total": 0.93,
+  "worst_total": 5.03,
+  "median_first": 0.81,
+  "avg_model_calls": 1.29,
+  "share_wait": 0,
+  "share_model": 43,
+  "share_tools": 44
+ },
+ "rows": [
+  {
+   "n": 1,
+   "q": "Какая сейчас погода?",
+   "ok": true,
+   "total": 1.82,
+   "first": 1.81,
+   "model_calls": 1,
+   "model_s": 0.4,
+   "wait_s": 0.0,
+   "tool_s": 1.41,
+   "tools": [
+    "get_weather"
+   ],
+   "models": [
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "Сейчас в Бишкеке 25,5 °C.",
+   "error": ""
+  },
+  {
+   "n": 2,
+   "q": "Сколько будет 17 умножить на 23?",
+   "ok": true,
+   "total": 0.0,
+   "first": 0.0,
+   "model_calls": 0,
+   "model_s": 0.0,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [],
+   "models": [],
+   "reply": "391.",
+   "error": ""
+  },
+  {
+   "n": 3,
+   "q": "Какие главные новости сегодня?",
+   "ok": true,
+   "total": 0.58,
+   "first": 0.54,
+   "model_calls": 1,
+   "model_s": 0.33,
+   "wait_s": 0.0,
+   "tool_s": 0.25,
+   "tools": [
+    "get_news"
+   ],
+   "models": [
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "Сегодня в горах Дагестана выпал первый снег, а в Польше неожиданно прозвучали заявления о войне с Россией; также Ефимов сообщил, что спортцентр «Вышка» на юге Москвы готов к 60 % capacity, Гусев разъя",
+   "error": ""
+  },
+  {
+   "n": 4,
+   "q": "Найди в интернете, кто написал «Евгения Онегина»",
+   "ok": true,
+   "total": 2.77,
+   "first": 2.68,
+   "model_calls": 1,
+   "model_s": 0.43,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [],
+   "models": [
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "Александр Пушкин написал «Евгения Онегина», сэр.",
+   "error": ""
+  },
+  {
+   "n": 5,
+   "q": "Покажи погоду в Стамбуле",
+   "ok": true,
+   "total": 2.05,
+   "first": 2.03,
+   "model_calls": 2,
+   "model_s": 0.64,
+   "wait_s": 0.0,
+   "tool_s": 1.38,
+   "tools": [
+    "holo_weather"
+   ],
+   "models": [
+    "cerebras:gpt-oss-120b",
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "В Стамбуле сейчас 19.8 градуса, в основном ясно.",
+   "error": ""
+  },
+  {
+   "n": 6,
+   "q": "Покажи Эйфелеву башню",
+   "ok": true,
+   "total": 5.03,
+   "first": 4.97,
+   "model_calls": 2,
+   "model_s": 0.61,
+   "wait_s": 0.0,
+   "tool_s": 4.4,
+   "tools": [
+    "holo_show"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-120b"
+   ],
+   "reply": "Вот вам Эйфелева башня, самая узнаваемая архитектурная достопримечательность Парижа, на экране два изображения.",
+   "error": ""
+  },
+  {
+   "n": 7,
+   "q": "Сколько свободного места на диске C?",
+   "ok": true,
+   "total": 0.36,
+   "first": 0.24,
+   "model_calls": 1,
+   "model_s": 0.35,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "get_disk_usage"
+   ],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "На диске C свободно 74.3 ГБ из общей ёмкости 475.9 ГБ, сэр.",
+   "error": ""
+  },
+  {
+   "n": 8,
+   "q": "Какая сейчас загрузка процессора?",
+   "ok": true,
+   "total": 1.42,
+   "first": 1.39,
+   "model_calls": 1,
+   "model_s": 0.42,
+   "wait_s": 0.0,
+   "tool_s": 1.0,
+   "tools": [
+    "get_cpu_usage"
+   ],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "Сейчас загрузка процессора составляет 8 процентов.",
+   "error": ""
+  },
+  {
+   "n": 9,
+   "q": "Переведи на английский: я готовлюсь к экзамену",
+   "ok": true,
+   "total": 0.53,
+   "first": 0.51,
+   "model_calls": 1,
+   "model_s": 0.5,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "I am preparing for the exam.",
+   "error": ""
+  },
+  {
+   "n": 10,
+   "q": "Сконвертируй 5 миль в километры",
+   "ok": true,
+   "total": 0.97,
+   "first": 0.94,
+   "model_calls": 2,
+   "model_s": 0.94,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "convert_units"
+   ],
+   "models": [
+    "gpt-oss-20b",
+    "gpt-oss-120b"
+   ],
+   "reply": "5 миль примерно равны 8.05 километра, сэр.",
+   "error": ""
+  },
+  {
+   "n": 11,
+   "q": "Какие у меня задачи в списке дел?",
+   "ok": true,
+   "total": 0.37,
+   "first": 0.35,
+   "model_calls": 1,
+   "model_s": 0.36,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "list_todos"
+   ],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "Список дел пуст, сэр.",
+   "error": ""
+  },
+  {
+   "n": 12,
+   "q": "Что ты обо мне знаешь?",
+   "ok": true,
+   "total": 0.89,
+   "first": 0.69,
+   "model_calls": 2,
+   "model_s": 0.87,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "holo_graph"
+   ],
+   "models": [
+    "gpt-oss-20b",
+    "gpt-oss-120b"
+   ],
+   "reply": "Я знаю, что вы сильны в геометрии, интересуетесь фильмом «Iron Man 3», валютным курсом USD/SOM, датой смерти Пушкина, а также машиной Fangchengbao Bao 5 (Leopard 5); живёте в Бишкеке, готовитесь к SAT",
+   "error": ""
+  },
+  {
+   "n": 13,
+   "q": "Найди файл, где я писал про SAT",
+   "ok": true,
+   "total": 2.1,
+   "first": 2.1,
+   "model_calls": 2,
+   "model_s": 2.05,
+   "wait_s": 0.0,
+   "tool_s": 0.02,
+   "tools": [
+    "search_file_content"
+   ],
+   "models": [
+    "gpt-oss-20b",
+    "gem:gemini-3.8-flash"
+   ],
+   "reply": "Нашёл текстовый файл HELLO THERE на рабочем столе с упоминанием SAT, а также гайд по SAT в загрузках. Открыть какой-то из них, сэр?",
+   "error": ""
+  },
+  {
+   "n": 14,
+   "q": "Курс доллара к сому",
+   "ok": true,
+   "total": 0.62,
+   "first": 0.57,
+   "model_calls": 1,
+   "model_s": 0.42,
+   "wait_s": 0.0,
+   "tool_s": 0.2,
+   "tools": [
+    "get_exchange_rate"
+   ],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "1 доллар сейчас стоит ≈ 87.48 сомов, сэр.",
+   "error": ""
+  }
+ ]
+}
