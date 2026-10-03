@@ -173,15 +173,21 @@ _JUNK = re.compile(r"logo|icon|clip.?art|vector|emblem|sticker|cartoon|silhouett
                    r"shutterstock|alamy|dreamstime|depositphotos|istockphoto|123rf", re.I)
 
 
+_DDG_OFF = {"until": 0.0}
+
+
 def _ddg_images(query: str, n: int = 10) -> list:
     """Поиск картинок DuckDuckGo — обычные фотографии со всего интернета, без ключа."""
     import httpx
+    if time.time() < _DDG_OFF["until"]:
+        return []                                  # недавно отказал — не теряем на нём секунды
     try:
         r = httpx.get("https://duckduckgo.com/", params={"q": query, "iax": "images", "ia": "images"},
                       headers=_BROWSER_UA, timeout=12, follow_redirects=True)
         m = re.search(r"vqd=[\"']?([\d-]+)", r.text)
         if not m:
-            print(f"[голо] DuckDuckGo: нет токена поиска (код {r.status_code})")
+            print(f"[голо] DuckDuckGo: нет токена поиска (код {r.status_code}) — 6 часов без него")
+            _DDG_OFF["until"] = time.time() + 6 * 3600
             return []
         j = httpx.get("https://duckduckgo.com/i.js", headers=_BROWSER_UA, timeout=12, follow_redirects=True,
                       params={"l": "ru-ru" if _lang() == "ru" else "us-en", "o": "json", "q": query,
@@ -191,26 +197,31 @@ def _ddg_images(query: str, n: int = 10) -> list:
             if x.get("image"):
                 out.append({"title": x.get("title") or query, "url": x["image"], "page": x.get("url", ""),
                             "w": int(x.get("width") or 0), "h": int(x.get("height") or 0), "from": "web"})
+        if not out:
+            _DDG_OFF["until"] = time.time() + 6 * 3600
+            print("[голо] DuckDuckGo не отдал картинки — 6 часов беру из других источников")
         return out
     except Exception as e:
+        _DDG_OFF["until"] = time.time() + 6 * 3600
         print(f"[голо] DuckDuckGo: {e}")
         return []
 
 
 def _candidates(query: str) -> tuple:
-    """Кандидаты из всех источников (без логотипов и мелочи) + подпись из Википедии."""
+    """Кандидаты из всех источников — параллельно (без логотипов и мелочи) + подпись из Википедии."""
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        f_wiki, f_web = ex.submit(_wiki_lookup, query), ex.submit(_ddg_images, query)
+        f_com, f_ov = ex.submit(_commons_lookup, query), ex.submit(_openverse_lookup, query)
+        wiki, web, com, ov = f_wiki.result(), f_web.result() or [], f_com.result(), f_ov.result()
     cands, caption, title = [], "", query
-    wiki = _wiki_lookup(query)
     if wiki:
         title, caption = wiki[0], wiki[1]
         cands.append({"title": wiki[0], "url": wiki[2], "page": wiki[3], "w": 0, "h": 0, "from": "wiki"})
-    web = _ddg_images(query)
-    cands = web[:2] + cands + web[2:]                 # обычные фото — первыми, Википедия — рядом
-    for fn in (_commons_lookup, _openverse_lookup):
-        if len(cands) < 6:
-            r = fn(query)
-            if r:
-                cands.append({"title": r[0], "url": r[2], "page": r[3], "w": 0, "h": 0, "from": fn.__name__})
+    cands = web[:2] + cands + web[2:]
+    for r, origin in ((com, "commons"), (ov, "openverse")):
+        if r:
+            cands.append({"title": r[0], "url": r[2], "page": r[3], "w": 0, "h": 0, "from": origin})
     seen, good = set(), []
     for c in cands:
         u = c["url"].split("?")[0]
@@ -487,8 +498,12 @@ def show_graph(focus: str = "") -> dict:
     if not m:
         return {"ok": True, "text": "Граф пока пустой — расскажи мне о себе, и он начнёт расти." if ru
                 else "The graph is empty so far — tell me about yourself and it will grow."}
+    lab = {x["id"]: x["label"] for x in d["nodes"]}
+    uid = next((x["id"] for x in d["nodes"] if x["user"]), None)
+    facts = [f"{e['rel'].replace('_', ' ')} → {lab.get(e['t'], '?')}" for e in d["edges"] if e["s"] == uid][:10]
+    tail = ((" Главное о пользователе: " if ru else " Key facts about the user: ") + "; ".join(facts) + ".") if facts else ""
     return {"ok": True, "text": (f"На экране граф памяти: {n} понятий и {m} связей." if ru
-                                 else f"The memory graph is on screen: {n} concepts, {m} links.")}
+                                 else f"The memory graph is on screen: {n} concepts, {m} links.") + tail}
 
 
 def forget_edge(edge_id: int) -> bool:

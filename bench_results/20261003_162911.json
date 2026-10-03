@@ -1,0 +1,339 @@
+{
+ "summary": {
+  "when": "2026-10-03 16:29",
+  "cases": 16,
+  "ok": 14,
+  "median_total": 3.6,
+  "worst_total": 60.52,
+  "median_first": 3.54,
+  "avg_model_calls": 2.0,
+  "share_wait": 80,
+  "share_model": 9,
+  "share_tools": 10
+ },
+ "rows": [
+  {
+   "n": 1,
+   "q": "Какая сейчас погода?",
+   "ok": true,
+   "total": 5.17,
+   "first": 5.08,
+   "model_calls": 2,
+   "model_s": 1.07,
+   "wait_s": 0.0,
+   "tool_s": 1.35,
+   "tools": [
+    "holo_weather"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-20b"
+   ],
+   "reply": "Бишкек, Кыргызстан: сейчас 26.2°, преимущественно ясно.",
+   "error": ""
+  },
+  {
+   "n": 2,
+   "q": "Сколько будет 17 умножить на 23?",
+   "ok": false,
+   "total": 1.13,
+   "first": 1.12,
+   "model_calls": 2,
+   "model_s": 1.11,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "calculate"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-20b"
+   ],
+   "reply": "Сорок девятьсот одиннадцать.",
+   "error": ""
+  },
+  {
+   "n": 3,
+   "q": "Какие главные новости сегодня?",
+   "ok": true,
+   "total": 1.4,
+   "first": 1.31,
+   "model_calls": 2,
+   "model_s": 1.13,
+   "wait_s": 0.0,
+   "tool_s": 0.25,
+   "tools": [
+    "get_news"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-20b"
+   ],
+   "reply": "Сегодня главные новости: КНДР провела учения по запуску стратегических ракет средней дальности, а в Пекине объявили о двухлетнем рок‑фестивале. В спортивном секторе Захарова не прошла в третий круг ту",
+   "error": ""
+  },
+  {
+   "n": 4,
+   "q": "Найди в интернете, кто написал «Евгения Онегина»",
+   "ok": true,
+   "total": 5.8,
+   "first": 5.8,
+   "model_calls": 2,
+   "model_s": 1.77,
+   "wait_s": 0.0,
+   "tool_s": 4.0,
+   "tools": [
+    "search_web"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gem:gemini-3.8-flash"
+   ],
+   "reply": "Роман в стихах «Евгений Онегин» написал Александр Сергеевич Пушкин.",
+   "error": ""
+  },
+  {
+   "n": 5,
+   "q": "Покажи погоду в Стамбуле",
+   "ok": true,
+   "total": 50.31,
+   "first": 50.21,
+   "model_calls": 2,
+   "model_s": 3.5,
+   "wait_s": 45.52,
+   "tool_s": 1.27,
+   "tools": [
+    "holo_weather"
+   ],
+   "models": [
+    "gem:gemini-3.8-flash",
+    "gpt-oss-120b"
+   ],
+   "reply": "Стамбул, сейчас около 19 градусов, ясно, а на голографе — неделя назад и вперёд, сэр.",
+   "error": ""
+  },
+  {
+   "n": 6,
+   "q": "Покажи Эйфелеву башню",
+   "ok": true,
+   "total": 16.41,
+   "first": 16.33,
+   "model_calls": 2,
+   "model_s": 0.97,
+   "wait_s": 1.2,
+   "tool_s": 14.22,
+   "tools": [
+    "holo_show"
+   ],
+   "models": [
+    "gpt-oss-20b",
+    "gpt-oss-20b"
+   ],
+   "reply": "Эйфелева башня. Э́йфелева ба́шня — металлическая башня в центре Парижа, самая узнаваемая его архитектурная достопримечательность. (2 фото на экране)",
+   "error": ""
+  },
+  {
+   "n": 7,
+   "q": "Сколько свободного места на диске C?",
+   "ok": true,
+   "total": 1.07,
+   "first": 0.97,
+   "model_calls": 2,
+   "model_s": 1.05,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "get_disk_usage"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-20b"
+   ],
+   "reply": "На диске C осталось примерно 69.8 ГБ свободного места из 475.9 ГБ.",
+   "error": ""
+  },
+  {
+   "n": 8,
+   "q": "Какая сейчас загрузка процессора?",
+   "ok": true,
+   "total": 42.71,
+   "first": 42.67,
+   "model_calls": 2,
+   "model_s": 0.98,
+   "wait_s": 40.7,
+   "tool_s": 1.0,
+   "tools": [
+    "get_cpu_usage"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-120b"
+   ],
+   "reply": "Процессор сейчас загружен на 19 процентов, сэр.",
+   "error": ""
+  },
+  {
+   "n": 9,
+   "q": "Переведи на английский: я готовлюсь к экзамену",
+   "ok": true,
+   "total": 1.94,
+   "first": 1.93,
+   "model_calls": 1,
+   "model_s": 0.52,
+   "wait_s": 1.4,
+   "tool_s": 0.0,
+   "tools": [],
+   "models": [
+    "gpt-oss-20b"
+   ],
+   "reply": "I am preparing for an exam.",
+   "error": ""
+  },
+  {
+   "n": 10,
+   "q": "Сконвертируй 5 миль в километры",
+   "ok": false,
+   "total": 14.89,
+   "first": 14.84,
+   "model_calls": 2,
+   "model_s": 0.82,
+   "wait_s": 14.04,
+   "tool_s": 0.0,
+   "tools": [
+    "convert_units"
+   ],
+   "models": [
+    "gpt-oss-20b",
+    "gpt-oss-120b"
+   ],
+   "reply": "Пять миль — это около восьми точек ноль пять километров, сэр.",
+   "error": ""
+  },
+  {
+   "n": 11,
+   "q": "Какие у меня задачи в списке дел?",
+   "ok": true,
+   "total": 1.32,
+   "first": 1.31,
+   "model_calls": 2,
+   "model_s": 1.29,
+   "wait_s": 0.0,
+   "tool_s": 0.01,
+   "tools": [
+    "list_todos"
+   ],
+   "models": [
+    "gpt-oss-20b",
+    "gpt-oss-20b"
+   ],
+   "reply": "В вашем списке дел пока ничего нет, сэр.",
+   "error": ""
+  },
+  {
+   "n": 12,
+   "q": "Что ты обо мне знаешь?",
+   "ok": true,
+   "total": 1.04,
+   "first": 0.95,
+   "model_calls": 2,
+   "model_s": 1.01,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "holo_graph"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-120b"
+   ],
+   "reply": "Вот что я помню о вас, сэр: вы готовитесь к SAT, интересуетесь астрономией, любите автомобиль Fangchengbao Bao 5, а также хотите знать о смерти Пушкина.",
+   "error": ""
+  },
+  {
+   "n": 13,
+   "q": "Найди файл, где я писал про SAT",
+   "ok": true,
+   "total": 58.84,
+   "first": 58.77,
+   "model_calls": 3,
+   "model_s": 2.37,
+   "wait_s": 56.36,
+   "tool_s": 0.09,
+   "tools": [
+    "search_file_content",
+    "open_file"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-20b",
+    "gpt-oss-20b"
+   ],
+   "reply": "Файл, где вы писали про SAT, называется SAT_Craft_Structure_Info_Ideas_Guide.md и находится в C:\\Users\\Extra_PC\\Downloads.",
+   "error": ""
+  },
+  {
+   "n": 14,
+   "q": "Курс доллара к сому",
+   "ok": true,
+   "total": 2.03,
+   "first": 2.0,
+   "model_calls": 2,
+   "model_s": 1.2,
+   "wait_s": 0.6,
+   "tool_s": 0.2,
+   "tools": [
+    "get_exchange_rate"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-120b"
+   ],
+   "reply": "Курс: один доллар примерно 87,48 сомов, сэр.",
+   "error": ""
+  },
+  {
+   "n": 15,
+   "q": "Открой блокнот и напиши: тест Atlas",
+   "ok": true,
+   "total": 60.52,
+   "first": 60.52,
+   "model_calls": 2,
+   "model_s": 4.38,
+   "wait_s": 52.93,
+   "tool_s": 4.85,
+   "tools": [
+    "open_app",
+    "execute_plan",
+    "open_app",
+    "desktop_type",
+    "execute_plan"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-20b"
+   ],
+   "reply": "Блокнот открыт и в него записан тест Atlas, сэр.",
+   "error": ""
+  },
+  {
+   "n": 16,
+   "q": "Поставь таймер на одну минуту с подписью тест",
+   "ok": true,
+   "total": 1.03,
+   "first": 1.02,
+   "model_calls": 2,
+   "model_s": 1.01,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "set_timer"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-20b"
+   ],
+   "reply": "Таймер запущен с подписью «тест», сэр.",
+   "error": ""
+  }
+ ]
+}

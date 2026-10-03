@@ -1028,8 +1028,10 @@ def _call_model_stream(*args, **kwargs):
         except Exception as e:
             if "attempted to call tool" in str(e):
                 raise
-            _cerebras_down["until"] = time.time() + 300
-            print(f"[cerebras] ошибка ({str(e)[:140]}) — 5 минут работаю через Groq")
+            _limit = "429" in str(e) or "rate" in str(e).lower() or "quota" in str(e).lower()
+            _pause = 20 if _limit else 120
+            _cerebras_down["until"] = time.time() + _pause
+            print(f"[cerebras] {'лимит' if _limit else 'ошибка'} ({str(e)[:140]}) — {_pause} с работаю через Groq")
             kwargs = dict(kwargs)
             kwargs["model"] = MODEL_SMART
             return _call_model_stream_groq(*args, **kwargs)
@@ -2115,6 +2117,7 @@ def _brain_ask(question: str, speech=None) -> str:
     context_msg = {"role": "system", "content": _context_snapshot(question)}
     active_groups = tool_router.groups_for(question)
     active_schema = _with_learned(_with_pairs(tool_router.smart_schema(question, TOOLS_SCHEMA, active_groups)))
+    active_schema = _trim_schema(question, active_schema)          # не больше 22 по смыслу
     _qwords = re.sub(r"^\s*\([^)]*\)\s*", "", question).split()
     mem_block = memory.recall_block(question) if len(_qwords) > 2 else None
     names = {t["function"]["name"] for t in active_schema}
@@ -2130,6 +2133,9 @@ def _brain_ask(question: str, speech=None) -> str:
             sit = _situation_msg()
             if sit:
                 extra.append(sit)
+            _prof = _user_profile()
+            if _prof:
+                extra.append({"role": "system", "content": _prof})
             if mem_block:
                 extra.append({"role": "system", "content": mem_block})
             if _lesson_msg:
@@ -2231,6 +2237,18 @@ def _brain_ask(question: str, speech=None) -> str:
                 conversation_history.append({"role": "assistant", "content": finished})
                 _situation["reply"] = finished
                 return finished
+            if _slim_ok(parsed, outcomes):                       # простые инструменты → короткий запрос-формулировка
+                try:
+                    slim = _slim_answer(question, parsed, outcomes, on_text)
+                except TaskCancelled:
+                    raise
+                except Exception as e:
+                    print(f"[мозг] короткий ответ не получился ({e}) — продолжаю обычным путём")
+                    slim = ""
+                if slim:
+                    conversation_history.append({"role": "assistant", "content": slim})
+                    _situation["reply"] = slim
+                    return slim
         return ("Слишком много шагов — давайте попробуем проще." if "(Respond in Russian.)" in question
                 else "That took too many steps — let's try something simpler.")
 
@@ -2279,3 +2297,237 @@ TOOLS_SCHEMA.append({"type": "function", "function": {"name": "mini_mode", "desc
 tool_router.register_tool("mini_mode", "settings")
 tool_router.TRIGGERS["settings"] = tuple(set(tool_router.TRIGGERS.get("settings", ())) | {
     "сверни себя", "мини-режим", "мини режим", "мини-атлас", "в угол", "разверни себя", "mini mode", "minimize yourself"})
+
+
+# =============================================================================
+# === Быстрее и умнее: лимиты Cerebras, короткий ответ, починка аргументов,  ===
+# === строгий отбор инструментов, портрет пользователя, примеры мышления     ===
+# =============================================================================
+import collections as _col
+
+# --- Cerebras (пробный период): 5 запросов в минуту, ~30 тыс. токенов в минуту ---
+_cer_calls = _col.deque(maxlen=50)
+try:
+    llm_gateway.MODEL_TPM[CEREBRAS_MODEL] = int(os.getenv("CEREBRAS_TPM") or 30000)
+except Exception:
+    pass
+_candidates_prev_cer = _candidates
+
+
+def _candidates(model: str, other: str) -> list:
+    base = list(_candidates_prev_cer(model, other))
+    if "CEREBRAS_MODEL" in globals() and CEREBRAS_MODEL in base:
+        now = time.time()
+        if sum(1 for t in _cer_calls if now - t < 60) >= int(os.getenv("CEREBRAS_RPM") or 5):
+            base.remove(CEREBRAS_MODEL)            # 5 запросов за минуту уже было — не тратим попытку на отказ
+    return base
+
+
+_call_model_stream_prev_cer = _call_model_stream
+
+
+def _call_model_stream(*args, **kwargs):
+    if str(kwargs.get("model", "")).startswith("cerebras:"):
+        _cer_calls.append(time.time())
+    return _call_model_stream_prev_cer(*args, **kwargs)
+
+
+# --- починка аргументов: модель перепутала имя параметра (name вместо app_name и т.п.) ---
+_ARG_ALIASES = {
+    "app_name": ("name", "app", "application", "program"), "query": ("q", "search", "term", "question", "text"),
+    "text": ("content", "message", "note", "value"), "city": ("place", "location"), "place": ("city", "location"),
+    "url": ("link", "address"), "minutes": ("duration", "mins", "time"), "expression": ("expr", "formula", "query"),
+    "title": ("name",), "task": ("text", "todo", "item"),
+}
+
+
+def _repair_args(name: str, args: dict) -> dict:
+    f = AVAILABLE_FUNCTIONS.get(name)
+    if not f or not isinstance(args, dict):
+        return args or {}
+    try:
+        params = inspect.signature(f).parameters
+    except (TypeError, ValueError):
+        return args
+    out = dict(args)
+    for p in params:
+        if p in out:
+            continue
+        for alias in _ARG_ALIASES.get(p, ()):
+            if alias in out and alias not in params:
+                out[p] = out.pop(alias)
+                break
+    required = [p for p, v in params.items() if v.default is inspect.Parameter.empty
+                and v.kind in (v.POSITIONAL_OR_KEYWORD, v.KEYWORD_ONLY)]
+    missing = [p for p in required if p not in out]
+    extra = [k for k in out if k not in params]
+    if len(missing) == 1 and len(extra) == 1:
+        out[missing[0]] = out.pop(extra[0])
+    if out != args:
+        print(f"[мозг] поправил аргументы {name}: {args} → {out}")
+    return out
+
+
+_run_one_tool_prev_fix = _run_one_tool
+
+
+def _run_one_tool(name, args):
+    return _run_one_tool_prev_fix(name, _repair_args(name, args or {}))
+
+
+# --- строгий отбор инструментов: лишние мешают выбору (на «переведи» давали 43 штуки) ---
+MAX_TOOLS = int(os.getenv("ATLAS_MAX_TOOLS") or 22)
+
+
+def _trim_schema(question: str, schema: list, k: int = MAX_TOOLS) -> list:
+    if len(schema) <= k:
+        return schema
+    keep = set(tool_router.CORE) | {"execute_plan"}
+    try:
+        rank = [n for n, _ in tool_router._semantic_ranking(question, TOOLS_SCHEMA)]
+    except Exception:
+        return schema
+    have = [t["function"]["name"] for t in schema]
+    pinned = keep & set(have)
+    ordered = [n for n in rank if n in have and n not in keep]
+    allowed = pinned | set(ordered[:max(0, k - len(pinned))])
+    print(f"[мозг] инструментов {len(schema)} → {len(allowed)} (по смыслу запроса)")
+    return [t for t in schema if t["function"]["name"] in allowed]
+
+
+# --- портрет пользователя: главное о тебе из графа памяти, коротко ---
+_profile_cache = {"t": 0.0, "text": ""}
+
+
+def _user_profile() -> str:
+    if time.time() - _profile_cache["t"] < 120:
+        return _profile_cache["text"]
+    text = ""
+    try:
+        import sqlite3
+        db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory.db")
+        c = sqlite3.connect(db, timeout=5)
+        try:
+            row = c.execute("SELECT id FROM nodes WHERE name='user'").fetchone()
+            if row:
+                rows = c.execute("SELECT e.rel, n.label FROM edges e JOIN nodes n ON n.id = e.dst "
+                                 "WHERE e.src = ? AND e.active = 1 ORDER BY e.conf DESC, e.updated DESC LIMIT 14",
+                                 (row[0],)).fetchall()
+                facts = [f"{r.replace('_', ' ')}: {lbl}" for r, lbl in rows if lbl]
+                if facts:
+                    text = ("About the user (from memory — use it to understand what they want and why; don't recite "
+                            "it unless asked): " + "; ".join(facts))
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"[мозг] портрет пользователя недоступен: {e}")
+    _profile_cache.update(t=time.time(), text=text)
+    return text
+
+
+# --- короткий ответ: результаты простых инструментов → фраза, без истории и списка инструментов ---
+SLIM_TOOLS = {
+    "get_weather", "holo_weather", "get_disk_usage", "get_cpu_usage", "get_memory_usage", "get_battery_status",
+    "get_uptime", "get_volume", "get_brightness", "calculate", "convert_units", "list_todos", "list_notes",
+    "list_timers", "get_news", "get_exchange_rate", "set_timer", "add_todo", "add_note", "complete_todo",
+    "set_volume", "volume_up", "volume_down", "mute_volume", "unmute_volume", "set_brightness", "holo_show",
+    "holo_graph", "translate_text", "list_today_events", "list_upcoming_events", "study_stats", "get_my_ip",
+    "check_internet_speed", "ping_host", "is_website_up", "word_count", "take_screenshot", "lock_screen",
+    "create_event", "get_unread_count", "list_steam_games", "launch_steam_game", "open_app", "close_app",
+    "play_on_spotify", "play_pause_media", "next_track", "previous_track", "set_theme", "mini_mode",
+}
+SLIM_PROMPT = ("You are Atlas, a voice assistant in the spirit of JARVIS: warm, composed, lightly witty. Turn the tool "
+               "results into ONE or TWO natural spoken sentences that answer the user. Use only facts from the results. "
+               "Write numbers with digits (391, 8.05, 26°, 70 ГБ) — the voice engine reads them correctly. No markdown, "
+               "no lists. Say 'sir' / 'сэр' only occasionally.")
+
+
+def _slim_ok(parsed, outcomes) -> bool:
+    if not parsed:
+        return False
+    for (c, n, a), (r, ok, ms) in zip(parsed, outcomes):
+        if n not in SLIM_TOOLS or not ok or _TRACE_FAIL.search(str(r)[:220]):
+            return False
+    return True
+
+
+def _slim_answer(question: str, parsed, outcomes, on_text) -> str:
+    ru = "(Respond in Russian.)" in question
+    q = re.sub(r"^\s*\([^)]*\)\s*", "", question)
+    res = "\n".join(f"{n}: {str(r)[:700]}" for (c, n, a), (r, ok, ms) in zip(parsed, outcomes))
+    msgs = [{"role": "system", "content": SLIM_PROMPT + (" Answer in Russian." if ru else " Answer in English.")},
+            {"role": "user", "content": f"User said: {q}\nTool results:\n{res}"}]
+    est = llm_gateway.estimate(msgs) + 160
+    model = llm_gateway.reserve_any(_candidates(MODEL_SMART, MODEL_FAST), est, _check_cancel)
+    t0 = time.time()
+    resp, usage = _call_model_stream(on_text, model=model, messages=msgs, reasoning_effort="low")
+    llm_gateway.record(model, est, usage, llm_gateway.chars(msgs), fallback=160)
+    print(f"[время] короткий ответ ({model.split('/')[-1]}): {time.time() - t0:.2f}с, ~{est} ток. вместо полного запроса")
+    return (resp.get("content") or "").strip() if isinstance(resp, dict) else ""
+
+
+# --- примеры хорошего мышления и самопроверка ---
+_THINK_EXAMPLES = (
+    "\n\nGOOD THINKING — EXAMPLES.\n"
+    "• 'Открой блокнот и напиши список: хлеб, молоко' → the user wants the list visible in Notepad → execute_plan: "
+    "open_app(app_name='notepad'), desktop_type(text='Список: хлеб, молоко'); done_message 'Готово, список в Блокноте.'\n"
+    "• 'Сколько будет 17 на 23?' → simple arithmetic → answer directly: '391, сэр.'\n"
+    "• 'Найди, кто открыл пенициллин, и запиши в заметки' → search_web, read the answer, then add_note with the fact.\n"
+    "• 'Выключи его' right after music started → 'его' is the music from the Situation note → play_pause_media.\n"
+    "• 'Мне скучно' → think about what the user would enjoy given what you know about them → suggest one concrete "
+    "thing and offer to start it.\n"
+    "SELF-CHECK. After acting, compare the result with the user's goal. If a step failed or the result isn't "
+    "confirmed, fix it or say plainly what happened. Write numbers with digits (391, 8.05).")
+if "GOOD THINKING — EXAMPLES" not in SYSTEM_PROMPT_V2:
+    SYSTEM_PROMPT_V2 = SYSTEM_PROMPT_V2 + _THINK_EXAMPLES
+SYSTEM_PROMPT = SYSTEM_PROMPT_V2
+if conversation_history and isinstance(conversation_history[0], dict) and conversation_history[0].get("role") == "system":
+    conversation_history[0]["content"] = SYSTEM_PROMPT
+print("[мозг] быстрее и умнее: короткие ответы, починка аргументов, отбор инструментов, портрет пользователя")
+
+
+# =============================================================================
+# === Доводка: ждать Cerebras вместо медленного Gemini; не печатать без просьбы ===
+# =============================================================================
+# Cerebras: когда 5 запросов за минуту уже было, шлюз знает, через сколько секунд освободится
+# место, и сам выбирает — подождать пару секунд или взять другую модель.
+_cer_cool = {"until": 0.0}
+
+
+def _candidates(model: str, other: str) -> list:
+    base = list(_candidates_prev_cer(model, other))
+    if "CEREBRAS_MODEL" in globals() and CEREBRAS_MODEL in base:
+        now = time.time()
+        rpm = int(os.getenv("CEREBRAS_RPM") or 5)
+        recent = sorted(t for t in _cer_calls if now - t < 60)
+        if len(recent) >= rpm:
+            free_at = recent[-rpm] + 60
+            if free_at > _cer_cool["until"]:
+                llm_gateway.cooldown(CEREBRAS_MODEL, free_at - now)
+                _cer_cool["until"] = free_at
+    return base
+
+
+try:                                   # Gemini отвечает 2–8 с: берём его, только если ждать других дольше 6 с
+    llm_gateway.MODEL_PENALTY[GEM_MODEL] = float(os.getenv("GEMINI_PENALTY") or 6.0)
+except Exception:
+    pass
+
+# Печать в программы и файлы — только когда пользователь просил что-то написать
+_TYPE_INTENT = re.compile(r"напиш|запиш|допиш|впиш|введи|напечат|вставь|заполни|набери|пиши|type|write|enter|fill|paste|jot",
+                          re.I)
+_run_one_tool_prev_guard = _run_one_tool
+
+
+def _run_one_tool(name, args):
+    if name == "desktop_type":
+        q = re.sub(r"^\s*\([^)]*\)\s*", "", str(globals().get("_current_question") or ""))
+        asked = _TYPE_INTENT.search(q) or str(_situation.get("reply", "")).rstrip().endswith("?")
+        if not asked:
+            print("[мозг] не печатаю: пользователь не просил ничего писать")
+            return ("Blocked: the user didn't ask to type or change anything. Never type into opened files or "
+                    "programs unless the user asked you to write something.", False, 0)
+    return _run_one_tool_prev_guard(name, args)
+
+
+print("[мозг] доводка: ожидание Cerebras вместо медленного Gemini, печать только по просьбе")

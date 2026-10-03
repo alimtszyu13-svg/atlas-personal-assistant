@@ -1,0 +1,297 @@
+{
+ "summary": {
+  "when": "2026-10-03 17:02",
+  "cases": 14,
+  "ok": 14,
+  "median_total": 3.02,
+  "worst_total": 15.88,
+  "median_first": 2.88,
+  "avg_model_calls": 2.07,
+  "share_wait": 20,
+  "share_model": 55,
+  "share_tools": 20
+ },
+ "rows": [
+  {
+   "n": 1,
+   "q": "Какая сейчас погода?",
+   "ok": true,
+   "total": 4.23,
+   "first": 4.23,
+   "model_calls": 2,
+   "model_s": 0.62,
+   "wait_s": 0.0,
+   "tool_s": 1.06,
+   "tools": [
+    "get_weather"
+   ],
+   "models": [
+    "cerebras:gpt-oss-120b",
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "Сейчас в Бишкеке 25,5°C.",
+   "error": ""
+  },
+  {
+   "n": 2,
+   "q": "Сколько будет 17 умножить на 23?",
+   "ok": true,
+   "total": 0.33,
+   "first": 0.33,
+   "model_calls": 1,
+   "model_s": 0.31,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [],
+   "models": [
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "391, сэр.",
+   "error": ""
+  },
+  {
+   "n": 3,
+   "q": "Какие главные новости сегодня?",
+   "ok": true,
+   "total": 1.11,
+   "first": 1.06,
+   "model_calls": 2,
+   "model_s": 0.84,
+   "wait_s": 0.0,
+   "tool_s": 0.25,
+   "tools": [
+    "get_news"
+   ],
+   "models": [
+    "cerebras:gpt-oss-120b",
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "Сегодня «Локомотив» победил «Оренбург» в товарищеском матче, прокуратура взяла под контроль расследование пожара в Брянской области, а Калинская вышла из второго круга турнира в Пекине; также директор",
+   "error": ""
+  },
+  {
+   "n": 4,
+   "q": "Найди в интернете, кто написал «Евгения Онегина»",
+   "ok": true,
+   "total": 3.67,
+   "first": 3.59,
+   "model_calls": 2,
+   "model_s": 1.08,
+   "wait_s": 0.0,
+   "tool_s": 2.56,
+   "tools": [
+    "search_web"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-20b"
+   ],
+   "reply": "Автором «Евгения Онегина» является Александр Сергеевич Пушкин.",
+   "error": ""
+  },
+  {
+   "n": 5,
+   "q": "Покажи погоду в Стамбуле",
+   "ok": true,
+   "total": 2.21,
+   "first": 2.15,
+   "model_calls": 2,
+   "model_s": 0.81,
+   "wait_s": 0.0,
+   "tool_s": 1.38,
+   "tools": [
+    "holo_weather"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-120b"
+   ],
+   "reply": "Сейчас в Стамбуле 19.8 °C, преимущественно ясно. sir.",
+   "error": ""
+  },
+  {
+   "n": 6,
+   "q": "Покажи Эйфелеву башню",
+   "ok": true,
+   "total": 6.9,
+   "first": 6.78,
+   "model_calls": 2,
+   "model_s": 1.47,
+   "wait_s": 0.0,
+   "tool_s": 5.41,
+   "tools": [
+    "holo_show"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-120b"
+   ],
+   "reply": "Эйфелева башня — металлическая конструкция в центре Парижа, самая узнаваемая архитектурная достопримечательность, сейчас на экране два изображения.",
+   "error": ""
+  },
+  {
+   "n": 7,
+   "q": "Сколько свободного места на диске C?",
+   "ok": true,
+   "total": 1.83,
+   "first": 1.68,
+   "model_calls": 2,
+   "model_s": 1.8,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "get_disk_usage"
+   ],
+   "models": [
+    "gpt-oss-20b",
+    "gpt-oss-120b"
+   ],
+   "reply": "На диске C свободно 74.3 ГБ из общего объёма 475.9 ГБ.",
+   "error": ""
+  },
+  {
+   "n": 8,
+   "q": "Какая сейчас загрузка процессора?",
+   "ok": true,
+   "total": 2.24,
+   "first": 2.18,
+   "model_calls": 2,
+   "model_s": 1.21,
+   "wait_s": 0.0,
+   "tool_s": 1.0,
+   "tools": [
+    "get_cpu_usage"
+   ],
+   "models": [
+    "gpt-oss-20b",
+    "gpt-oss-120b"
+   ],
+   "reply": "Сейчас загрузка процессора составляет 18 процент, сэр.",
+   "error": ""
+  },
+  {
+   "n": 9,
+   "q": "Переведи на английский: я готовлюсь к экзамену",
+   "ok": true,
+   "total": 10.63,
+   "first": 10.63,
+   "model_calls": 2,
+   "model_s": 9.3,
+   "wait_s": 0.0,
+   "tool_s": 1.3,
+   "tools": [
+    "translate_text"
+   ],
+   "models": [
+    "gem:gemini-3.8-flash",
+    "gem:gemini-3.8-flash"
+   ],
+   "reply": "По-английски это будет: «I am preparing for the exam» или более разговорно — «I'm studying for an exam».",
+   "error": ""
+  },
+  {
+   "n": 10,
+   "q": "Сконвертируй 5 миль в километры",
+   "ok": true,
+   "total": 7.7,
+   "first": 7.64,
+   "model_calls": 2,
+   "model_s": 7.68,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "convert_units"
+   ],
+   "models": [
+    "gem:gemini-3.8-flash",
+    "gpt-oss-120b"
+   ],
+   "reply": "5 миль ≈ 8,05 км, сэр.",
+   "error": ""
+  },
+  {
+   "n": 11,
+   "q": "Какие у меня задачи в списке дел?",
+   "ok": true,
+   "total": 6.35,
+   "first": 6.32,
+   "model_calls": 2,
+   "model_s": 6.32,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "list_todos"
+   ],
+   "models": [
+    "gem:gemini-3.8-flash",
+    "gpt-oss-120b"
+   ],
+   "reply": "У вас нет задач в списке дел, сэр.",
+   "error": ""
+  },
+  {
+   "n": 12,
+   "q": "Что ты обо мне знаешь?",
+   "ok": true,
+   "total": 2.38,
+   "first": 2.13,
+   "model_calls": 2,
+   "model_s": 2.35,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "holo_graph"
+   ],
+   "models": [
+    "gem:gemini-3.8-flash",
+    "gpt-oss-120b"
+   ],
+   "reply": "Я вижу, что вы живёте в Бишкеке, готовитесь к SAT (экзамен 1 октября 2023) и сильны в геометрии, но она у вас и слабая сторона; вам интересен фильм «Железный человек 3», курс доллара к сомам, дата сме",
+   "error": ""
+  },
+  {
+   "n": 13,
+   "q": "Найди файл, где я писал про SAT",
+   "ok": true,
+   "total": 15.88,
+   "first": 15.79,
+   "model_calls": 4,
+   "model_s": 2.2,
+   "wait_s": 13.44,
+   "tool_s": 0.21,
+   "tools": [
+    "search_file_content",
+    "open_found_file",
+    "open_found_file"
+   ],
+   "models": [
+    "gem:gemini-3.8-flash",
+    "cerebras:gpt-oss-120b",
+    "cerebras:gpt-oss-120b",
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "Файл с вашими заметками о SAT открыт — «SAT_Craft_Structure_Info_Ideas_Guide.md» в папке Downloads. Если нужен другой документ, дайте знать, сэр.",
+   "error": ""
+  },
+  {
+   "n": 14,
+   "q": "Курс доллара к сому",
+   "ok": true,
+   "total": 1.11,
+   "first": 1.1,
+   "model_calls": 2,
+   "model_s": 0.89,
+   "wait_s": 0.0,
+   "tool_s": 0.2,
+   "tools": [
+    "get_exchange_rate"
+   ],
+   "models": [
+    "cerebras:gpt-oss-120b",
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "На текущий момент один доллар США стоит ≈ 87,48 сомов.",
+   "error": ""
+  }
+ ]
+}

@@ -44,7 +44,8 @@ _EXTRACT_PROMPT = (
     "dislikes, lives_in, studies_at, works_on, uses, goal, deadline, teacher_of, has_score. "
     "single=true when only one value can be true at a time (a date, current city, current score), "
     "false for lists (likes). Don't invent facts; skip anything uncertain. Never store what the user "
-    "merely asked about, searched for, or wanted to watch or listen to — only facts about the user's own life."
+    "merely asked about, searched for, or wanted to watch or listen to — only facts about the user's own life. Store a date only if the user said it with its year — never "
+    "guess a year. Use 'likes' only when the user says they like something."
 )
 
 _lock = threading.Lock()
