@@ -35,6 +35,8 @@ import functools
 import json
 import os
 import re
+import sys
+import time
 
 from playwright.sync_api import sync_playwright
 
@@ -79,13 +81,45 @@ def run_in_browser_thread(func):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                if not _is_closed_error(e):
-                    raise
+                if not _is_closed_error(e) or _busy.get("closing"):
+                    raise                                 # закрываем сами — не перезапускать
                 print("[browser] окно браузера было закрыто — перезапускаю и повторяю")
                 _reset_browser()
                 return func(*args, **kwargs)
-        return browser_executor.submit(call).result()
+        limit = _LONG_LIMIT if func.__name__.startswith(("play_on_", "select_rezka", "change_rezka")) else _LIMIT
+        if _busy["fut"] is not None and not _busy["fut"].done():
+            return (f"Браузер ещё занят предыдущим действием «{_busy['name']}» (страница не отвечает). "
+                    "Подожди немного или скажи «закрой браузер».")
+        fut = browser_executor.submit(call)
+        _busy.update(fut=fut, name=func.__name__)
+        t0 = time.time()
+        while True:
+            try:
+                return fut.result(timeout=0.25)
+            except concurrent.futures.TimeoutError:
+                if _cancelled():
+                    print(f"[browser] {func.__name__}: отменено пользователем — Atlas свободен")
+                    return "Отменено пользователем."
+                if time.time() - t0 > limit:
+                    print(f"[browser] {func.__name__}: нет ответа {limit} с — освобождаю Atlas")
+                    return (f"Страница не ответила за {limit} секунд — действие «{func.__name__}» прервано. "
+                            "Попробуй ещё раз или другой сайт.")
     return wrapper
+
+
+_LIMIT = int(os.getenv("BROWSER_ACTION_LIMIT") or 45)
+_LONG_LIMIT = int(os.getenv("BROWSER_MACRO_LIMIT") or 90)
+_busy = {"fut": None, "name": ""}
+
+
+def _cancelled() -> bool:
+    """F8 / «стоп»: флаг отмены мозга Atlas (если он загружен)."""
+    ab = sys.modules.get("ai_brain")
+    ev = getattr(ab, "_cancel_event", None) if ab else None
+    try:
+        return bool(ev and ev.is_set())
+    except Exception:
+        return False
 
 
 def _is_closed_error(e) -> bool:
@@ -260,6 +294,8 @@ _SNAPSHOT_JS = r"""
       }
       el.setAttribute('data-atlas-id', String(id)); seen.set(el, nm);
       const it = { i: id++, tag, role, name: nm, type: (el.type || '').toLowerCase(),
+                   ac: (el.getAttribute('autocomplete') || '').toLowerCase().slice(0, 30),
+                   fn: (el.getAttribute('name') || '').toLowerCase().slice(0, 40),
                    x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
       if (v === 2) it.covered = true;
       if (tag === 'a') it.href = (el.getAttribute('href') || '').slice(0, 70);
@@ -378,9 +414,37 @@ def _locator(el):
     return fr.locator(f'[data-atlas-id="{el["i"]}"]').first
 
 
+_SENSITIVE_AC = {"cc-number", "cc-csc", "cc-exp", "cc-exp-month", "cc-exp-year", "cc-name", "cc-type",
+                 "current-password", "new-password", "one-time-code"}
+_SENSITIVE_NAME = re.compile(r"passw|pwd|cc.?num|card.?num|cvv|cvc|csc|expir|iban|\bpin\b|secur.?code", re.I)
+
+
+def _click_semantic(el: dict) -> bool:
+    """Элемент перерисовался и потерял метку — ищем его заново по роли и названию."""
+    name = (el.get("name") or "").strip()
+    if not name:
+        return False
+    tag, t = el.get("tag"), el.get("type", "")
+    role = el.get("role") or ("link" if tag == "a" else "button" if tag == "button" or t in ("submit", "button")
+                              else "checkbox" if t == "checkbox" else "textbox" if tag in ("input", "textarea") else "")
+    try:
+        loc = _page.get_by_role(role, name=name[:60]).first if role else _page.get_by_text(name[:60], exact=True).first
+        if loc.count():
+            loc.click(timeout=3000)
+            return True
+    except Exception as e:
+        if _is_closed_error(e):
+            raise
+    return False
+
+
 def _is_sensitive(el: dict) -> bool:
     text = (el.get("name") or el.get("text") or "").lower()
-    return el.get("type") == "password" or any(k in text for k in SENSITIVE_KEYWORDS)
+    if el.get("type") == "password" or (el.get("ac") or "") in _SENSITIVE_AC:
+        return True                                     # браузерные атрибуты не врут, в отличие от подписи
+    if _SENSITIVE_NAME.search(el.get("fn") or ""):
+        return True
+    return any(k in text for k in SENSITIVE_KEYWORDS)
 
 
 _CONSENT_JS = r"""
@@ -503,7 +567,8 @@ def browser_click(index: int) -> str:
         except Exception as e2:
             if _is_closed_error(e2):
                 raise
-            _page.mouse.click(el["x"], el["y"])                   # последний шанс — по координатам
+            if not _click_semantic(el):                           # метка пропала — ищем по роли и названию
+                _page.mouse.click(el["x"], el["y"])               # последний шанс — по координатам
     for _ in range(8):                                            # ссылка могла открыть новую вкладку
         if len(_browser.pages) > n_pages:
             break
@@ -1115,8 +1180,22 @@ def skip_intro() -> str:
         return f"Ошибка пропуска заставки: {e}"
 
 
-@run_in_browser_thread
 def browser_close() -> str:
-    """Closes the controlled browser window."""
-    _reset_browser()
+    """Closes the controlled browser window (works even if a page hangs)."""
+    _busy["closing"] = True
+    if _busy["fut"] is not None and not _busy["fut"].done():
+        try:                                             # зависшая страница держит поток — закрываем сам Chromium
+            import psutil
+            me = psutil.Process()
+            for ch in me.children(recursive=True):
+                if "chrom" in (ch.name() or "").lower():
+                    ch.kill()
+            _busy["fut"].result(timeout=10)
+        except Exception:
+            pass
+    try:
+        browser_executor.submit(_reset_browser).result(timeout=15)
+    except Exception:
+        pass
+    _busy["closing"] = False
     return "Браузер закрыт."
