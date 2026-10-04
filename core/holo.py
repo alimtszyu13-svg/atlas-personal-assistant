@@ -323,25 +323,36 @@ def show_weather(place: str) -> dict:
 # ---------------------------------------------------------------------------
 # Зрение: камера и экран
 # ---------------------------------------------------------------------------
+_CAM_OK = {"v": None}
+
+
 def _camera_jpeg() -> bytes:
     try:
         import cv2
     except ImportError:
         raise RuntimeError("для камеры нужен модуль opencv-python — выполни: pip install opencv-python")
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) if os.name == "nt" else cv2.VideoCapture(0)
-    try:
-        frame = None
-        for _ in range(8):                        # первые кадры у веб-камер тёмные — даём настроиться
-            ok, f = cap.read()
-            if ok:
-                frame = f
-            time.sleep(0.05)
-        if frame is None:
-            raise RuntimeError("камера не отдаёт изображение (занята другой программой или отключена)")
-        ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
-        return buf.tobytes()
-    finally:
-        cap.release()
+    tries = [_CAM_OK["v"]] if _CAM_OK["v"] else []
+    backs = [cv2.CAP_MSMF, cv2.CAP_DSHOW, cv2.CAP_ANY] if os.name == "nt" else [cv2.CAP_ANY]
+    tries += [(i, b) for i in (0, 1, 2) for b in backs if (i, b) != _CAM_OK["v"]]
+    for idx, be in tries:
+        cap = cv2.VideoCapture(idx, be)
+        try:
+            if not cap.isOpened():
+                continue
+            frame = None
+            for _ in range(10):                   # первые кадры у веб-камер тёмные — даём настроиться
+                ok, f = cap.read()
+                if ok:
+                    frame = f
+                time.sleep(0.05)
+            if frame is None:
+                continue
+            _CAM_OK["v"] = (idx, be)              # запоминаем рабочий способ — дальше сразу им
+            ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            return buf.tobytes()
+        finally:
+            cap.release()
+    raise RuntimeError("камера не отдаёт изображение (занята другой программой — например, жестами Atlas — или отключена)")
 
 
 def _screen_jpeg() -> bytes:

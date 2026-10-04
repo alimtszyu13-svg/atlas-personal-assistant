@@ -1,0 +1,154 @@
+[
+ {
+  "area": "ключи",
+  "name": ".env: обязательные и полезные ключи",
+  "status": "ok",
+  "detail": "есть: GROQ + CEREBRAS, GEMINI, FISH, ELEVENLABS; язык речи: ru",
+  "tip": "",
+  "seconds": 0.0
+ },
+ {
+  "area": "библиотеки",
+  "name": "версии ключевых пакетов",
+  "status": "ok",
+  "detail": "Python 3.14.2; openai 3.13.0, groq 1.7.0, playwright, webview, vosk, sounddevice 0.5.6…",
+  "tip": "",
+  "seconds": 4.58
+ },
+ {
+  "area": "модели",
+  "name": "Groq · gpt-oss-120b",
+  "status": "ok",
+  "detail": "ответ за 1.87 с",
+  "tip": "",
+  "seconds": 1.92
+ },
+ {
+  "area": "модели",
+  "name": "Cerebras · gpt-oss-120b",
+  "status": "ok",
+  "detail": "ответ за 0.30 с",
+  "tip": "",
+  "seconds": 0.3
+ },
+ {
+  "area": "модели",
+  "name": "Gemini (запасная)",
+  "status": "ok",
+  "detail": "ответ за 2.37 с",
+  "tip": "",
+  "seconds": 2.37
+ },
+ {
+  "area": "речь",
+  "name": "распознавание (Whisper в Groq)",
+  "status": "ok",
+  "detail": "ответ за 0.58 с",
+  "tip": "",
+  "seconds": 0.58
+ },
+ {
+  "area": "речь",
+  "name": "Vosk: модель слова «Атлас»",
+  "status": "ok",
+  "detail": "найдена: models\\vosk-model-small-ru-0.22",
+  "tip": "",
+  "seconds": 0.0
+ },
+ {
+  "area": "речь",
+  "name": "голоса озвучки (настройки)",
+  "status": "ok",
+  "detail": "Fish, ElevenLabs; русских голосов Fish: 4",
+  "tip": "",
+  "seconds": 0.0
+ },
+ {
+  "area": "устройства",
+  "name": "микрофон и динамики",
+  "status": "fail",
+  "detail": "TypeError: '>=' not supported between instances of '_InputOutputPair' and 'int'",
+  "tip": "",
+  "seconds": 0.0
+ },
+ {
+  "area": "устройства",
+  "name": "камера (для жестов и «посмотри»)",
+  "status": "fail",
+  "detail": "камера не отдаёт кадр",
+  "tip": "закрой программы, которые её используют, или проверь разрешения Windows",
+  "seconds": 0.47
+ },
+ {
+  "area": "сервисы",
+  "name": "погода (Open-Meteo)",
+  "status": "ok",
+  "detail": "код 200, 0.75 с",
+  "tip": "",
+  "seconds": 0.75
+ },
+ {
+  "area": "сервисы",
+  "name": "картинки: Википедия",
+  "status": "ok",
+  "detail": "код 200, 0.59 с",
+  "tip": "",
+  "seconds": 0.59
+ },
+ {
+  "area": "сервисы",
+  "name": "картинки: Openverse",
+  "status": "ok",
+  "detail": "код 200, 1.42 с",
+  "tip": "",
+  "seconds": 1.42
+ },
+ {
+  "area": "сервисы",
+  "name": "жесты: модель MediaPipe",
+  "status": "ok",
+  "detail": "код 200, 0.20 с",
+  "tip": "",
+  "seconds": 0.2
+ },
+ {
+  "area": "браузер",
+  "name": "Playwright: запуск Chromium",
+  "status": "ok",
+  "detail": "запуск и страница за 2.7 с",
+  "tip": "",
+  "seconds": 2.79
+ },
+ {
+  "area": "программы",
+  "name": "управление окнами Windows",
+  "status": "ok",
+  "detail": "видно окон: 4",
+  "tip": "",
+  "seconds": 0.09
+ },
+ {
+  "area": "память",
+  "name": "база memory.db",
+  "status": "ok",
+  "detail": "0.3 МБ; реплик 412, эпизодов 7, фактов 9, карточек 0",
+  "tip": "",
+  "seconds": 0.01
+ },
+ {
+  "area": "навыки",
+  "name": "реестр навыков и выученные",
+  "status": "ok",
+  "detail": "навыков в реестре: 15; выучено самим Atlas: 1",
+  "tip": "",
+  "seconds": 0.97
+ },
+ {
+  "area": "система",
+  "name": "свободное место на диске",
+  "status": "ok",
+  "detail": "свободно 82 ГБ",
+  "tip": "",
+  "seconds": 0.0
+ }
+]
