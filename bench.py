@@ -58,7 +58,12 @@ def main():
         lang_hint = "(Respond in Russian.) "
 
     cur = {}
-    orig_stream, orig_reserve, orig_tool = ab._call_model_stream, gw.reserve_any, ab._run_one_tool
+    try:                                       # новое устройство мозга: brain/providers и brain/tools
+        from brain import providers as _prov, tools as _tl
+        stream_home, tool_home = _prov, _tl
+    except ImportError:                        # старое: всё в ai_brain.py
+        stream_home = tool_home = ab
+    orig_stream, orig_reserve, orig_tool = stream_home._call_model_stream, gw.reserve_any, tool_home._run_one_tool
 
     def stream(*a, **k):
         t = time.time()
@@ -84,7 +89,7 @@ def main():
             cur["tools"].append(name)
             cur["tool_s"] += time.time() - t
 
-    ab._call_model_stream, gw.reserve_any, ab._run_one_tool = stream, reserve, tool
+    stream_home._call_model_stream, gw.reserve_any, tool_home._run_one_tool = stream, reserve, tool
     # тест не должен попадать в самообучение и привычки (иначе «вы часто спрашиваете погоду»)
     for mod, names in (("core.lessons", ("record_turn", "learn_from_correction")), ("core.routines", ("log_tools",))):
         try:

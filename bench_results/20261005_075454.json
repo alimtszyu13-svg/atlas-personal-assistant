@@ -1,0 +1,283 @@
+{
+ "summary": {
+  "when": "2026-10-05 07:54",
+  "cases": 14,
+  "ok": 13,
+  "median_total": 0.72,
+  "worst_total": 43.15,
+  "median_first": 0.69,
+  "avg_model_calls": 1.43,
+  "share_wait": 51,
+  "share_model": 30,
+  "share_tools": 14
+ },
+ "rows": [
+  {
+   "n": 1,
+   "q": "Какая сейчас погода?",
+   "ok": true,
+   "total": 1.67,
+   "first": 1.67,
+   "model_calls": 1,
+   "model_s": 0.72,
+   "wait_s": 0.0,
+   "tool_s": 0.94,
+   "tools": [
+    "get_weather"
+   ],
+   "models": [
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "It’s currently 7.7 °C in Bishkek.",
+   "error": ""
+  },
+  {
+   "n": 2,
+   "q": "Сколько будет 17 умножить на 23?",
+   "ok": true,
+   "total": 0.0,
+   "first": 0.0,
+   "model_calls": 0,
+   "model_s": 0.0,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [],
+   "models": [],
+   "reply": "391.",
+   "error": ""
+  },
+  {
+   "n": 3,
+   "q": "Какие главные новости сегодня?",
+   "ok": true,
+   "total": 0.65,
+   "first": 0.59,
+   "model_calls": 1,
+   "model_s": 0.34,
+   "wait_s": 0.0,
+   "tool_s": 0.31,
+   "tools": [
+    "get_news"
+   ],
+   "models": [
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "Today's top headlines: the IMF expects Kyiv to receive about a billion dollars by year‑end due to its sovereign debt, the U.S. military struck a boat alleged to be carrying drug‑linked terrorists in t",
+   "error": ""
+  },
+  {
+   "n": 4,
+   "q": "Найди в интернете, кто написал «Евгения Онегина»",
+   "ok": false,
+   "total": 7.84,
+   "first": 7.83,
+   "model_calls": 2,
+   "model_s": 3.06,
+   "wait_s": 0.0,
+   "tool_s": 2.3,
+   "tools": [
+    "search_web"
+   ],
+   "models": [
+    "cerebras:gpt-oss-120b",
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "It was written by Alexander Pushkin, sir.",
+   "error": ""
+  },
+  {
+   "n": 5,
+   "q": "Покажи погоду в Стамбуле",
+   "ok": true,
+   "total": 2.69,
+   "first": 2.65,
+   "model_calls": 2,
+   "model_s": 1.57,
+   "wait_s": 0.0,
+   "tool_s": 1.09,
+   "tools": [
+    "holo_weather"
+   ],
+   "models": [
+    "cerebras:gpt-oss-120b",
+    "gpt-oss-120b"
+   ],
+   "reply": "The current weather in Istanbul is 15.7 °C with mainly clear skies, sir.",
+   "error": ""
+  },
+  {
+   "n": 6,
+   "q": "Покажи Эйфелеву башню",
+   "ok": true,
+   "total": 4.4,
+   "first": 4.37,
+   "model_calls": 2,
+   "model_s": 1.05,
+   "wait_s": 0.0,
+   "tool_s": 3.33,
+   "tools": [
+    "holo_show"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-120b"
+   ],
+   "reply": "Here’s a view of the Eiffel Tower, the iconic lattice tower on the Champ de Mars in Paris.",
+   "error": ""
+  },
+  {
+   "n": 7,
+   "q": "Сколько свободного места на диске C?",
+   "ok": true,
+   "total": 0.2,
+   "first": 0.16,
+   "model_calls": 1,
+   "model_s": 0.19,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "get_disk_usage"
+   ],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "Drive C: currently has 75.2 GB of free space remaining.",
+   "error": ""
+  },
+  {
+   "n": 8,
+   "q": "Какая сейчас загрузка процессора?",
+   "ok": true,
+   "total": 0.21,
+   "first": 0.18,
+   "model_calls": 1,
+   "model_s": 0.21,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "get_cpu_usage"
+   ],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "The CPU is currently at about 11% utilization, sir.",
+   "error": ""
+  },
+  {
+   "n": 9,
+   "q": "Переведи на английский: я готовлюсь к экзамену",
+   "ok": true,
+   "total": 0.39,
+   "first": 0.37,
+   "model_calls": 1,
+   "model_s": 0.36,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "I am preparing for the exam, sir.",
+   "error": ""
+  },
+  {
+   "n": 10,
+   "q": "Сконвертируй 5 миль в километры",
+   "ok": true,
+   "total": 0.75,
+   "first": 0.73,
+   "model_calls": 2,
+   "model_s": 0.72,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "convert_units"
+   ],
+   "models": [
+    "gpt-oss-20b",
+    "gpt-oss-120b"
+   ],
+   "reply": "5 miles is about 8.05 kilometers, sir.",
+   "error": ""
+  },
+  {
+   "n": 11,
+   "q": "Какие у меня задачи в списке дел?",
+   "ok": true,
+   "total": 0.32,
+   "first": 0.3,
+   "model_calls": 1,
+   "model_s": 0.31,
+   "wait_s": 0.0,
+   "tool_s": 0.01,
+   "tools": [
+    "list_todos"
+   ],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "Your to-do list is currently empty, sir.",
+   "error": ""
+  },
+  {
+   "n": 12,
+   "q": "Что ты обо мне знаешь?",
+   "ok": true,
+   "total": 0.69,
+   "first": 0.65,
+   "model_calls": 1,
+   "model_s": 0.67,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [],
+   "models": [
+    "gpt-oss-20b"
+   ],
+   "reply": "I know you live in Bishkek, keep an eye on the USD/SOM rate, enjoy Iron Man 3, and are preparing for the SAT with a focus on geometry, sir.",
+   "error": ""
+  },
+  {
+   "n": 13,
+   "q": "Найди файл, где я писал про SAT",
+   "ok": true,
+   "total": 43.15,
+   "first": 43.13,
+   "model_calls": 4,
+   "model_s": 9.78,
+   "wait_s": 32.86,
+   "tool_s": 0.47,
+   "tools": [
+    "search_file_content",
+    "open_file",
+    "read_screen"
+   ],
+   "models": [
+    "gem:gemini-3.8-flash",
+    "gem:gemini-3.8-flash",
+    "cerebras:gpt-oss-120b",
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "I located a file titled HELLO THERE.txt on your Desktop that contains a line about the SAT. Let me know if that’s the one you were looking for, sir.",
+   "error": ""
+  },
+  {
+   "n": 14,
+   "q": "Курс доллара к сому",
+   "ok": true,
+   "total": 0.94,
+   "first": 0.89,
+   "model_calls": 1,
+   "model_s": 0.39,
+   "wait_s": 0.0,
+   "tool_s": 0.54,
+   "tools": [
+    "get_exchange_rate"
+   ],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "The current exchange rate is 1 US dollar equals about 87.47 Kyrgyz som, sir.",
+   "error": ""
+  }
+ ]
+}
