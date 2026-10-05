@@ -214,14 +214,21 @@ SLIM_TOOLS = {
     "check_internet_speed", "ping_host", "is_website_up", "word_count", "take_screenshot", "lock_screen",
     "create_event", "get_unread_count", "list_steam_games", "launch_steam_game", "open_app", "close_app",
     "play_on_spotify", "play_pause_media", "next_track", "previous_track", "set_theme", "mini_mode",
+    "search_file_content", "open_found_file", "open_search_result",
 }
+# После этих инструментов часто нужен следующий шаг — короткий ответ только если просьба одношаговая
+_MAY_CONTINUE = {"search_file_content", "open_found_file", "open_search_result"}
+_MORE_STEPS = re.compile(r"\s(?:и|а потом|потом|затем|and|then)\s|прочитай|расскажи|что там|что в нём|что в нем|"
+                         r"перескажи|read it|what's in it|summari", re.I)
 
 
-def _slim_ok(parsed, outcomes) -> bool:
+def _slim_ok(parsed, outcomes, question: str = "") -> bool:
     if not parsed:
         return False
     for (c, n, a), (r, ok, ms) in zip(parsed, outcomes):
         if n not in SLIM_TOOLS or not ok or tools._TRACE_FAIL.search(str(r)[:220]):
+            return False
+        if n in _MAY_CONTINUE and _MORE_STEPS.search(re.sub(r"^\s*\([^)]*\)\s*", "", question)):
             return False
     return True
 
@@ -372,7 +379,7 @@ def _brain_ask(question: str, speech=None) -> str:
                         finished = a.get("done_message") and (
                             "Занимаюсь этим в фоне — сообщу, когда будет готово." if ru
                             else "On it in the background — I'll let you know when it's done.")
-            if not finished and _slim_ok(parsed, outcomes):        # простые инструменты → короткая формулировка
+            if not finished and _slim_ok(parsed, outcomes, question):        # простые инструменты → короткая формулировка
                 try:
                     finished = _slim_answer(question, parsed, outcomes, on_text)
                 except TaskCancelled:

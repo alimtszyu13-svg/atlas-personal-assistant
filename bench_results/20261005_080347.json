@@ -1,0 +1,276 @@
+{
+ "summary": {
+  "when": "2026-10-05 08:03",
+  "cases": 14,
+  "ok": 14,
+  "median_total": 0.7,
+  "worst_total": 4.78,
+  "median_first": 0.64,
+  "avg_model_calls": 1.21,
+  "share_wait": 0,
+  "share_model": 48,
+  "share_tools": 37
+ },
+ "rows": [
+  {
+   "n": 1,
+   "q": "Какая сейчас погода?",
+   "ok": true,
+   "total": 1.56,
+   "first": 1.56,
+   "model_calls": 1,
+   "model_s": 0.61,
+   "wait_s": 0.0,
+   "tool_s": 0.95,
+   "tools": [
+    "get_weather"
+   ],
+   "models": [
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "Сейчас в Бишкеке 7.6 °C.",
+   "error": ""
+  },
+  {
+   "n": 2,
+   "q": "Сколько будет 17 умножить на 23?",
+   "ok": true,
+   "total": 0.0,
+   "first": 0.0,
+   "model_calls": 0,
+   "model_s": 0.0,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [],
+   "models": [],
+   "reply": "391.",
+   "error": ""
+  },
+  {
+   "n": 3,
+   "q": "Какие главные новости сегодня?",
+   "ok": true,
+   "total": 0.66,
+   "first": 0.55,
+   "model_calls": 1,
+   "model_s": 0.41,
+   "wait_s": 0.0,
+   "tool_s": 0.25,
+   "tools": [
+    "get_news"
+   ],
+   "models": [
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "Сегодня в заголовках: Оман не раскрывает сведения о радикальных взглядах пилота FlyDubai, более 2,5 млн аргентинцев прошли шествие к базилике Богоматери, МВФ ожидает от Киева около миллиарда долларов ",
+   "error": ""
+  },
+  {
+   "n": 4,
+   "q": "Найди в интернете, кто написал «Евгения Онегина»",
+   "ok": true,
+   "total": 2.86,
+   "first": 2.78,
+   "model_calls": 1,
+   "model_s": 0.43,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [],
+   "models": [
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "«Евгения Онегина» написал Александр Пушкин, сэр.",
+   "error": ""
+  },
+  {
+   "n": 5,
+   "q": "Покажи погоду в Стамбуле",
+   "ok": true,
+   "total": 1.87,
+   "first": 1.87,
+   "model_calls": 2,
+   "model_s": 0.69,
+   "wait_s": 0.0,
+   "tool_s": 1.15,
+   "tools": [
+    "holo_weather"
+   ],
+   "models": [
+    "cerebras:gpt-oss-120b",
+    "cerebras:gpt-oss-120b"
+   ],
+   "reply": "Сейчас в Стамбуле 15,7 °C, и небо в основном чистое, сэр.",
+   "error": ""
+  },
+  {
+   "n": 6,
+   "q": "Покажи Эйфелеву башню",
+   "ok": true,
+   "total": 4.78,
+   "first": 4.7,
+   "model_calls": 2,
+   "model_s": 1.09,
+   "wait_s": 0.0,
+   "tool_s": 3.66,
+   "tools": [
+    "holo_show"
+   ],
+   "models": [
+    "gpt-oss-120b",
+    "gpt-oss-120b"
+   ],
+   "reply": "Эйфелева башня — железная каркасная башня на Шамп-Элизе в Париже, Франция. (показано 1 фото).",
+   "error": ""
+  },
+  {
+   "n": 7,
+   "q": "Сколько свободного места на диске C?",
+   "ok": true,
+   "total": 0.63,
+   "first": 0.57,
+   "model_calls": 1,
+   "model_s": 0.62,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "get_disk_usage"
+   ],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "На диске C свободно 75.2 ГБ из 475.9 ГБ общего объёма.",
+   "error": ""
+  },
+  {
+   "n": 8,
+   "q": "Какая сейчас загрузка процессора?",
+   "ok": true,
+   "total": 0.25,
+   "first": 0.22,
+   "model_calls": 1,
+   "model_s": 0.25,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "get_cpu_usage"
+   ],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "Сейчас процессор загружен на 10 процентов, сэр.",
+   "error": ""
+  },
+  {
+   "n": 9,
+   "q": "Переведи на английский: я готовлюсь к экзамену",
+   "ok": true,
+   "total": 0.73,
+   "first": 0.71,
+   "model_calls": 1,
+   "model_s": 0.7,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "I am preparing for the exam.",
+   "error": ""
+  },
+  {
+   "n": 10,
+   "q": "Сконвертируй 5 миль в километры",
+   "ok": true,
+   "total": 0.9,
+   "first": 0.87,
+   "model_calls": 2,
+   "model_s": 0.87,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "convert_units"
+   ],
+   "models": [
+    "gpt-oss-20b",
+    "gpt-oss-120b"
+   ],
+   "reply": "5 миль ≈ 8.05 км, сэр.",
+   "error": ""
+  },
+  {
+   "n": 11,
+   "q": "Какие у меня задачи в списке дел?",
+   "ok": true,
+   "total": 0.24,
+   "first": 0.22,
+   "model_calls": 1,
+   "model_s": 0.24,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [
+    "list_todos"
+   ],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "У вас пока нет задач в списке дел.",
+   "error": ""
+  },
+  {
+   "n": 12,
+   "q": "Что ты обо мне знаешь?",
+   "ok": true,
+   "total": 0.59,
+   "first": 0.53,
+   "model_calls": 1,
+   "model_s": 0.57,
+   "wait_s": 0.0,
+   "tool_s": 0.0,
+   "tools": [],
+   "models": [
+    "gpt-oss-20b"
+   ],
+   "reply": "Я помню, что вы живёте в Бишкеке, следите за курсом USD/SOM, любите Iron Man 3, ваш экзамен 1 октября 2023 года, готовитесь к SAT, а слабой областью является геометрия.",
+   "error": ""
+  },
+  {
+   "n": 13,
+   "q": "Найди файл, где я писал про SAT",
+   "ok": true,
+   "total": 1.35,
+   "first": 1.21,
+   "model_calls": 2,
+   "model_s": 1.29,
+   "wait_s": 0.0,
+   "tool_s": 0.02,
+   "tools": [
+    "search_file_content"
+   ],
+   "models": [
+    "gpt-oss-20b",
+    "gpt-oss-120b"
+   ],
+   "reply": "Файл, где вы писали про SAT, находится в папке C:\\Users\\Extra_PC\\Downloads и называется SAT_Craft_Structure_Info_Ideas_Guide.md. Он содержит ваш гайд по разделам Reading & Writing, Craft and Structure",
+   "error": ""
+  },
+  {
+   "n": 14,
+   "q": "Курс доллара к сому",
+   "ok": true,
+   "total": 0.48,
+   "first": 0.43,
+   "model_calls": 1,
+   "model_s": 0.28,
+   "wait_s": 0.0,
+   "tool_s": 0.19,
+   "tools": [
+    "get_exchange_rate"
+   ],
+   "models": [
+    "gpt-oss-120b"
+   ],
+   "reply": "1 доллар США стоит примерно 87,47 киргизских сомов, сэр.",
+   "error": ""
+  }
+ ]
+}

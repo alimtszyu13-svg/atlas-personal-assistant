@@ -45,17 +45,22 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--actions", action="store_true", help="включить команды с действиями")
     ap.add_argument("--only", default="", help="номера через запятую")
+    ap.add_argument("--lang", choices=["ru", "en"], default="ru",
+                    help="язык ответов в тесте (по умолчанию ru — проверки ответов написаны по-русски)")
     args = ap.parse_args()
     only = {int(x) for x in args.only.split(",") if x.strip().isdigit()}
 
     print("Загружаю Atlas (без голоса и окна)…")
     import ai_brain as ab
     from core import llm_gateway as gw
+    lang_hint = "(Respond in Russian.) " if args.lang == "ru" else "(Respond in English.) "
     try:
         from voice import get_response_language
-        lang_hint = "(Respond in Russian.) " if get_response_language() == "ru" else "(Respond in English.) "
+        saved = get_response_language()
+        note = "" if saved == args.lang else f" (в настройках Atlas сейчас «{saved}» — тест от неё не зависит)"
     except Exception:
-        lang_hint = "(Respond in Russian.) "
+        note = ""
+    print(f"Язык ответов в тесте: {args.lang}{note}")
 
     cur = {}
     try:                                       # новое устройство мозга: brain/providers и brain/tools

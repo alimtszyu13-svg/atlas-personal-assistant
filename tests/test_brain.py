@@ -307,6 +307,30 @@ def trimming_keeps_important_tools():
 
 
 @test
+def prompt_has_browser_desktop_and_safety_rules():
+    p = ai_brain.SYSTEM_PROMPT
+    for must in ("BROWSER.", "browser_read_text", "DESKTOP.", "desktop_hotkey", "VERIFY AND SAFETY", "passwords",
+                 "GOOD THINKING", "HONESTY ABOUT MEMORY"):
+        assert must in p, must
+    assert state.conversation_history[0]["content"] == p
+
+
+@test
+def file_search_ends_in_one_short_answer_when_nothing_else_is_asked():
+    s = fresh([{"tool_calls": [("search_file_content", {"query": "SAT"})]}, {"content": "Нашёл два файла про SAT — открыть?"}])
+    reply = ai_brain.ask_ai(RU + "найди, пожалуйста, мой файл, где я писал про подготовку к SAT")
+    assert len(s.requests) == 2 and "tools" not in s.requests[1] and "открыть" in reply
+
+
+@test
+def file_search_continues_when_the_user_asked_for_more():
+    s = fresh([{"tool_calls": [("search_file_content", {"query": "SAT"})]},
+               {"tool_calls": [("open_found_file", {"query": "SAT"})]}, {"content": "Открыл. Там план подготовки."}])
+    ai_brain.ask_ai(RU + "найди мой файл про SAT и расскажи, что там написано")
+    assert len(s.requests) == 3 and "tools" in s.requests[1]
+
+
+@test
 def memory_review_flags_then_removes_only_after_yes():
     d = tempfile.mkdtemp()
     db = os.path.join(d, "memory.db")
