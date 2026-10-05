@@ -46,6 +46,7 @@ def install():
     core = sys.modules.get("core") or _mod("core")
     core.__path__ = [os.path.join(ROOT, "core")]
     _mod("core.bus", bus=None)
+    _mod("core.logbook", start=lambda: "logs/atlas.log")
     _mod("core.memory", log_turn=lambda who, t: LOG.append(("log", who)))
     _mod("core.speaker_id", handle_command=lambda c, say: False, check_last=lambda: (True, None))
     _mod("core.study", active=lambda: False, stop=lambda: "стоп тренировки")

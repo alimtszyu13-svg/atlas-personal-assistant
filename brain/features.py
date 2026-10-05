@@ -311,6 +311,53 @@ def memory_review(apply: bool = False) -> str:
             + (" …" if len(flagged) > 8 else "") + ". Ask the user whether to remove them (then call memory_review with apply=true).")
 
 
+def start_memory_autoreview(every_days: float = 3, delay: float = 120) -> None:
+    """Раз в несколько дней Atlas сам проверяет память. Нашёл мусор — показывает уведомление и
+    спрашивает в разговоре: «удалить?». Удаляет только после «да» (обычный memory_review(apply=True))."""
+    import threading
+    import time as _t
+    mark = os.path.join(_ROOT, "memory_review.json")
+
+    def due() -> bool:
+        try:
+            with open(mark, encoding="utf-8") as f:
+                return _t.time() - json.load(f).get("t", 0) > every_days * 86400
+        except Exception:
+            return True
+
+    def run():
+        _t.sleep(delay)                                   # не мешаем запуску
+        if not due():
+            return
+        try:
+            from ui_state import shared_state
+            for _ in range(60):                           # ждём, пока Atlas свободен (до 10 минут)
+                if shared_state.get("state", "idle") == "idle":
+                    break
+                _t.sleep(10)
+            result = memory_review()
+            with open(mark, "w", encoding="utf-8") as f:
+                json.dump({"t": _t.time()}, f)
+            n = len(_mem_review["flagged"])
+            print(f"[память] плановая проверка: подозрительных фактов — {n}")
+            if not n:
+                return
+            facts = "; ".join(f"«{x['fact']}»" for x in _mem_review["flagged"][:4])
+            ru = _lang() == "ru"
+            text = (f"Я проверил свою память и нашёл устаревшие или неверные факты ({n}): {facts}. Удалить их?" if ru
+                    else f"I checked my memory and found {n} outdated or wrong facts: {facts}. Shall I remove them?")
+            state.conversation_history.append({"role": "assistant", "content": text})   # «да» поймёт модель
+            try:
+                from ui_state import notify
+                notify("warn", "task_done", text[:200])
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"[память] плановая проверка не удалась: {e}")
+
+    threading.Thread(target=run, daemon=True, name="memory-autoreview").start()
+
+
 # =============================================================================
 # Регистрация — в том же порядке, что и раньше (от порядка зависит список для модели)
 # =============================================================================

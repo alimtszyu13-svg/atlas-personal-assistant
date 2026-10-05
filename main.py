@@ -10,6 +10,12 @@ Atlas — точка входа.
 # onnxruntime должен загрузиться первым: его DLL конфликтуют,
 # если раньше успели загрузиться WinRT (OCR) или .NET (pywebview)
 import onnxruntime  # noqa: F401
+import time as _time
+
+_T0 = _time.time()
+from core import logbook  # noqa: E402
+
+print(f"[журнал] {logbook.start()}")
 import random
 import re
 import threading
@@ -35,6 +41,7 @@ from file_search import build_index_background  # noqa: E402
 build_index_background()   # индекс строится в фоне, не задерживая запуск
 from core import memory  # noqa: E402
 
+print(f"[запуск] модули загружены за {_time.time() - _T0:.1f} с")
 MIN_COMMAND_LENGTH = 3     # отсекаем случайный шум вроде "." или "uh"
 
 # =============================================================================
@@ -167,6 +174,7 @@ def _voice_loop() -> None:
     while not shared_state.get("intro_done") and time.time() - t0 < 15:
         time.sleep(0.1)
     lang = get_response_language()
+    print(f"[запуск] Atlas готов за {time.time() - _T0:.1f} с")
     _speak_and_update(f"{_time_greeting()} {random.choice(GREETING_TAIL[lang])}", interruptible=False)
 
     while True:
@@ -240,6 +248,7 @@ def main() -> None:
     day_report.start()                            # учёт времени для итогов
     gestures.start()                              # хлопки (жесты — в интерфейсе)
     ai_brain.set_announcer(_announce)             # итоги фоновых задач — вслух
+    ai_brain.features.start_memory_autoreview()   # раз в 3 дня — проверка памяти, удаление только после «да»
 
     threading.Thread(target=_voice_loop, daemon=True).start()
     threading.Thread(target=_manual_queue_watcher, daemon=True).start()

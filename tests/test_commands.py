@@ -22,14 +22,14 @@ for _stream in (sys.stdout, sys.stderr):
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 CALLS = []
-STATE = {"game": False, "browser_open": False, "fail_open_app": False}
+STATE = {"game": False, "browser_open": False, "fail_open_app": False, "fail_text": "Приложение не найдено"}
 
 
 def _rec(name, result=None):
     def f(*a, **kw):
         CALLS.append((name, a, kw))
         if name == "open_app" and STATE["fail_open_app"]:
-            return "Приложение не найдено"
+            return STATE["fail_text"]
         return result if result is not None else f"{name}: ok"
     return f
 
@@ -146,9 +146,11 @@ def apps_open_by_alias_and_multi_part_goes_to_brain():
 def failed_app_goes_to_brain():
     STATE["fail_open_app"] = True
     try:
-        assert fast("открой фотошоп")[0] is None
+        for text in ("Приложение не найдено", "Не нашёл приложение «фотошоп»", "Не могу найти ярлык"):
+            STATE["fail_text"] = text
+            assert fast("открой фотошоп")[0] is None, text
     finally:
-        STATE["fail_open_app"] = False
+        STATE.update(fail_open_app=False, fail_text="Приложение не найдено")
 
 
 @test

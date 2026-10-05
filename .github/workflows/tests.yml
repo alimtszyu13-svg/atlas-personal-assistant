@@ -19,3 +19,5 @@ jobs:
         run: python tests/test_commands.py
       - name: Main loop
         run: python tests/test_main.py
+      - name: Log file
+        run: python tests/test_logbook.py

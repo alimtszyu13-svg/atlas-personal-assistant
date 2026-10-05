@@ -331,6 +331,44 @@ def file_search_continues_when_the_user_asked_for_more():
 
 
 @test
+def short_answers_keep_names_as_is():
+    assert "don't translate or guess them" in ai_brain.SLIM_PROMPT
+
+
+@test
+def memory_self_check_asks_before_removing():
+    import json as _json
+    d = tempfile.mkdtemp()
+    saved_root, saved_review = features._ROOT, features.memory_review
+    notes = sys.modules["ui_state"].NOTES
+    try:
+        features._ROOT = d
+        def fake_review(apply=False):
+            features._mem_review["flagged"] = [{"id": 1, "fact": "User — likes → news", "why": "искал"}]
+            return "x"
+        features.memory_review = fake_review
+        fresh()
+        sys.modules["ui_state"].shared_state["state"] = "idle"
+        n0 = len(notes)
+        features.start_memory_autoreview(delay=0)
+        for _ in range(50):
+            if os.path.exists(os.path.join(d, "memory_review.json")) and len(notes) > n0:
+                break
+            time.sleep(0.05)
+        last = state.conversation_history[-1]
+        assert last["role"] == "assistant" and "Удалить их?" in last["content"] and "likes" in last["content"]
+        assert len(notes) == n0 + 1
+        h = len(state.conversation_history)                     # второй раз в те же 3 дня — тишина
+        features.start_memory_autoreview(delay=0)
+        time.sleep(0.3)
+        assert len(state.conversation_history) == h
+        assert _json.load(open(os.path.join(d, "memory_review.json")))["t"] > 0
+    finally:
+        features._ROOT, features.memory_review = saved_root, saved_review
+        features._mem_review["flagged"] = []
+
+
+@test
 def memory_review_flags_then_removes_only_after_yes():
     d = tempfile.mkdtemp()
     db = os.path.join(d, "memory.db")
