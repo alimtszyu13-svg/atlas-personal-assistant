@@ -1,43 +1,45 @@
+"""
+Atlas — точка входа.
+
+    фразы          приветствия, отклики, прощания
+    речь           _speak_and_update — сказать вслух и показать в интерфейсе
+    команды        _process_command — быстрый путь → мозг (ai_brain.ask_ai)
+    голосовой цикл ждём «Атлас» → слушаем → стоп / выключись / команда
+    запуск         main() — службы в нужном порядке, затем окно интерфейса
+"""
 # onnxruntime должен загрузиться первым: его DLL конфликтуют,
 # если раньше успели загрузиться WinRT (OCR) или .NET (pywebview)
 import onnxruntime  # noqa: F401
+import random
+import re
 import threading
 import time
 from datetime import datetime
-from ai_brain import ask_ai
-from core.bus import bus
+
+from ai_brain import ask_ai, cancel_current_task, remember_exchange
+from core.bus import bus  # noqa: F401  (шина событий — подключается при импорте)
+from core.control_words import is_shutdown, is_stop
 from fast_commands import try_fast_command
+from hotkeys import start_push_to_talk_hotkey
 from reminders import start_reminder_thread
+from selection_hotkey import start_selection_hotkeys
+from ui_state import shared_state
+from voice import speak, listen, wait_for_wake_word, _push_to_talk_event, get_response_language
 from web_gui import WebGUI
 from window_hotkey import start_window_toggle_hotkey
-from ui_state import shared_state
-import random
-import re
-from selection_hotkey import start_selection_hotkeys
-from hotkeys import start_push_to_talk_hotkey
-from voice import speak, speak_cached, speak_streaming, listen, wait_for_wake_word, _push_to_talk_event, get_response_language
 from database import init_db
+
 init_db()
+from file_search import build_index_background  # noqa: E402
 
-from file_search import build_index_background
 build_index_background()   # индекс строится в фоне, не задерживая запуск
-from core import memory, proactive
+from core import memory  # noqa: E402
 
-WAKE_RESPONSES = {
-    "en": [
-        "Yes, sir?", "Always ready, sir.", "What do you want, sir?",
-        "At your service.", "Waiting for your command.", "I'm here, sir.",
-        "I thought you are sleeping, sir.", "Ready when you are.",
-        "Something happened, sir?",
-    ],
-    "ru": [
-        "Да, сэр?", "Всегда готов, сэр.", "Что вам угодно, сэр?",
-        "К вашим услугам.", "Жду вашей команды.", "Я здесь, сэр.",
-        "Я думал, вы спите, сэр.", "Готов, как только скажете.",
-        "Что-то случилось, сэр?",
-    ],
-}
+MIN_COMMAND_LENGTH = 3     # отсекаем случайный шум вроде "." или "uh"
 
+# =============================================================================
+# Фразы
+# =============================================================================
 GREETING_TIME = {
     "en": {
         "morning": ["Good morning, sir.", "Morning, sir.", "Up early, sir?"],
@@ -52,28 +54,28 @@ GREETING_TIME = {
         "night": ["Что, опять допоздна, сэр?", "Ещё не спите, сэр?", "Полуночничаем, сэр?"],
     },
 }
-
 GREETING_TAIL = {
     "en": ["Atlas is online and ready.", "Atlas online.", "Systems up, ready when you are.", "Atlas here, all systems go."],
     "ru": ["Атлас на связи, готов к работе.", "Атлас в сети.", "Всё запущено, готов слушать.", "Атлас на месте."],
+}
+SHUTDOWN_RESPONSES = {
+    "en": ["Shutting down.", "Signing off, sir.", "Going dark. See you soon, sir.", "Powering down now."],
+    "ru": ["До свидания, сэр.", "Отключаюсь, сэр.", "Ухожу в тень. До скорого, сэр.", "Выключаюсь."],
 }
 
 
 def _time_greeting() -> str:
     hour = datetime.now().hour
-    if 5 <= hour < 12:
-        bucket = "morning"
-    elif 12 <= hour < 18:
-        bucket = "afternoon"
-    elif 18 <= hour < 23:
-        bucket = "evening"
-    else:
-        bucket = "night"
-    lang = get_response_language()
-    return random.choice(GREETING_TIME[lang][bucket])
+    bucket = ("morning" if 5 <= hour < 12 else "afternoon" if 12 <= hour < 18
+              else "evening" if 18 <= hour < 23 else "night")
+    return random.choice(GREETING_TIME[get_response_language()][bucket])
 
 
+# =============================================================================
+# Речь
+# =============================================================================
 def _speak_and_update(text: str, interruptible: bool = True) -> None:
+    """Сказать вслух и показать в интерфейсе."""
     shared_state["state"] = "speaking"
     shared_state["text"] = text
     shared_state["chat_history"].append(("Atlas", text))
@@ -82,51 +84,48 @@ def _speak_and_update(text: str, interruptible: bool = True) -> None:
     shared_state["state"] = "idle"
 
 
+def _announce(text: str) -> None:
+    """Для фоновых служб: сказать, не прерываясь на голос пользователя."""
+    _speak_and_update(text, interruptible=False)
+
+
+# =============================================================================
+# Команды
+# =============================================================================
 def _process_command(command: str) -> None:
-    import traceback
-    print(f"[cmd] {command!r} ← {traceback.extract_stack()[-2].name}")
+    print(f"[cmd] {command!r}")
     shared_state["chat_history"].append(("You", command))
     memory.log_turn("user", command)
     shared_state["text"] = command
 
     from core import speaker_id                  # «запомни мой голос», «отвечай только мне / всем»
-    if speaker_id.handle_command(command, lambda t: _speak_and_update(t, interruptible=False)):
+    if speaker_id.handle_command(command, _announce):
         shared_state["state"] = "idle"
         shared_state["text"] = ""
         return
 
-    # Быстрый путь: простая команда выполняется сразу, без LLM и без TTS
+    # Быстрый путь: простая команда выполняется сразу, без модели и без голоса
     fast = try_fast_command(command)
     if fast is not None:
-        spoken = isinstance(fast, tuple)      # ("speak", текст) — результат озвучить
+        spoken = isinstance(fast, tuple)          # ("speak", текст) — результат озвучить
         if spoken:
             fast = fast[1]
         print(f"[FAST] {command} -> {fast}")
         memory.log_turn("assistant", fast)
-
-
-
-
-
-
-
-        from ai_brain import remember_exchange
         import tool_router
         remember_exchange(command, fast)
         tool_router.note_topic(command)
         if spoken:
-            _speak_and_update(fast)           # сам добавит в чат и вернёт idle
+            _speak_and_update(fast)               # сам добавит в чат и вернёт idle
         else:
             shared_state["chat_history"].append(("Atlas", fast))
             shared_state["state"] = "idle"
         shared_state["text"] = ""
         return
 
+    # Мозг. Язык ответа подсказываем на каждом ходу — не полагаемся на то, что модель
+    # «запомнит» переключение (язык мог смениться через интерфейс, минуя разговор)
     shared_state["state"] = "thinking"
-
-    # Явно подсказываем модели язык ответа на каждом ходу — не полагаемся
-    # на то, что она "запомнит" переключение из истории диалога, особенно
-    # если язык менялся через интерфейс, минуя саму беседу
     lang_hint = "(Respond in Russian.) " if get_response_language() == "ru" else "(Respond in English.) "
     from voice import SpeechStream
     speech = SpeechStream()
@@ -134,107 +133,44 @@ def _process_command(command: str) -> None:
     memory.log_turn("assistant", response)
     shared_state["chat_history"].append(("Atlas", response))   # текст — сразу, речь догоняет
     speech.finish()
-    if not speech.spoken_any:            # запасной путь (например, после rate limit)
+    if not speech.spoken_any:                     # запасной путь (например, после лимита)
         shared_state["state"] = "speaking"
         speak(response)
     shared_state["state"] = "idle"
 
 
-_SHUTDOWN_TEXT_RE = re.compile(
-    r"^(?:выключ\w*|отключ\w*|выключи себя|заверши работу|завершить работу|закончи работу|закройся|иди спать|shut\s?down|turn off|power off|turn yourself off|go to sleep|exit|quit)$")
+def _shutdown() -> None:
+    _speak_and_update(random.choice(SHUTDOWN_RESPONSES[get_response_language()]))
+    shared_state["should_quit"] = True
 
 
-def _is_shutdown_text(text: str) -> bool:
-    cmd = text.lower().strip(" .!?,")
-    cmd = re.sub(r"^(?:atlas|атлас)[,\s]+", "", cmd)
-    cmd = re.sub(r"[,\s]+(?:please|пожалуйста)$", "", cmd).strip()
-    return bool(_SHUTDOWN_TEXT_RE.match(cmd))
-
-
-def _manual_queue_watcher():
+def _manual_queue_watcher() -> None:
+    """Команды, набранные в чате интерфейса."""
     while True:
         if shared_state["manual_queue"]:
             command = shared_state["manual_queue"].pop(0)
-            if _is_shutdown_text(command):          # «выключись» в чате — как голосом
+            if is_shutdown(command):              # «выключись» в чате — как голосом
                 shared_state["chat_history"].append(("You", command))
-                _speak_and_update(random.choice(SHUTDOWN_RESPONSES[get_response_language()]))
-                shared_state["should_quit"] = True
+                _shutdown()
                 continue
             _process_command(command)
         time.sleep(0.2)
 
 
-MIN_COMMAND_LENGTH = 3  # отсекаем случайный шум/мусор вроде "." или "uh"
-SHUTDOWN_RESPONSES = {
-    "en": ["Shutting down.", "Signing off, sir.", "Going dark. See you soon, sir.", "Powering down now."],
-    "ru": ["До свидания, сэр.", "Отключаюсь, сэр.", "Ухожу в тень. До скорого, сэр.", "Выключаюсь."],
-}
-
-
-def _wake_chime() -> None:
-    """Короткий сигнал «слушаю»."""
-    try:
-        import winsound
-        winsound.Beep(880, 90)
-    except Exception:
-        pass
-
-
-def _cache_phrase(phrase: str) -> None:
-    """Генерирует фразу в кеш, не проигрывая её."""
-    import shutil
-    from voice import _generate_any, _cache_path
-    ext = ".mp3" if get_response_language() == "ru" else ".wav"
-    tmp = f"temp_wake{ext}"
-    try:
-        _generate_any(phrase, tmp)
-        shutil.move(tmp, _cache_path(phrase, ext))
-    except Exception as e:
-        print(f"[wake cache] {e}")
-
-
-def _warm_wake_phrases() -> None:
-    """При старте заранее кешируем отклики на имя, чтобы они играли мгновенно."""
-    from voice import _find_cached
-    for p in WAKE_RESPONSES[get_response_language()]:
-        if not _find_cached(p):
-            _cache_phrase(p)
-
-_warmed_langs = set()
-
-
-def _ensure_wake_phrases() -> None:
-    """Прогреть отклики для текущего языка — при старте и после переключения языка."""
-    lang = get_response_language()
-    if lang not in _warmed_langs:
-        _warmed_langs.add(lang)
-        threading.Thread(target=_warm_wake_phrases, daemon=True).start()
-
-
-def _wake_reply_async() -> None:
-    """Отклик на имя голосом, но без ожидания: фраза играет, а микрофон уже слушает."""
-    import pygame
-    from voice import _find_cached
-    phrase = random.choice(WAKE_RESPONSES[get_response_language()])
-    path = _find_cached(phrase)
-    if path:
-        print(f"[Atlas]: {phrase}")
-        pygame.mixer.Sound(path).play()           # отдельный канал, не блокирует
-    else:
-        speak_cached(phrase)          # фразы ещё нет в кеше — говорим голосом и сохраняем
-
-def _voice_loop():
+# =============================================================================
+# Голосовой цикл
+# =============================================================================
+def _voice_loop() -> None:
     start_reminder_thread(_speak_and_update)
     # приветствие — в момент вспышки звезды в заставке (не дольше 15 с ожидания)
-    _t0 = time.time()
-    while not shared_state.get("intro_done") and time.time() - _t0 < 15:
+    t0 = time.time()
+    while not shared_state.get("intro_done") and time.time() - t0 < 15:
         time.sleep(0.1)
     lang = get_response_language()
     _speak_and_update(f"{_time_greeting()} {random.choice(GREETING_TAIL[lang])}", interruptible=False)
 
     while True:
-        _push_to_talk_event.clear()  # страхуемся от "призрачного" события,
-                                       # унаследованного от системного хука клавиатуры
+        _push_to_talk_event.clear()               # «призрачное» нажатие от системного хука клавиатуры
         shared_state["state"] = "idle"
         shared_state["text"] = ""
 
@@ -243,48 +179,34 @@ def _voice_loop():
         if shared_state.get("always_listening"):
             trigger = "always"
         elif follow_up:
-            trigger = "followup"          # Atlas задал вопрос / идёт игра — слушаем без имени
+            trigger = "followup"                  # Atlas задал вопрос / идёт игра — слушаем без имени
             print("(жду ответа без имени)")
         else:
             trigger = wait_for_wake_word()
         print(f"[DEBUG] trigger={trigger}")
 
-        # Короткий отклик ("Yes, sir?") уместен только когда Atlas реально
-        # услышал своё имя вслух. Push-to-talk и always-listening — уже
-        # осознанные действия пользователя, лишняя реплика тут была бы
-        # той самой "повторяющейся" болтовнёй, которая надоедала.
-            
         shared_state["state"] = "listening"
         command = listen()
-
         if len(command.strip()) < MIN_COMMAND_LENGTH and not re.search(r"\d", command):
-            continue  # мусорное/пустое распознавание — не тратим вызов ask_ai
+            continue                              # пустое распознавание — не тратим запрос к модели
 
-        if trigger != "manual":                  # F9 и текст не проверяем — это запасной путь
+        if trigger != "manual":                   # F9 и текст не проверяем — это запасной путь
             from core import speaker_id
-            _ok, _score = speaker_id.check_last()
-            if _score is not None:
-                print(f"[голос] сходство с вашим голосом: {_score:.2f}")
-            if not _ok:
+            ok, score = speaker_id.check_last()
+            if score is not None:
+                print(f"[голос] сходство с вашим голосом: {score:.2f}")
+            if not ok:
                 print("[голос] это не ваш голос — команда пропущена")
                 shared_state["text"] = ""
                 continue
 
-        SHUTDOWN_RE = re.compile(
-            r"^(?:выключ\w*|отключ\w*|выключи себя|заверши работу|завершить работу|закончи работу|закройся|иди спать|shut\s?down|turn off|power off|turn yourself off|go to sleep|exit|quit)$")
-        cmd = command.lower().strip(" .!?,")
-        cmd = re.sub(r"^(?:atlas|атлас)[,\s]+", "", cmd)
-        cmd = re.sub(r"[,\s]+(?:please|пожалуйста)$", "", cmd).strip()
-        if cmd in {"stop", "стоп", "хватит", "cancel", "отмена", "enough", "стой", "прекрати", "перестань",
-                   "остановись", "довольно", "не надо", "отбой", "тихо", "замолчи", "wait", "pause"}:
-            from core import study                 # «хватит» во время тренировки — закончить её
+        if is_stop(command):
+            from core import study                # «хватит» во время тренировки — закончить её
             if study.active():
                 _speak_and_update(study.stop(), interruptible=False)
-            continue          # прерывать нечего — не тратим запрос к модели
-        if SHUTDOWN_RE.match(cmd):
-            shutdown_msg = random.choice(SHUTDOWN_RESPONSES[get_response_language()])
-            _speak_and_update(shutdown_msg)
-            shared_state["should_quit"] = True
+            continue                              # прерывать нечего — не тратим запрос к модели
+        if is_shutdown(command):
+            _shutdown()
             break
         _process_command(command)
 
@@ -292,41 +214,40 @@ def _voice_loop():
         from skills.fun import game_active
         last = shared_state["chat_history"][-1][1] if shared_state["chat_history"] else ""
         shared_state["follow_up"] = str(last).rstrip().endswith("?") or game_active()
-        
-start_push_to_talk_hotkey("f9")
-import keyboard
-from ai_brain import cancel_current_task
-keyboard.add_hotkey("f8", cancel_current_task)
-print("(cancel hotkey active: f8)")
-start_selection_hotkeys()
 
 
-from voice import output_device_name, output_is_headphones
-print(f"[audio] вывод: {output_device_name()} → "
-      f"{'наушники' if output_is_headphones() else 'колонки'}")
-memory.start_sleep_cycle()
-from core import proactive
-proactive.start(lambda text: _speak_and_update(text, interruptible=False))
-from core import missions
-missions.init(lambda text: _speak_and_update(text, interruptible=False))
-from core import healer
-healer.start(lambda text: _speak_and_update(text, interruptible=False))   # самолечение
-from core import routines
-routines.start(lambda text: _speak_and_update(text, interruptible=False))  # ритуалы и привычки
-from core import skill_forge
-skill_forge.start(lambda text: _speak_and_update(text, interruptible=False))  # мастерская навыков
-from core import day_report
-day_report.start()                                                          # учёт времени для итогов
-from core import gestures
-gestures.start()                                                            # хлопки (жесты — в интерфейсе)
-import ai_brain as _brain
-_brain.set_announcer(lambda text: _speak_and_update(text, interruptible=False))   # итоги фоновых задач — вслух
-voice_thread = threading.Thread(target=_voice_loop, daemon=True)
-voice_thread.start()
+# =============================================================================
+# Запуск
+# =============================================================================
+def main() -> None:
+    import keyboard
+    import ai_brain
+    from voice import output_device_name, output_is_headphones
+    from core import proactive, missions, healer, routines, skill_forge, day_report, gestures
 
-manual_thread = threading.Thread(target=_manual_queue_watcher, daemon=True)
-manual_thread.start()
+    start_push_to_talk_hotkey("f9")
+    keyboard.add_hotkey("f8", cancel_current_task)
+    print("(cancel hotkey active: f8)")
+    start_selection_hotkeys()
+    print(f"[audio] вывод: {output_device_name()} → {'наушники' if output_is_headphones() else 'колонки'}")
 
-gui = WebGUI(shared_state)
-start_window_toggle_hotkey(gui, "f10")
-gui.run()
+    memory.start_sleep_cycle()
+    proactive.start(_announce)
+    missions.init(_announce)
+    healer.start(_announce)                       # самолечение
+    routines.start(_announce)                     # ритуалы и привычки
+    skill_forge.start(_announce)                  # мастерская навыков
+    day_report.start()                            # учёт времени для итогов
+    gestures.start()                              # хлопки (жесты — в интерфейсе)
+    ai_brain.set_announcer(_announce)             # итоги фоновых задач — вслух
+
+    threading.Thread(target=_voice_loop, daemon=True).start()
+    threading.Thread(target=_manual_queue_watcher, daemon=True).start()
+
+    gui = WebGUI(shared_state)
+    start_window_toggle_hotkey(gui, "f10")
+    gui.run()
+
+
+if __name__ == "__main__":
+    main()

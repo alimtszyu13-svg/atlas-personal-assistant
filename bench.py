@@ -183,6 +183,8 @@ def main():
         except Exception:
             pass
     print(f"\nПодробности: {path}")
+    sys.stdout.flush()
+    sys.stderr.flush()
     os._exit(0)                                 # фоновые потоки Atlas (индекс, память) не держат консоль
 
 

@@ -359,6 +359,8 @@ def main():
     with open(path, "w", encoding="utf-8") as f:
         json.dump(RESULTS, f, ensure_ascii=False, indent=1)
     print(f"\nПодробности: {path}")
+    sys.stdout.flush()
+    sys.stderr.flush()
     os._exit(0)
 
 

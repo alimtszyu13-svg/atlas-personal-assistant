@@ -365,6 +365,8 @@ def main():
         except Exception:
             print(f"  ✗ {t.__name__}\n" + "".join("      " + ln for ln in traceback.format_exc().splitlines(True)[-6:]))
     print(f"\nТестов пройдено: {ok} из {len(TESTS)}")
+    sys.stdout.flush()
+    sys.stderr.flush()
     os._exit(0 if ok == len(TESTS) else 1)
 
 
