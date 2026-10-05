@@ -117,10 +117,16 @@ def install():
     desktop.desktop_type = _tool("desktop_type", "text, index=-1, enter=False, replace=False", "Typed.")
     for sub in ("holo", "gestures", "day_report", "missions", "proactive"):
         _module(f"core.{sub}")
+    import importlib.util as _ilu                                  # эмоции — настоящие: это чистый текст
+    _spec = _ilu.spec_from_file_location("core.emotions", os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "core", "emotions.py"))
+    _em = _ilu.module_from_spec(_spec)
+    sys.modules["core.emotions"] = _em
+    _spec.loader.exec_module(_em)
     core = _module("core")
     core.__path__ = []
     for sub in ("llm_gateway", "lessons", "routines", "study", "skill_forge", "skills", "memory", "healer",
-                "desktop_agent", "holo", "gestures", "day_report", "missions", "proactive"):
+                "desktop_agent", "holo", "gestures", "day_report", "missions", "proactive", "emotions"):
         setattr(core, sub, sys.modules[f"core.{sub}"])
 
     _module("system_control", open_app=_tool("open_app", "app_name", "Opened."), close_app=_tool("close_app", "app_name"),

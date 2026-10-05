@@ -154,9 +154,18 @@ def failed_app_goes_to_brain():
 
 
 @test
+def wake_word_at_the_start_is_understood():
+    assert fast("атлас, включи музыку")[2][0][:2] == ("play_on_spotify", ("",))
+    assert fast("Атлас! открой блокнот")[2][0][1] == ("блокнот",)
+    assert fast("atlas, open calculator")[2][0][1] == ("калькулятор",)
+
+
+@test
 def music():
     assert fast("включи спокойную музыку")[2][0][:2] == ("play_on_spotify", ("спокойную музыку",))
     assert fast("включи музыку")[2][0][:2] == ("play_on_spotify", ("",))
+    assert fast("включи какую-нибудь музыку")[2][0][:2] == ("play_on_spotify", ("",)), "это «включи музыку», а не поиск"
+    assert fast("включи мне любую музыку")[2][0][:2] == ("play_on_spotify", ("",))
     assert fast("включи linkin park на ютуб музыке")[1] == ["play_on_youtube_music"]
     assert fast("включи музыку и сделай громче")[0] is None
 

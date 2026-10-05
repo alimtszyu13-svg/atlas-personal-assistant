@@ -519,3 +519,8 @@ def start() -> None:
     # --- проверка памяти
     register("memory_review", memory_review, "Checks what Atlas remembers about the user and finds wrong, contradictory, outdated or junk facts ('проверь свою память', 'почисти память', 'там неправильно'). First call without apply, tell the user what was found and ask; only after they agree call apply=true to remove them.", {"apply": _B}, group="memory")
     _triggers("memory", ("памят", "запомнил", "почисти", "неправильн", "неверн", "ошибся", "memory", "remember"))
+
+    # Сервисы, недоступные в регионе пользователя, модели не показываются (по умолчанию —
+    # YouTube Music: в Кыргызстане он закрыт). Список — ATLAS_BLOCKED_TOOLS в .env, через запятую.
+    for name in filter(None, (os.getenv("ATLAS_BLOCKED_TOOLS", "play_on_youtube_music")).replace(" ", "").split(",")):
+        unregister(name)

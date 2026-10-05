@@ -226,6 +226,73 @@ def argument_aliases_work_even_with_extra_junk():
 
 
 @test
+def browser_not_open_is_a_failure_not_success():
+    for text in ("Браузер не открыт — сначала browser_open.", "Нет элемента [0] — возьми номер из свежего списка.",
+                 "Сервис недоступен в вашем регионе", "Нажал Play на «x» в Spotify, но не уверен, что заиграло.",
+                 "Заиграло «Boogie Wonderland» — похоже, не то, что просили («animals»)."):
+        assert tools._TRACE_FAIL.search(text), text
+    s = fresh([{"tool_calls": [("execute_plan", {"goal": "музыка", "done_message": "Music is now playing, sir.",
+                                                 "steps": [{"tool": "browser_click", "args": {"index": 0}}]})]},
+               {"content": "Не получилось: браузер не открыт."}])
+    tools.AVAILABLE_FUNCTIONS["browser_click"] = lambda index: "Браузер не открыт — сначала browser_open."
+    reply = ai_brain.ask_ai(RU + "включи мне что-нибудь послушать в браузере")
+    assert reply != "Music is now playing, sir." and len(s.requests) == 2, reply
+
+
+@test
+def play_requests_always_get_music_tools():
+    for q in ("включи что-нибудь спокойное", "включи one more night maroon 5", "поставь мне джаз под вечер",
+              "Атлас, хочу послушать что-то бодрое"):
+        s = fresh([{"content": "ок"}])
+        ai_brain.ask_ai(RU + q)
+        names = {t["function"]["name"] for t in s.requests[0]["tools"]}
+        assert {"play_on_spotify", "play_pause_media"} <= names, (q, sorted(names))
+    s = fresh([{"content": "ок"}])
+    ai_brain.ask_ai(RU + "расскажи, как устроен двигатель внутреннего сгорания")
+    assert "play_on_spotify" not in {t["function"]["name"] for t in s.requests[0]["tools"]}, "без «включи» — не нужно"
+    assert "Never use the browser or web Spotify for music" in ai_brain.SYSTEM_PROMPT
+
+
+@test
+def music_follow_ups_keep_music_tools():
+    for q in ("что-нибудь другое", "повеселее", "да, подойдёт", "ты же говорил классический рок"):
+        s = fresh([{"content": "ок"}])
+        state.conversation_history.append({"role": "assistant", "content": "Включил «Maroon 5 - Animals» в Spotify."})
+        ai_brain.ask_ai(RU + q)
+        names = {t["function"]["name"] for t in s.requests[0]["tools"]}
+        assert "play_on_spotify" in names, (q, sorted(names))
+    s = fresh([{"content": "ок"}])
+    ai_brain.ask_ai(RU + "спасибо, всё понятно")
+    assert "play_on_spotify" not in {t["function"]["name"] for t in s.requests[0]["tools"]}, "без музыки в разговоре — не нужно"
+
+
+@test
+def typing_after_a_question_only_if_it_was_about_writing():
+    fresh()
+    state.turn["question"] = RU + "повеселее"
+    state.situation["reply"] = "Sure thing, sir — what kind of music would you like to hear?"
+    res, ok, _ = tools._run_one_tool("desktop_type", {"text": "upbeat pop"})
+    assert not ok and res.startswith("Blocked"), "вопрос был про музыку, а не про текст"
+    state.turn["question"] = RU + "привет всем, я скоро буду"
+    state.situation["reply"] = "Что написать в сообщении?"
+    res, ok, _ = tools._run_one_tool("desktop_type", {"text": "привет всем"})
+    assert ok, res
+
+
+@test
+def emotion_rule_in_both_prompts():
+    assert "VOICE EMOTION" in ai_brain.SYSTEM_PROMPT and "[sympathetic]" in ai_brain.SYSTEM_PROMPT
+    assert "emotion tag" in ai_brain.SLIM_PROMPT
+    assert state.conversation_history[0]["content"] == ai_brain.SYSTEM_PROMPT
+
+
+@test
+def region_blocked_music_service_is_hidden():
+    names = {t["function"]["name"] for t in tools.TOOLS_SCHEMA}
+    assert "play_on_youtube_music" not in names and "play_on_spotify" in names
+
+
+@test
 def typing_without_request_is_blocked():
     fresh()
     state.turn["question"] = RU + "найди файл про SAT"

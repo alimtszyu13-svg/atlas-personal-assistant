@@ -98,6 +98,21 @@ def brain_gets_language_hint_and_fallback_voice():
 
 
 @test
+def emotion_tags_go_to_voice_not_to_chat():
+    reset()
+    saved = M.ask_ai
+    M.ask_ai = lambda q, speech=None: "[warm] Отличный выбор, сэр. [amused] Классика."
+    try:
+        M._process_command("поставь что-нибудь хорошее")
+    finally:
+        M.ask_ai = saved
+    assert M.shared_state["chat_history"][-1] == ("Atlas", "Отличный выбор, сэр. Классика."), M.shared_state["chat_history"]
+    assert ("speak", "[warm] Отличный выбор, сэр. [amused] Классика.") in LOG, "голосу метки нужны"
+    M._speak_and_update("[calm] Готово.")
+    assert M.shared_state["chat_history"][-1] == ("Atlas", "Готово.") and M.shared_state["text"] == "Готово."
+
+
+@test
 def voice_loop_stop_then_command_then_shutdown():
     reset()
     LISTEN[:] = ["стоп", "расскажи что-нибудь", "Атлас, выключись"]

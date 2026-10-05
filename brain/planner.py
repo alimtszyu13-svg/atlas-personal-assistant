@@ -304,6 +304,7 @@ def _brain_ask(question: str, speech=None) -> str:
     active_groups = tool_router.groups_for(question)
     schema = tools._with_learned(tools._with_pairs(tool_router.smart_schema(question, tools.TOOLS_SCHEMA, active_groups)))
     schema = tools._trim_schema(question, schema)
+    schema = tools._with_intent(question, schema)          # «включи …» — музыка и кино всегда под рукой
     words = re.sub(r"^\s*\([^)]*\)\s*", "", question).split()
     mem_block = memory.recall_block(question) if len(words) > 2 else None   # «да», «открой его» — память не нужна
     names = {t["function"]["name"] for t in schema}

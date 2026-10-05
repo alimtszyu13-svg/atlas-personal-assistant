@@ -244,7 +244,8 @@ def load_registry_skills() -> None:
 # Ход мыслей: каждый вызов инструмента виден вокруг звезды
 # =============================================================================
 _TRACE_FAIL = re.compile(r"something went wrong|не найден|not found|has been closed|не смог|couldn'?t|"
-                         r"failed|ошибк|error|отказываюсь|не удалось", re.I)
+                         r"failed|ошибк|error|отказываюсь|не удалось|не открыт|нет элемента|not open|"
+                         r"no element|недоступ|unavailable|blocked|не уверен|похоже, не то|not sure", re.I)
 _trace_lock = threading.Lock()
 
 
@@ -347,7 +348,8 @@ def _repair_args(name: str, args: dict) -> dict:
     return out
 
 
-_TYPE_INTENT = re.compile(r"напиш|запиш|допиш|впиш|введи|напечат|вставь|заполни|набери|пиши|type|write|enter|fill|paste|jot",
+_TYPE_INTENT = re.compile(r"напиш|напис|запиш|запис|допиш|допис|впиш|впис|введи|напечат|вставь|заполни|набери|пиши|"
+                          r"type|write|enter|fill|paste|jot",
                           re.I)
 
 
@@ -356,7 +358,8 @@ def _run_one_tool(name: str, args: dict):
     Печать в программы — только по просьбе; перепутанные параметры чинятся; ошибка в коде → самолечение."""
     if name == "desktop_type":
         q = re.sub(r"^\s*\([^)]*\)\s*", "", str(state.turn.get("question") or ""))
-        if not (_TYPE_INTENT.search(q) or str(state.situation.get("reply", "")).rstrip().endswith("?")):
+        last = str(state.situation.get("reply", ""))
+        if not (_TYPE_INTENT.search(q) or (last.rstrip().endswith("?") and _TYPE_INTENT.search(last))):
             print("[мозг] не печатаю: пользователь не просил ничего писать")
             return ("Blocked: the user didn't ask to type or change anything. Never type into opened files or "
                     "programs unless the user asked you to write something.", False, 0)
@@ -449,6 +452,41 @@ MAX_TOOLS = int(os.getenv("ATLAS_MAX_TOOLS") or 22)
 _PIN_TOOLS = {"play_on_rezka", "play_on_netflix", "play_on_spotify", "play_on_youtube_music", "launch_steam_game",
               "open_deep_link", "holo_show", "holo_weather", "holo_graph", "look", "open_app", "desktop_type",
               "search_file_content", "open_found_file", "start_mission", "learn_skill", "memory_review"}
+
+
+# Намерение в начале фразы → инструменты, которые обязаны быть у модели, что бы ни решил отбор по смыслу
+_INTENT_PINS = [
+    (re.compile(r"(?:^|[\s,.!])(?:включи|включай|поставь|врубай|врубите|запусти|послушать|послушаем|хочу послушать|"
+                r"play|put on)\b", re.I),
+     {"play_on_spotify", "play_pause_media", "next_track", "previous_track", "play_on_rezka"}),
+]
+
+
+_MUSIC_TALK = re.compile(r"play_on_spotify|next_track|play_pause_media|spotify|музык|music|плейлист|playlist|трек|track|"
+                         r"песн|song|\brock\b|\bрок\b|джаз|jazz|\bпоп\b|\bpop\b", re.I)
+
+
+def _music_context() -> bool:
+    """Только что говорили о музыке: недавние действия или ответы Atlas про неё."""
+    acts = " ".join(state.situation.get("actions", [])[-4:])
+    said = " ".join(str(m.get("content") or "") for m in state.conversation_history[-6:]
+                    if isinstance(m, dict) and m.get("role") == "assistant")
+    return bool(_MUSIC_TALK.search(acts + " " + said))
+
+
+def _with_intent(question: str, schema: list) -> list:
+    q = re.sub(r"^\s*\([^)]*\)\s*", "", question or "")
+    want = set()
+    for rx, names in _INTENT_PINS:
+        if rx.search(q):
+            want |= names
+    if not want and len(q.split()) <= 6 and _music_context():     # «что-нибудь другое», «повеселее», «да, подойдёт»
+        want |= _INTENT_PINS[0][1]
+    have = {t["function"]["name"] for t in schema}
+    extra = [t for t in TOOLS_SCHEMA if t["function"]["name"] in want - have]
+    if extra:
+        print(f"[мозг] + по намерению: {sorted(t['function']['name'] for t in extra)}")
+    return schema + extra
 
 
 def _trim_schema(question: str, schema: list, k: int = MAX_TOOLS) -> list:

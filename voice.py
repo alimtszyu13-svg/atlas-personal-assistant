@@ -13,6 +13,7 @@ from elevenlabs.client import ElevenLabs
 import time
 import random
 from ui_state import shared_state
+from core import emotions as _emo        # метки эмоций: Fish их слышит, остальные — нет
 
 load_dotenv()
 
@@ -237,7 +238,7 @@ def _generate_speech_kokoro(text: str, filename: str) -> None:
             from kokoro_onnx import Kokoro
             _kokoro = Kokoro(os.path.join(KOKORO_DIR, "kokoro-v1.0.onnx"),
                              os.path.join(KOKORO_DIR, "voices-v1.0.bin"))
-        samples, sr = _kokoro.create(text, voice=KOKORO_VOICE,
+        samples, sr = _kokoro.create(_emo.strip(text), voice=KOKORO_VOICE,
                                      speed=KOKORO_SPEED, lang="en-gb")
     sf.write(filename, samples, sr)
 
@@ -254,7 +255,7 @@ def _generate_speech(text: str, filename: str) -> None:
     if _en_engine["name"] == "groq" and time.time() >= _groq_tts_until["t"]:
         try:
             response = groq_client.audio.speech.create(
-                model=TTS_MODEL, voice=TTS_VOICE, input=text, response_format="wav")
+                model=TTS_MODEL, voice=TTS_VOICE, input=_emo.strip(text), response_format="wav")
             response.write_to_file(filename)
             return
         except Exception as e:
@@ -547,7 +548,7 @@ def _generate_speech_fallback(text: str, filename: str) -> None:
     """Резервный TTS через Edge-TTS — бесплатный, без дневного лимита токенов,
     подхватывает, если у Groq/Orpheus исчерпан суточный лимит."""
     async def _gen():
-        communicate = edge_tts.Communicate(text, FALLBACK_VOICE)
+        communicate = edge_tts.Communicate(_emo.strip(text), FALLBACK_VOICE)
         await communicate.save(filename)
     asyncio.run(_gen())
 
@@ -591,7 +592,7 @@ def set_elevenlabs_voice(name: str) -> str:
 def _generate_speech_elevenlabs(text: str, filename: str) -> None:
     """Основной голос для русского — самый естественный из доступных, но с месячным лимитом символов."""
     audio = elevenlabs_client.text_to_speech.convert(
-        text=text,
+        text=_emo.strip(text),
         voice_id=_elevenlabs_voice["id"],
         model_id="eleven_multilingual_v2",
         output_format="mp3_44100_128"
@@ -617,7 +618,7 @@ def _get_silero_model():
 def _generate_speech_silero(text: str, filename: str) -> None:
     """Генерирует речь локально через Silero — без сетевого запроса, естественнее и быстрее Edge-TTS."""
     model = _get_silero_model()
-    model.save_wav(text=text, speaker=SILERO_SPEAKER, sample_rate=48000, audio_path=filename)
+    model.save_wav(text=_emo.strip(text), speaker=SILERO_SPEAKER, sample_rate=48000, audio_path=filename)
 
 # ---------------------------------------------------------------------------
 # Ускорение: кэш фраз, тайминги, потоковая озвучка
@@ -748,7 +749,7 @@ def _generate_any_impl(text: str, filename: str) -> None:
         except Exception as e:
             print(f"[Silero error]: {e}, пробую Edge-TTS")
         async def _gen():
-            communicate = edge_tts.Communicate(text, RUSSIAN_TTS_VOICE)
+            communicate = edge_tts.Communicate(_emo.strip(text), RUSSIAN_TTS_VOICE)
             await communicate.save(filename)
         asyncio.run(_gen())
         return
@@ -768,7 +769,7 @@ def speak_streaming(text: str, interruptible: bool = True) -> None:
         speak(text, interruptible=interruptible)
         return
 
-    print(f"[Atlas]: {text}")
+    print(f"[Atlas]: {_emo.strip(text)}")
     _stop_speaking.clear()
     _maybe_play_ambient(text)
     ready = {}
@@ -821,7 +822,7 @@ def speak_streaming(text: str, interruptible: bool = True) -> None:
 
 def speak(text: str, interruptible: bool = True, cache_as: str = None) -> None:
     _stop_speaking.clear()
-    print(f"[Atlas]: {text}")
+    print(f"[Atlas]: {_emo.strip(text)}")
     _maybe_play_ambient(text)
 
     if _response_language["lang"] == "ru":
@@ -838,7 +839,7 @@ def speak(text: str, interruptible: bool = True, cache_as: str = None) -> None:
                 filename = "temp_speech.mp3"
                 try:
                     async def _gen():
-                        communicate = edge_tts.Communicate(text, RUSSIAN_TTS_VOICE)
+                        communicate = edge_tts.Communicate(_emo.strip(text), RUSSIAN_TTS_VOICE)
                         await communicate.save(filename)
                     asyncio.run(_gen())
                 except Exception as e3:
@@ -1209,9 +1210,9 @@ class SpeechStream:
             text, fn = item
             try:
                 if not _stop_speaking.is_set():
-                    print(f"[Atlas ▶] {text}")
+                    print(f"[Atlas ▶] {_emo.strip(text)}")
                     shared_state["state"] = "speaking"
-                    shared_state["text"] = text
+                    shared_state["text"] = _emo.strip(text)
                     _vary_pitch(fn)
                     _play_file(fn, self.interruptible)
             except Exception as e:
@@ -1259,7 +1260,7 @@ def _generate_speech_fish(text: str, filename: str, voice_id: str) -> None:
         headers={"Authorization": f"Bearer {FISH_API_KEY}",
                  "Content-Type": "application/json",
                  "model": FISH_MODEL},
-        json={"text": text, "reference_id": voice_id, "format": fmt},
+        json={"text": _emo.for_fish(text, FISH_MODEL), "reference_id": voice_id, "format": fmt},
         timeout=60,
     )
     if r.status_code != 200:

@@ -134,6 +134,7 @@ def _ok(result):
 
 def try_fast_command(text: str):
     t = text.lower().strip().strip('«»"\'“”„').rstrip(".!?").strip()
+    t = re.sub(r"^(?:атлас|atlas)[,!\s]+", "", t).strip()     # «Атлас, включи музыку» — та же команда
     if not t:
         return None
     multi = bool(_MULTI.search(t))
@@ -246,7 +247,9 @@ def try_fast_command(text: str):
         if service or is_music_word:
             # «включи музыку» → просто открыть приложение; «включи спокойную музыку» → искать по всей фразе
             stripped = what
-            for filler in ("музыку", "музыка", "музыки", "песню", "песни", "трек", "треки", "music", "song", "songs"):
+            for filler in ("какую-нибудь", "какую нибудь", "какую-то", "что-нибудь", "что нибудь", "любую", "немного",
+                           "мне", "музыку", "музыка", "музыки", "песню", "песни", "трек", "треки",
+                           "any", "some", "music", "song", "songs"):
                 stripped = stripped.replace(filler, "").strip()
             query = what if stripped else ""
             if "youtube" in service or "ютуб" in service:

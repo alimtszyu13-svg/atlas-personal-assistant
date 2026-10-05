@@ -25,6 +25,7 @@ from datetime import datetime
 from ai_brain import ask_ai, cancel_current_task, remember_exchange
 from core.bus import bus  # noqa: F401  (шина событий — подключается при импорте)
 from core.control_words import is_shutdown, is_stop
+from core import emotions as _emo                    # метки эмоций — только в голос, не в чат
 from fast_commands import try_fast_command
 from hotkeys import start_push_to_talk_hotkey
 from reminders import start_reminder_thread
@@ -84,8 +85,8 @@ def _time_greeting() -> str:
 def _speak_and_update(text: str, interruptible: bool = True) -> None:
     """Сказать вслух и показать в интерфейсе."""
     shared_state["state"] = "speaking"
-    shared_state["text"] = text
-    shared_state["chat_history"].append(("Atlas", text))
+    shared_state["text"] = _emo.strip(text)
+    shared_state["chat_history"].append(("Atlas", _emo.strip(text)))
     spoken = re.sub(r"^\s*(?:[-*•]|#+|\d+\.)\s+", "", text, flags=re.M).replace("**", "")
     speak(spoken, interruptible=interruptible)
     shared_state["state"] = "idle"
@@ -137,8 +138,9 @@ def _process_command(command: str) -> None:
     from voice import SpeechStream
     speech = SpeechStream()
     response = ask_ai(lang_hint + command, speech=speech)
-    memory.log_turn("assistant", response)
-    shared_state["chat_history"].append(("Atlas", response))   # текст — сразу, речь догоняет
+    shown = _emo.strip(response)                  # метки эмоций нужны голосу, а не чату
+    memory.log_turn("assistant", shown)
+    shared_state["chat_history"].append(("Atlas", shown))      # текст — сразу, речь догоняет
     speech.finish()
     if not speech.spoken_any:                     # запасной путь (например, после лимита)
         shared_state["state"] = "speaking"
