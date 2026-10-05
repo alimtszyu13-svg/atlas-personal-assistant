@@ -287,6 +287,27 @@ def emotion_rule_in_both_prompts():
 
 
 @test
+def music_talk_brings_volume_and_seek_and_video_tools_stay_honest():
+    s = fresh([{"content": "ок"}])
+    state.conversation_history.append({"role": "assistant", "content": "Включил «Eminem - Stan» в Spotify."})
+    ai_brain.ask_ai(RU + "Сделаем музыку погромче")
+    names = {t["function"]["name"] for t in s.requests[0]["tools"]}
+    assert {"volume_up", "volume_down", "spotify_seek"} <= names, sorted(names)
+    res, ok, _ = tools._run_one_tool("media_volume", {"action": "up"})
+    assert "не открыт" in str(res) and tools._TRACE_FAIL.search(str(res)), res
+    assert "media_* tools are ONLY for videos" in ai_brain.SYSTEM_PROMPT
+    s = fresh([{"content": "ок"}])
+    ai_brain.ask_ai(RU + "поставь мой плейлист с тренировки")
+    assert "spotify_library" in {t["function"]["name"] for t in s.requests[0]["tools"]}
+    assert "spotify_library(which='liked'" in ai_brain.SYSTEM_PROMPT
+    s = fresh([{"content": "ок"}])
+    state.conversation_history.append({"role": "assistant", "content": "Включил любимые треки: «Imagine Dragons - Believer»."})
+    ai_brain.ask_ai(RU + "Сделай звук в Spotify погромче, скажем на 80.")
+    assert "spotify_volume" in {t["function"]["name"] for t in s.requests[0]["tools"]}
+    assert "spotify_volume('set', percent)" in ai_brain.SYSTEM_PROMPT
+
+
+@test
 def region_blocked_music_service_is_hidden():
     names = {t["function"]["name"] for t in tools.TOOLS_SCHEMA}
     assert "play_on_youtube_music" not in names and "play_on_spotify" in names

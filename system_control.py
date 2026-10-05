@@ -337,7 +337,7 @@ def _bring_to_front(hwnd) -> bool:
     return ok
 
 
-def _find_green_play(rect, x_from: float = 0.45):
+def _find_green_play(rect, x_from: float = 0.45, min_size: int = 40, near=None):
     """Ищет круглую зелёную кнопку Play в правой верхней части окна.
     Цвет кнопки Spotify — #1ED760 (при наведении светлее). Левую часть окна
     (до x_from) не смотрим: там обложки, которые бывают зелёными. Нижнюю
@@ -380,8 +380,9 @@ def _find_green_play(rect, x_from: float = 0.45):
         bw = max(xs) - min(xs) + step
         bh = max(ys) - min(ys) + step
         # кнопка круглая, 30-80 px, и достаточно "залита"
-        if 40 <= bw <= 90 and 40 <= bh <= 90 and 0.7 <= bw / bh <= 1.4 \
-                and len(c["pts"]) >= 60:
+        if min_size <= bw <= 90 and min_size <= bh <= 90 and 0.7 <= bw / bh <= 1.4 \
+                and len(c["pts"]) >= 60 \
+                and (near is None or (abs(l + c["cx"] - near[0]) <= near[2] and abs(t + c["cy"] - near[1]) <= near[3])):
             good.append(c)
     if not good:
         return None
@@ -397,16 +398,19 @@ def _results_signature(rect):
         import pyautogui
         l, t, r, b = rect
         w, h = r - l, b - t
-        img = pyautogui.screenshot(region=(l + int(w * 0.25), t + int(h * 0.15), int(w * 0.7), int(h * 0.3)))
-        return list(img.convert("L").resize((24, 8)).getdata())
+        # центральная колонка результатов: без боковой библиотеки и правой панели «Сейчас играет»
+        img = pyautogui.screenshot(region=(l + int(w * 0.07), t + int(h * 0.12), int(w * 0.65), int(h * 0.43)))
+        return list(img.convert("L").resize((48, 16)).getdata())
     except Exception:
         return None
 
 
 def _sig_diff(a, b) -> float:
+    """Сколько процентов участков картинки заметно изменилось. Страница Spotify почти вся тёмная,
+    меняются только обложки и надписи — средняя яркость этого почти не замечала."""
     if not a or not b or len(a) != len(b):
-        return 255.0
-    return sum(abs(x - y) for x, y in zip(a, b)) / len(a)
+        return 100.0
+    return 100.0 * sum(1 for x, y in zip(a, b) if abs(x - y) > 12) / len(a)
 
 
 def _wait_results_changed(before, rect, timeout: float = 6.0) -> bool:
@@ -416,8 +420,8 @@ def _wait_results_changed(before, rect, timeout: float = 6.0) -> bool:
     until, prev = _time.time() + timeout, None
     while _time.time() < until:
         sig = _results_signature(rect)
-        if sig and (before is None or _sig_diff(sig, before) > 6):
-            if prev is not None and _sig_diff(sig, prev) < 3:
+        if sig and (before is None or _sig_diff(sig, before) > 0.6):        # неподвижная страница даёт ровно 0
+            if prev is not None and _sig_diff(sig, prev) < 0.3:
                 return True
             prev = sig
         else:
@@ -507,7 +511,7 @@ def _spotify_autoplay(timeout: float = 12.0, before=None, query: str = "") -> st
     while _time.time() < check_until:
         title = _spotify_title()
         if title and title != title_before and not title.lower().startswith("spotify"):
-            return "playing" if _matches_request(query, title) else "other:" + title
+            return "playing"        # что заиграло — Atlas назовёт; перебор «не то» по словам приносил вред
         _time.sleep(0.25)
     return "clicked"
 
@@ -536,11 +540,16 @@ def _hover_for_play(rect):
     w, h = r - l, b - t
     old = pyautogui.position()
     try:
-        for fy in (0.30, 0.38, 0.46):
-            for fx in (0.30, 0.40, 0.50, 0.60):
-                pyautogui.moveTo(l + int(w * fx), t + int(h * fy))
+        # верхний результат (крупная карточка) и ряд карточек плейлистов под ним: на странице жанра
+        # у «Жанра» кнопки нет, а у карточек она появляется только при наведении и меньше обычной.
+        # Берём только кнопку рядом с курсором — на той карточке, над которой мышь, а не значок где-то ещё.
+        for fy in (0.38, 0.44, 0.30, 0.50):
+            for fx in (0.11, 0.19, 0.28, 0.36, 0.45, 0.55, 0.65):
+                mx, my = l + int(w * fx), t + int(h * fy)
+                pyautogui.moveTo(mx, my)
                 _time.sleep(0.15)
-                point = _find_green_play(rect, x_from=0.2)
+                point = _find_green_play(rect, x_from=0.06, min_size=30,           # боковую библиотеку не смотрим
+                                         near=(mx, my, int(w * 0.09), int(h * 0.12)))
                 if point:
                     return point
     finally:
@@ -597,6 +606,144 @@ def _spotify_resume(timeout: float = 12.0) -> str:
             _time.sleep(0.25)
     _save_spotify_snapshot(rect, "resume")
     return "Spotify открыт, но воспроизведение не началось"
+
+
+_LIKED_WORDS = ("liked", "liked songs", "favorites", "favourites", "любимые", "любимые треки", "любимые песни",
+                "понравившиеся", "сохранённые", "сохраненные", "моя музыка", "")
+
+
+def spotify_play_library(which: str = "liked") -> str:
+    """Твоя библиотека Spotify: which='liked' — «Любимые треки» (открываются напрямую, без поиска);
+    иначе — плейлист по названию (Spotify показывает твои плейлисты в поиске)."""
+    w = (which or "").strip()
+    if w.lower() in _LIKED_WORDS:
+        return _spotify_play_page("spotify:collection:tracks", "любимые треки")
+    return play_on_spotify(w)
+
+
+def _spotify_play_page(uri: str, label: str, timeout: float = 12.0) -> str:
+    """Открыть страницу (плейлист, «Любимые треки») и нажать её большую кнопку Play — она слева под
+    заголовком. Если эта музыка уже играла, нажатие ставит на паузу — тогда жмём ещё раз."""
+    import time as _time
+    try:
+        import pyautogui
+    except ImportError:
+        return "Не удалось: нет pyautogui."
+    wins, before = _spotify_windows(), None
+    if wins:
+        _bring_to_front(wins[0][0])
+        _time.sleep(0.35)
+        before = _results_signature(wins[0][2])
+    subprocess.Popen(f"start {uri}", shell=True)
+    deadline = _time.time() + timeout
+    while _time.time() < deadline:
+        wins = _spotify_windows()
+        if wins:
+            break
+        _time.sleep(0.3)
+    if not wins:
+        return "Окно Spotify не появилось."
+    hwnd, title_before, rect = wins[0]
+    _bring_to_front(hwnd)
+    if before is None:
+        _time.sleep(2.0)
+    _wait_results_changed(before, rect, timeout=min(4.0, max(1.0, deadline - _time.time() - 2)))
+    point = None
+    while _time.time() < deadline:
+        point = _find_green_play(rect, x_from=0.07)
+        if point:
+            break
+        _time.sleep(0.4)
+    if not point:
+        _save_spotify_snapshot(rect, "library")
+        return f"Открыл {label} в Spotify, но не нашёл кнопку Play."
+    old = pyautogui.position()
+
+    def click_and_watch(seconds: float):
+        pyautogui.click(*point)
+        pyautogui.moveTo(*old)
+        until = _time.time() + seconds
+        title = ""
+        while _time.time() < until:
+            title = _spotify_title()
+            if _is_playing(title) and title != title_before:
+                return "new", title
+            if not _is_playing(title) and _is_playing(title_before):
+                return "paused", title
+            _time.sleep(0.25)
+        return ("playing" if _is_playing(title) else "unknown"), title
+
+    status, title = click_and_watch(4.0)
+    if status == "new":
+        return f"Включил {label}: «{title}»."
+    if status == "paused":                        # это уже играло — кнопка сработала как пауза
+        status, title = click_and_watch(3.0)
+        if _is_playing(_spotify_title()):
+            return f"{label.capitalize()} уже играли — продолжил: «{_spotify_title()}»."
+    return f"Нажал Play в «{label}», но не уверен, что заиграло."
+
+
+SPOTIFY_VOLUME_STEP = float(os.getenv("SPOTIFY_VOLUME_STEP") or 10)   # на сколько % Ctrl+↑/↓ двигает ползунок Spotify
+
+
+def spotify_is_playing() -> bool:
+    """Играет ли сейчас Spotify (по заголовку его окна)."""
+    return _is_playing(_spotify_title())
+
+
+def spotify_volume(action: str = "up", percent: int = 0, steps: int = 1) -> str:
+    """Громкость самого Spotify — его ползунок, а не громкость компьютера.
+    action='up' / 'down' — на steps шагов (Ctrl+↑ / Ctrl+↓); action='set' — выставить percent %
+    (текущий уровень Spotify узнать неоткуда: сначала до нуля, потом вверх — звук на миг проседает)."""
+    import time as _time
+    wins = _spotify_windows()
+    if not wins:
+        return "Spotify не открыт."
+    try:
+        import pyautogui
+    except ImportError:
+        return "Не удалось: нет pyautogui."
+    _bring_to_front(wins[0][0])
+    _time.sleep(0.2)
+
+    def press(key, n):
+        for _ in range(n):
+            pyautogui.hotkey("ctrl", key)
+            _time.sleep(0.04)
+    a = (action or "up").strip().lower()
+    if a == "set":
+        p = max(0, min(100, int(percent or 0)))
+        press("down", int(100 / SPOTIFY_VOLUME_STEP) + 2)
+        n = round(p / SPOTIFY_VOLUME_STEP)
+        press("up", n)
+        return f"Громкость Spotify — {int(n * SPOTIFY_VOLUME_STEP)}%."
+    down = a in ("down", "тише", "quieter")
+    press("down" if down else "up", max(1, int(steps or 1)))
+    return f"Сделал Spotify {'тише' if down else 'громче'}."
+
+
+SPOTIFY_SEEK_STEP = float(os.getenv("SPOTIFY_SEEK_STEP") or 5)     # на сколько секунд Spotify перематывает за одно Shift+стрелка
+
+
+def spotify_seek(seconds: int = 15) -> str:
+    """Перематывает трек в Spotify вперёд (seconds > 0) или назад (seconds < 0) клавишами самого
+    Spotify — Shift+→ / Shift+←, по SPOTIFY_SEEK_STEP секунд за нажатие."""
+    import time as _time
+    wins = _spotify_windows()
+    if not wins:
+        return "Spotify не открыт — перематывать нечего."
+    try:
+        import pyautogui
+    except ImportError:
+        return "Не удалось перемотать: нет pyautogui."
+    s = int(seconds or 15)
+    n = max(1, round(abs(s) / SPOTIFY_SEEK_STEP))
+    _bring_to_front(wins[0][0])
+    _time.sleep(0.2)
+    for _ in range(n):
+        pyautogui.hotkey("shift", "right" if s > 0 else "left")
+        _time.sleep(0.05)
+    return f"Перемотал Spotify {'вперёд' if s > 0 else 'назад'} на {int(n * SPOTIFY_SEEK_STEP)} секунд."
 
 
 def play_on_spotify(query: str = "", autoplay: bool = True) -> str:

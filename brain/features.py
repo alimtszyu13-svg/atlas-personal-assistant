@@ -520,6 +520,39 @@ def start() -> None:
     register("memory_review", memory_review, "Checks what Atlas remembers about the user and finds wrong, contradictory, outdated or junk facts ('проверь свою память', 'почисти память', 'там неправильно'). First call without apply, tell the user what was found and ask; only after they agree call apply=true to remove them.", {"apply": _B}, group="memory")
     _triggers("memory", ("памят", "запомнил", "почисти", "неправильн", "неверн", "ошибся", "memory", "remember"))
 
+    # --- перемотка Spotify
+    import system_control as _sc
+    if hasattr(_sc, "spotify_seek"):
+        register("spotify_seek", _sc.spotify_seek, "Seeks the current Spotify track forward (positive seconds) or back "
+                 "(negative), e.g. 15 or -30. For music in Spotify — not for videos in the browser.",
+                 {"seconds": {"type": "integer"}}, ["seconds"], group="media")
+
+    if hasattr(_sc, "spotify_volume"):
+        register("spotify_volume", _sc.spotify_volume, "Spotify's own volume slider (not the computer volume): "
+                 "action='up'/'down' (steps = how many notches), or action='set' with percent 0-100.",
+                 {"action": {"type": "string", "description": "'up', 'down' or 'set'"}, "percent": {"type": "integer"},
+                  "steps": {"type": "integer"}}, ["action"], group="media")
+    if hasattr(_sc, "spotify_play_library"):
+        register("spotify_library", _sc.spotify_play_library, "Plays the user's own Spotify library: which='liked' "
+                 "for their Liked Songs ('мои любимые треки', 'любимое'), or the name of one of their playlists.",
+                 {"which": {"type": "string", "description": "'liked' or a playlist name"}}, ["which"], group="media")
+
+    # --- видео-инструменты браузера: при закрытом браузере не запускают его, а честно говорят «не открыт»
+    import functools as _ft
+    import browser_agent as _ba2
+
+    def _video_only(name, fn):
+        @_ft.wraps(fn)
+        def wrapper(*a, **kw):
+            if not getattr(_ba2, "_browser_alive", lambda: True)():
+                return (f"Браузер не открыт: {name} управляет только видео в браузере Atlas. Для музыки — "
+                        "volume_up / volume_down, play_pause_media, next_track, spotify_seek.")
+            return fn(*a, **kw)
+        return wrapper
+    for _n in ("media_play_pause", "media_seek", "media_volume", "media_player_fullscreen", "next_episode", "skip_intro"):
+        if _n in AVAILABLE_FUNCTIONS:
+            AVAILABLE_FUNCTIONS[_n] = _video_only(_n, getattr(AVAILABLE_FUNCTIONS[_n], "__wrapped__", AVAILABLE_FUNCTIONS[_n]))
+
     # Сервисы, недоступные в регионе пользователя, модели не показываются (по умолчанию —
     # YouTube Music: в Кыргызстане он закрыт). Список — ATLAS_BLOCKED_TOOLS в .env, через запятую.
     for name in filter(None, (os.getenv("ATLAS_BLOCKED_TOOLS", "play_on_youtube_music")).replace(" ", "").split(",")):

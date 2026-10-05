@@ -64,14 +64,16 @@ def install():
          open_search_result=_rec("open_search_result"), show_search_result_in_folder=_rec("show_search_result_in_folder"))
     _mod("deep_links", launch_steam_game=_rec("launch_steam_game"), list_steam_games=_rec("list_steam_games"),
          open_deep_link=_rec("open_deep_link"))
-    _mod("system_control", open_app=_rec("open_app"), close_app=_rec("close_app"),
+    _mod("system_control", open_app=_rec("open_app"), close_app=_rec("close_app"), spotify_seek=_rec("spotify_seek"), spotify_play_library=_rec("spotify_play_library"),
+         spotify_is_playing=lambda: STATE.get("spotify_playing", False), spotify_volume=_rec("spotify_volume"),
          play_on_spotify=_rec("play_on_spotify"), play_on_youtube_music=_rec("play_on_youtube_music"))
     _mod("system_advanced", **{n: _rec(n) for n in ("set_volume", "volume_up", "volume_down", "mute_volume",
                                                     "unmute_volume", "set_brightness", "lock_screen", "take_screenshot")})
     _mod("media_control", **{n: _rec(n) for n in ("play_pause_media", "next_track", "previous_track")})
     _mod("theme_control", set_theme=_rec("set_theme"))
-    _mod("browser_agent", **{n: _browser(n) for n in ("media_volume", "media_play_pause", "skip_intro", "next_episode",
-                                                      "media_player_fullscreen", "media_seek")})
+    _mod("browser_agent", _browser_alive=lambda: STATE["browser_open"],
+         **{n: _browser(n) for n in ("media_volume", "media_play_pause", "skip_intro", "next_episode",
+                                     "media_player_fullscreen", "media_seek")})
 
 
 def load(path, name):
@@ -166,6 +168,7 @@ def music():
     assert fast("включи музыку")[2][0][:2] == ("play_on_spotify", ("",))
     assert fast("включи какую-нибудь музыку")[2][0][:2] == ("play_on_spotify", ("",)), "это «включи музыку», а не поиск"
     assert fast("включи мне любую музыку")[2][0][:2] == ("play_on_spotify", ("",))
+    assert fast("поставь какую-нибудь веселую музыку")[2][0][:2] == ("play_on_spotify", ("веселую музыку",))
     assert fast("включи linkin park на ютуб музыке")[1] == ["play_on_youtube_music"]
     assert fast("включи музыку и сделай громче")[0] is None
 
@@ -193,11 +196,47 @@ def steam_services_volume_media():
     assert fast("запусти cyberpunk в стиме")[2][0][:2] == ("launch_steam_game", ("cyberpunk",))
     assert fast("найди котиков на ютубе")[2][0][:2] == ("open_deep_link", ("youtube", "котиков"))
     assert fast("громкость на 30%")[2][0][:2] == ("set_volume", (30,))
-    assert fast("тише")[1] == ["media_volume", "volume_down"], "браузер закрыт → системная громкость"
+    assert fast("тише")[1] == ["volume_down"], "браузер закрыт → системная громкость, браузер не запускаем"
     assert fast("тише", browser=True)[1] == ["media_volume"]
-    assert fast("пауза")[1] == ["media_play_pause", "play_pause_media"]
+    assert fast("пауза")[1] == ["play_pause_media"]
     assert fast("на весь экран")[0] is None, "без браузера решает модель"
     assert fast("тёмная тема")[2][0][:2] == ("set_theme", ("dark",))
+
+
+@test
+def volume_and_seek_in_natural_phrases():
+    assert fast("сделаем музыку погромче")[1] == ["volume_up"]
+    assert fast("Атлас, сделай чуть-чуть тише")[1] == ["volume_down"]
+    assert fast("перемотай на 15 секунд вперёд")[2][0][:2] == ("spotify_seek", (15,))
+    assert fast("перемотай назад на 30 секунд")[2][0][:2] == ("spotify_seek", (-30,))
+    assert fast("перемотай вперёд")[2][0][:2] == ("spotify_seek", (15,))
+    assert fast("перемотай вперёд", browser=True)[1] == ["media_seek"], "видео в браузере — его плеер"
+    assert fast("громче музыка у соседей")[0] is None, "не команда громкости"
+
+
+@test
+def my_music_phrases():
+    for p in ("включи мои любимые треки", "Атлас, поставь мне любимые песни", "включи любимое",
+              "play my liked songs", "включи понравившиеся"):
+        assert fast(p)[2][0][:2] == ("spotify_play_library", ("liked",)), p
+    assert fast("включи мой плейлист для учёбы")[2][0][:2] == ("spotify_play_library", ("для учёбы",))
+    assert fast("включи мой плейлист «вечер»")[2][0][:2] == ("spotify_play_library", ("вечер",))
+    assert fast("включи спокойную музыку")[2][0][0] == "play_on_spotify", "обычная музыка — как раньше"
+    assert fast("включи любимые треки и сделай громче")[0] is None, "составная — мозгу"
+
+
+@test
+def spotify_volume_phrases():
+    STATE["spotify_playing"] = True
+    try:
+        assert fast("Сделай звук погромче.")[2][0][:2] == ("spotify_volume", ("up",)), "играет Spotify — его ползунок"
+        assert fast("сделай чуть тише")[2][0][:2] == ("spotify_volume", ("down",))
+        assert fast("Сделай звук в Spotify погромче, скажем на 80.")[2][0][:2] == ("spotify_volume", ("set", 80))
+        assert fast("громкость спотифая на 50 процентов")[2][0][:2] == ("spotify_volume", ("set", 50))
+    finally:
+        STATE["spotify_playing"] = False
+    assert fast("Сделай звук погромче.")[1] == ["volume_up"], "Spotify не играет — громкость компьютера"
+    assert fast("громкость 40")[2][0][:2] == ("set_volume", (40,)), "системная громкость числом — как раньше"
 
 
 @test

@@ -458,7 +458,8 @@ _PIN_TOOLS = {"play_on_rezka", "play_on_netflix", "play_on_spotify", "play_on_yo
 _INTENT_PINS = [
     (re.compile(r"(?:^|[\s,.!])(?:включи|включай|поставь|врубай|врубите|запусти|послушать|послушаем|хочу послушать|"
                 r"play|put on)\b", re.I),
-     {"play_on_spotify", "play_pause_media", "next_track", "previous_track", "play_on_rezka"}),
+     {"play_on_spotify", "play_pause_media", "next_track", "previous_track", "play_on_rezka",
+      "volume_up", "volume_down", "spotify_seek", "spotify_library", "spotify_volume"}),
 ]
 
 

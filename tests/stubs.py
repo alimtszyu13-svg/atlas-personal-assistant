@@ -141,6 +141,7 @@ def install():
                  "browser_agent", "deep_links"):
         _module(name)
     sys.modules["database"].log_task = lambda *a: None
+    sys.modules["browser_agent"]._browser_alive = lambda: False
     _module("file_search", _embed=_embed)
     voice = _module("voice", _stop_speaking=threading.Event())
     voice.get_response_language = lambda: "ru"

@@ -95,6 +95,15 @@ _MULTI = re.compile(r"\s(?:и|а потом|потом|затем|после э�
                     r"(?:запиши|напиши|открой|включи|найди|сделай|поставь|write|open|play|find)")
 
 
+_SPOTIFY_WORD = r"(?:(?:в|на)\s+(?:spotify|спотифа[йе]|спотике)\s+)?"
+_LOUDER = re.compile(r"(?:(?:сделай(?:те)?|сделаем|давай)\s+)?(?:(?:музыку|звук|громкость)\s+)?" + _SPOTIFY_WORD +
+                     r"(?:(?:немного|чуть|чуть-чуть|ещё|еще)\s+)?(?:по)?громче(?:\s+(?:музыку|звук|пожалуйста))?")
+_QUIETER = re.compile(r"(?:(?:сделай(?:те)?|сделаем|давай)\s+)?(?:(?:музыку|звук|громкость)\s+)?" + _SPOTIFY_WORD +
+                      r"(?:(?:немного|чуть|чуть-чуть|ещё|еще)\s+)?(?:по)?тише(?:\s+(?:музыку|звук|пожалуйста))?")
+_SEEK = re.compile(r"(?:перемотай|промотай|отмотай)(?:\s+(?:на\s+)?(?P<n1>\d+)\s*(?:секунд\w*|сек))?\s+"
+                   r"(?P<dir>вперёд|вперед|назад)(?:\s+(?:на\s+)?(?P<n2>\d+)\s*(?:секунд\w*|сек))?")
+
+
 def _match_app(target: str):
     """Сначала точное совпадение, потом вхождение (длинные первыми — «гугл хром» не срежется до «хром»)."""
     t = target.strip()
@@ -110,6 +119,8 @@ def _browser_media(fn_name: str, **kwargs):
     """Управление видео в браузере Atlas; браузер не открыт → None (дальше — системные медиа-клавиши)."""
     try:
         import browser_agent
+        if not getattr(browser_agent, "_browser_alive", lambda: True)():
+            return None                        # браузер закрыт — не запускаем его ради громкости/паузы
         fn = getattr(browser_agent, fn_name, None)
         if fn is None:
             return None
@@ -236,6 +247,18 @@ def try_fast_command(text: str):
             from deep_links import open_deep_link
             return _ok(open_deep_link(service, m.group(1).strip()))
 
+    # ---------- моя библиотека Spotify: любимые треки и свои плейлисты ----------
+    if not multi and re.fullmatch(r"(?:включи|поставь|запусти|врубай|play)\s+(?:мне\s+)?(?:мои\s+|мою\s+)?"
+                                  r"(?:любимые|понравившиеся|сохран[её]нные)\s*(?:треки|песни|музыку)?|"
+                                  r"(?:включи|поставь|запусти|play)\s+(?:мне\s+)?(?:любимое|мою музыку|my liked songs|"
+                                  r"liked songs|my favorites|my favourites)", t):
+        from system_control import spotify_play_library
+        return _ok(spotify_play_library("liked"))
+    m = re.fullmatch(r"(?:включи|поставь|запусти|play)\s+(?:мне\s+)?(?:мой|my)\s+(?:плейлист|playlist)\s+(.+)", t)
+    if m and not multi:
+        from system_control import spotify_play_library
+        return _ok(spotify_play_library(m.group(1).strip(" «»\"'")))
+
     # ---------- музыка: сразу в приложение ----------
     # «включи спокойную музыку» / «включи Linkin Park на спотифае» / «поставь джаз»
     m = re.match(r"^(?:включи|поставь|запусти|врубай|play|put on|turn on)\s+(?:мне\s+|us\s+|some\s+)?(.+?)"
@@ -251,7 +274,8 @@ def try_fast_command(text: str):
                            "мне", "музыку", "музыка", "музыки", "песню", "песни", "трек", "треки",
                            "any", "some", "music", "song", "songs"):
                 stripped = stripped.replace(filler, "").strip()
-            query = what if stripped else ""
+            query = " ".join(re.sub(r"(?<![\w-])(?:какую-нибудь|какую нибудь|какую-то|что-нибудь|что нибудь|"
+                                    r"любую|немного|мне)(?![\w-])", " ", what).split()) if stripped else ""
             if "youtube" in service or "ютуб" in service:
                 from system_control import play_on_youtube_music
                 return _ok(play_on_youtube_music(query or "music"))
@@ -273,20 +297,32 @@ def try_fast_command(text: str):
             return _ok(close_app(_match_app(target) or target))
 
     # ---------- громкость и яркость ----------
+    m = re.fullmatch(r"(?:(?:сделай|поставь|выставь)\s+)?(?:громкость|звук)\s+(?:в\s+|у\s+)?(?:spotify|спотифа[йея]|музыки)"
+                     r"[\s,]+(?:(?:погромче|потише|скажем|где-то|примерно)[\s,]+)*(?:на\s+)?(\d{1,3})"
+                     r"(?:\s*(?:%|процент\w*))?", t)
+    if m:
+        from system_control import spotify_volume
+        return _ok(spotify_volume("set", int(m.group(1))))
     m = re.match(r"^(?:громкость|volume)\s+(?:на\s+)?(\d{1,3})\s*%?$", t)
     if m:
         from system_advanced import set_volume
         return _ok(set_volume(int(m.group(1))))
-    if t in ("громче", "сделай громче", "погромче", "louder", "volume up"):
+    if t in ("громче", "сделай громче", "погромче", "louder", "volume up") or _LOUDER.fullmatch(t):
         result = _ok(_browser_media("media_volume", action="up"))
         if result:
             return result
+        from system_control import spotify_is_playing, spotify_volume
+        if spotify_is_playing():                   # играет Spotify — двигаем его ползунок
+            return _ok(spotify_volume("up"))
         from system_advanced import volume_up
         return _ok(volume_up())
-    if t in ("тише", "сделай тише", "потише", "quieter", "volume down"):
+    if t in ("тише", "сделай тише", "потише", "quieter", "volume down") or _QUIETER.fullmatch(t):
         result = _ok(_browser_media("media_volume", action="down"))
         if result:
             return result
+        from system_control import spotify_is_playing, spotify_volume
+        if spotify_is_playing():
+            return _ok(spotify_volume("down"))
         from system_advanced import volume_down
         return _ok(volume_down())
     if t in ("выключи звук", "без звука", "мьют", "mute", "приглуши"):
@@ -330,6 +366,16 @@ def try_fast_command(text: str):
         result = _ok(_browser_media("media_player_fullscreen"))
         if result:
             return result                          # браузера нет — пусть модель решит, что имелось в виду
+    m = _SEEK.fullmatch(t)
+    if m:
+        back = m.group("dir") == "назад"
+        result = _ok(_browser_media("media_seek", direction="backward" if back else "forward"))
+        if result:
+            return result                          # видео в браузере Atlas
+        n = int(m.group("n1") or m.group("n2") or 15)
+        from system_control import spotify_seek
+        return _ok(spotify_seek(-n if back else n))
+
     if t in ("перемотай вперёд", "перемотай вперед", "вперёд", "вперед", "forward", "seek forward"):
         result = _ok(_browser_media("media_seek", direction="forward"))
         if result:
