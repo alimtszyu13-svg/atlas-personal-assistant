@@ -343,12 +343,13 @@ class _Quiet(WSGIRequestHandler):
         pass
 
 
-def start(port: int = None) -> int:
-    """Запустить сервер (только на этом компьютере; наружу его выводит туннель). → порт."""
+def start(port: int = None, host: str = "127.0.0.1") -> int:
+    """Запустить сервер. На компьютере — только для него самого (наружу выводит туннель);
+    в облаке — host="0.0.0.0". → порт."""
     if _state["server"] is not None:
         return _state["port"]
     ensure_icons()
-    srv = make_server("127.0.0.1", PORT if port is None else port, app, server_class=_Server, handler_class=_Quiet)
+    srv = make_server(host, PORT if port is None else port, app, server_class=_Server, handler_class=_Quiet)
     _state.update(server=srv, port=srv.server_port)
     _state["thread"] = threading.Thread(target=srv.serve_forever, daemon=True, name="phone-server")
     _state["thread"].start()

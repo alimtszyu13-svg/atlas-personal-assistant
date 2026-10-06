@@ -40,6 +40,7 @@ def _page(link: str, kind: str, device: str) -> str:
     name = DEVICES[device][0]
     tv = device == "tv"
     note = {"tailscale": "Телефон должен быть в твоей сети Tailscale: приложение Tailscale установлено и включено.",
+            "cloud": "Atlas отвечает из облака — компьютер для разговора не нужен. Музыка и программы — когда он включён.",
             "cloudflare": "Адрес временный: после перезапуска Atlas скажи «установи себя на телефон» ещё раз и "
                           "отсканируй новый код."}.get(kind, "")
     steps = ("<li>Открой браузер на телевизоре и введи адрес ниже.</li><li>Разреши микрофон, если телевизор его спросит.</li>"
@@ -79,7 +80,10 @@ _INSTALL_HELP = ("Чтобы телефон находил компьютер и
 def install(device: str = "phone") -> str:
     """Открыть на экране QR-код установки Atlas на телефон / планшет / телевизор. → что сказать вслух."""
     d = _ALIASES.get((device or "phone").strip().lower(), "phone")
-    url = server.connect()
+    cloud = (os.getenv("ATLAS_CLOUD_URL") or "").strip().rstrip("/")
+    url = cloud or server.connect()
+    if cloud:
+        server._state["kind"] = "cloud"
     if not url:
         hint = server._state.get("hint") or ""
         return f"Не могу сделать защищённый адрес ({hint}). {_INSTALL_HELP}"

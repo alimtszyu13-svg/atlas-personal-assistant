@@ -223,6 +223,30 @@ def offline_nothing_is_lost():
 
 
 @test
+def computer_fills_vectors_for_memory_made_in_the_cloud():
+    cloud, cl, pc = FakeCloud(), Device("cloud"), Device("pc")
+    cl.sql("INSERT INTO nodes (name, label, emb) VALUES ('ielts','IELTS',?)", (b"\x00" * 16,))   # лёгкий режим облака
+    os.environ["ATLAS_EMBED"] = "off"
+    cl.sync(cloud)
+    os.environ.pop("ATLAS_EMBED", None)
+    saved = CS._fill_vector
+    CS._fill_vector = lambda text: b"\x01" * 16 if text == "IELTS" else None
+    try:
+        pc.sync(cloud)                                             # компьютер получил и досчитал
+        assert pc.sql("SELECT emb FROM nodes WHERE name='ielts'")[0][0] == b"\x01" * 16
+        assert pc.sync(cloud)["pushed"] == 1, "досчитанный вектор ушёл в общую память"
+        assert pc.sync(cloud)["pushed"] == 0, "и больше не ходит туда-обратно"
+    finally:
+        CS._fill_vector = saved
+    os.environ["ATLAS_EMBED"] = "off"
+    try:
+        cl.sync(cloud)
+    finally:
+        os.environ.pop("ATLAS_EMBED", None)
+    assert cl.sql("SELECT emb FROM nodes WHERE name='ielts'")[0][0] == b"\x01" * 16, "облако получило вектор"
+
+
+@test
 def real_http_requests_to_supabase():
     seen = []
 

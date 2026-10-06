@@ -1,0 +1,11 @@
+# Облачный Atlas на Render: без fastembed/onnxruntime (не влезают в 512 МБ вместе с остальным).
+openai
+groq
+numpy
+python-dotenv
+httpx
+edge-tts
+sqlalchemy
+pillow
+snowballstemmer
+requests

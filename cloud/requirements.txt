@@ -1,0 +1,12 @@
+# Atlas в облаке (Hugging Face Space). Только то, что нужно без Windows.
+openai
+groq
+numpy
+fastembed
+python-dotenv
+httpx
+edge-tts
+sqlalchemy
+pillow
+snowballstemmer
+requests

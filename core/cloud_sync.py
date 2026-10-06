@@ -246,6 +246,11 @@ def _apply(c, item: dict) -> bool:
             if uid < (same[1] or "~"):
                 c.execute("UPDATE nodes SET uid=?, updated_at=?, dirty=0 WHERE id=?", (uid, ts, same[0]))
             return False
+    if t in ("nodes", "episodes") and row.get("emb") is not None and not any(row["emb"]):
+        filled = _fill_vector(row["label"] if t == "nodes" else row["summary"])
+        if filled is not None:                     # запись из облака без вектора — досчитываем здесь
+            row["emb"], ts = filled, max(ts, time.time())
+            item = dict(item, _refill=True)
     cols = SPEC[t]["cols"]
     if local:
         c.execute(f"UPDATE {t} SET {', '.join(f'{k}=?' for k in cols)}, updated_at=?, dirty=0 WHERE id=?",
@@ -253,7 +258,21 @@ def _apply(c, item: dict) -> bool:
     else:
         c.execute(f"INSERT INTO {t} ({', '.join(cols)}, uid, updated_at, dirty) VALUES ({', '.join('?' * len(cols))},?,?,0)",
                   [row[k] for k in cols] + [uid, ts])
+    if item.get("_refill"):
+        c.execute(f"UPDATE {t} SET dirty=1 WHERE uid=?", (uid,))
     return True
+
+
+def _fill_vector(text):
+    """Вектор смысла той моделью, что есть на этом устройстве; None — если модели нет (лёгкий режим облака)."""
+    if not text or (os.getenv("ATLAS_EMBED") or "local").strip().lower() in ("off", "0", "false", "no"):
+        return None
+    try:
+        from file_search import _embed
+        import numpy as np
+        return _embed([text])[0].astype(np.float32).tobytes()
+    except Exception:
+        return None
 
 
 # =============================================================================

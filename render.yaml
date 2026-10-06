@@ -1,0 +1,33 @@
+# Render Blueprint: облачный Atlas одной кнопкой (Render → New → Blueprint → этот репозиторий).
+# Секреты Render спросит при создании; значения — из «python -m cloud.space_secrets».
+services:
+  - type: web
+    name: atlas
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./cloud/render/Dockerfile
+    dockerContext: .
+    healthCheckPath: /manifest.webmanifest
+    autoDeploy: true
+    envVars:
+      - key: ATLAS_EMBED
+        value: "off"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: PHONE_KEY
+        sync: false
+      - key: CEREBRAS_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FISH_API_KEY
+        sync: false
+      - key: FISH_VOICE_RU
+        sync: false
+      - key: FISH_VOICE_EN
+        sync: false
