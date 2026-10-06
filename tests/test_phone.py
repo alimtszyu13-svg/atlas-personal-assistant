@@ -1,0 +1,305 @@
+"""
+Тесты Atlas на телефоне: сервер (как его видит телефон), туннель и команда «установи себя».
+
+    python tests/test_phone.py
+
+Сервер запускается по-настоящему на свободном порту; мозг, распознавание, голос и туннели —
+подставные (интернет, ключи и Windows не нужны).
+"""
+import base64
+import json
+import os
+import sys
+import tempfile
+import traceback
+import types
+import urllib.error
+import urllib.request
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+LOG = {"ask": [], "tts": [], "stt": [], "opened": []}
+FAST = {"открой блокнот": "Открываю блокнот."}
+
+
+def _mod(name, **attrs):
+    m = types.ModuleType(name)
+    m.__dict__.update(attrs)
+    sys.modules[name] = m
+    return m
+
+
+def install():
+    _mod("fast_commands", try_fast_command=lambda t: FAST.get(t.lower().strip(" .!?")))
+    _mod("ai_brain", ask_ai=lambda q, speech=None: (LOG["ask"].append(q), REPLY[0])[1],
+         remember_exchange=lambda u, a: None)
+
+    class _Tr:
+        @staticmethod
+        def create(**kw):
+            LOG["stt"].append(kw)
+            return types.SimpleNamespace(text=HEARD[0])
+
+    def gen(text, filename):
+        LOG["tts"].append(text)
+        if TTS_FAIL[0]:
+            raise RuntimeError("нет голоса")
+        with open(filename, "wb") as f:
+            f.write(b"MP3DATA")
+        return filename
+    _mod("voice", groq_client=types.SimpleNamespace(audio=types.SimpleNamespace(transcriptions=_Tr)),
+         STT_WHISPER="whisper-large-v3", _stt_language=lambda: "ru", _stt_prompt=lambda: "подсказка",
+         _WHISPER_JUNK={"продолжение следует"}, _generate_any=gen, get_response_language=lambda: "ru")
+    _mod("ui_state", shared_state={"chat_history": []})
+    core = sys.modules.get("core") or _mod("core")
+    core.__path__ = [os.path.join(ROOT, "core")]                 # настоящие core/emotions.py, если есть
+    _mod("core.memory", log_turn=lambda who, t: None)
+    core.memory = sys.modules["core.memory"]
+
+
+REPLY, HEARD, TTS_FAIL = ["Готово."], ["какая погода"], [False]
+TESTS = []
+
+
+def test(fn):
+    TESTS.append(fn)
+    return fn
+
+
+def call(path, method="GET", body=None, headers=None):
+    req = urllib.request.Request(BASE + path, data=body, method=method, headers=headers or {})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status, dict(r.headers), r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, dict(e.headers), e.read()
+
+
+def ask(text, key=None):
+    return call("/api/ask", "POST", json.dumps({"text": text}).encode(),
+                {"Content-Type": "application/json", "X-Atlas-Key": key if key is not None else TOKEN})
+
+
+@test
+def app_files_for_installing():
+    st, h, b = call("/")
+    assert st == 200 and 'id="star"' in b.decode() and h["Content-Type"].startswith("text/html")
+    st, h, b = call("/manifest.webmanifest")
+    man = json.loads(b)
+    assert st == 200 and man["display"] == "standalone" and man["start_url"] == "/" and len(man["icons"]) == 2
+    st, h, b = call("/sw.js")
+    assert st == 200 and h.get("Service-Worker-Allowed") == "/" and b"caches" in b
+    st, h, b = call("/icon-192.png")
+    assert st == 200 and b[:8] == b"\x89PNG\r\n\x1a\n", "иконка-звезда"
+
+
+@test
+def nothing_without_the_pairing_key():
+    for key in ("", "wrong-key"):
+        st, _, b = ask("какая погода", key=key)
+        assert st == 401 and "ключ" in json.loads(b)["error"], (key, st)
+    st, _, _ = call("/api/talk", "POST", b"audio", {"Content-Type": "audio/webm", "X-Atlas-Key": "nope"})
+    assert st == 401
+    assert call("/pair")[0] == 404 and call("/phone_pairing.json")[0] == 404, "ключ по сети не отдаётся"
+    assert not LOG["ask"], "без ключа мозг не вызывался"
+
+
+@test
+def pairing_check():
+    st, _, b = call("/api/pair", "POST", b"", {"X-Atlas-Key": TOKEN})
+    assert st == 200 and json.loads(b)["ok"]
+
+
+@test
+def text_question_fast_path_answers_with_voice():
+    LOG["ask"].clear()
+    st, _, b = ask("Открой блокнот.")
+    r = json.loads(b)
+    assert st == 200 and r["text"] == "Открываю блокнот." and not LOG["ask"], "быстрый путь, без модели"
+    assert base64.b64decode(r["audio"]) == b"MP3DATA" and r["mime"] == "audio/mpeg"
+
+
+@test
+def text_question_goes_to_the_brain_and_back():
+    LOG["ask"].clear()
+    LOG["tts"].clear()
+    REPLY[0] = "[warm] Тепло, сэр."
+    st, _, b = ask("какая погода")
+    r = json.loads(b)
+    assert len(LOG["ask"]) == 1 and LOG["ask"][0].startswith("(Respond in Russian.) (Said on the phone:") \
+        and LOG["ask"][0].endswith("какая погода"), LOG["ask"]
+    emotions = os.path.exists(os.path.join(ROOT, "core", "emotions.py"))
+    assert r["text"] == ("Тепло, сэр." if emotions else "[warm] Тепло, сэр."), r["text"]
+    assert LOG["tts"][-1] == "[warm] Тепло, сэр.", "голосу метки нужны"
+    chat = sys.modules["ui_state"].shared_state["chat_history"]
+    assert ("You 📱", "какая погода") in chat, "разговор виден и в окне на компьютере"
+
+
+@test
+def voice_question_from_android_and_iphone():
+    for ctype, ext in (("audio/webm;codecs=opus", "webm"), ("audio/mp4", "m4a")):
+        LOG["stt"].clear()
+        HEARD[0], REPLY[0] = "какая погода", "Солнечно."
+        st, _, b = call("/api/talk", "POST", b"\x1a\x45\xdf\xa3audio", {"Content-Type": ctype, "X-Atlas-Key": TOKEN})
+        r = json.loads(b)
+        assert st == 200 and r["heard"] == "какая погода" and r["text"] == "Солнечно.", r
+        kw = LOG["stt"][0]
+        assert kw["file"][0] == f"phone.{ext}" and kw["language"] == "ru" and kw["file"][1].startswith(b"\x1a"), kw
+
+
+@test
+def noise_is_not_sent_to_the_brain():
+    LOG["ask"].clear()
+    HEARD[0] = "Продолжение следует..."
+    st, _, b = call("/api/talk", "POST", b"noise", {"Content-Type": "audio/webm", "X-Atlas-Key": TOKEN})
+    assert st == 200 and json.loads(b)["heard"] == "" and not LOG["ask"]
+    HEARD[0] = "какая погода"
+
+
+@test
+def too_long_recording_is_refused_and_server_keeps_working():
+    big = b"0" * (S.MAX_AUDIO + 10)
+    try:                                   # сервер отказывает, не дочитывая: 413 или обрыв соединения
+        st, _, _ = call("/api/talk", "POST", big, {"Content-Type": "audio/webm", "X-Atlas-Key": TOKEN})
+        assert st == 413, st
+    except OSError:                        # Linux: ошибка отправки; Windows: ConnectionResetError при чтении ответа
+        pass
+    LOG["ask"].clear()
+    st, _, b = ask("какая погода")
+    assert st == 200 and LOG["ask"], "после отказа сервер отвечает как обычно"
+
+
+@test
+def phone_speaks_by_itself_when_atlas_voice_fails():
+    TTS_FAIL[0] = True
+    try:
+        st, _, b = ask("какая погода")
+        r = json.loads(b)
+        assert st == 200 and r["audio"] is None and r["text"], r
+    finally:
+        TTS_FAIL[0] = False
+
+
+@test
+def phone_answers_short_in_the_language_spoken_and_pc_stays_quiet():
+    import time as _t
+    v = sys.modules["voice"]
+    saved = v.get_response_language
+    v.get_response_language = lambda: "en"                 # в настройках компьютера — английский
+    try:
+        LOG["ask"].clear()
+        REPLY[0] = "Привет, сэр."
+        ask("Атлас, привет!")
+        q = LOG["ask"][-1]
+        assert q.startswith("(Respond in Russian.) (Said on the phone:") and q.endswith("Атлас, привет!"), q
+        ask("what time is it in Tokyo")
+        assert LOG["ask"][-1].startswith("(Respond in English.) (Said on the phone:"), LOG["ask"][-1]
+        until = sys.modules["ui_state"].shared_state.get("phone_active_until", 0)
+        assert until > _t.time() + 20, "компьютер молчит, пока идёт разговор с телефона"
+    finally:
+        v.get_response_language = saved
+
+
+@test
+def tunnel_prefers_tailscale_and_explains_what_is_missing():
+    from phone import tunnel
+    saved = (tunnel._tailscale_exe, tunnel._cloudflared_exe, tunnel._run, tunnel.subprocess.Popen)
+    try:
+        tunnel._tailscale_exe = lambda: "tailscale"
+        runs = []
+
+        def run_ok(args, timeout=20):
+            runs.append(args)
+            out = json.dumps({"BackendState": "Running", "Self": {"DNSName": "atlas-pc.tail1234.ts.net."}}) \
+                if "status" in args else "Available within your tailnet"
+            return types.SimpleNamespace(returncode=0, stdout=out, stderr="")
+        tunnel._run = run_ok
+        assert tunnel.start(8765) == ("https://atlas-pc.tail1234.ts.net", "tailscale", "")
+        assert ["tailscale", "serve", "--bg", "8765"] in runs
+
+        def run_no_https(args, timeout=20):
+            if "status" in args:
+                return run_ok(args)
+            return types.SimpleNamespace(returncode=1, stdout="", stderr="HTTPS is not enabled for this tailnet")
+        tunnel._run = run_no_https
+        tunnel._cloudflared_exe = lambda: "cloudflared"
+
+        class FakeCF:
+            def __init__(self, args, **kw):
+                self.stdout = iter(["INF Requesting new quick Tunnel\n",
+                                    "INF |  https://quiet-star-1234.trycloudflare.com  |\n"])
+
+            def poll(self):
+                return None
+
+            def kill(self):
+                pass
+        tunnel.subprocess.Popen = FakeCF
+        url, kind, hint = tunnel.start(8765)
+        assert (url, kind) == ("https://quiet-star-1234.trycloudflare.com", "cloudflare"), (url, kind, hint)
+
+        tunnel._tailscale_exe = tunnel._cloudflared_exe = lambda: ""
+        url, kind, hint = tunnel.start(8765)
+        assert url is None and "Tailscale не установлен" in hint and "cloudflared не установлен" in hint
+    finally:
+        tunnel._tailscale_exe, tunnel._cloudflared_exe, tunnel._run, tunnel.subprocess.Popen = saved
+
+
+@test
+def install_opens_a_local_qr_page_with_the_key():
+    from phone import install as I
+    import webbrowser
+    saved_open, saved_state = webbrowser.open, dict(S._state)
+    webbrowser.open = lambda url: LOG["opened"].append(url)
+    try:
+        S._state.update(url="https://atlas-pc.tail1234.ts.net", kind="tailscale")
+        msg = I.install("телефон")
+        page = LOG["opened"][-1]
+        html = open(page.replace("file:///", "/" if os.name != "nt" else ""), encoding="utf-8").read()
+        assert "QR" in msg and page.startswith("file:///"), msg
+        assert ("<img alt=\"QR-код" in html) or (f"https://atlas-pc.tail1234.ts.net/?pair={TOKEN}" in html)
+        assert "Tailscale" in html and "iPhone" in html and "Android" in html
+        msg = I.install("телевизор")
+        assert "телевизор" in msg and f"/?pair={TOKEN}" in open(LOG["opened"][-1].replace("file:///", "/" if os.name != "nt" else ""),
+                                                               encoding="utf-8").read()
+        S._state.update(url=None, hint="Tailscale не установлен; cloudflared не установлен")
+        S.connect = lambda force=False: ""
+        msg = I.install("phone")
+        assert "Tailscale" in msg and "winget" in msg, msg
+    finally:
+        webbrowser.open = saved_open
+        S._state.clear()
+        S._state.update(saved_state)
+
+
+def main():
+    global S, BASE, TOKEN
+    install()
+    from phone import server as S
+    S.PAIR_FILE = os.path.join(tempfile.mkdtemp(), "phone_pairing.json")
+    TOKEN = S.pairing_token(create=True)
+    port = S.start(0)
+    BASE = f"http://127.0.0.1:{port}"
+    ok = 0
+    for t in TESTS:
+        try:
+            t()
+            ok += 1
+            print(f"  ✓ {t.__name__}")
+        except Exception:
+            print(f"  ✗ {t.__name__}\n" + "".join("      " + ln for ln in traceback.format_exc().splitlines(True)[-5:]))
+    S.stop()
+    print(f"\nТестов пройдено: {ok} из {len(TESTS)}")
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0 if ok == len(TESTS) else 1)
+
+
+if __name__ == "__main__":
+    main()

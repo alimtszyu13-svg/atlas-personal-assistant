@@ -124,6 +124,29 @@ def voice_loop_stop_then_command_then_shutdown():
 
 
 @test
+def pc_does_not_wake_while_the_phone_is_talking():
+    import time as _t
+    reset()
+    calls = {"n": 0}
+    saved = M.wait_for_wake_word
+
+    def wake():
+        calls["n"] += 1
+        if calls["n"] == 2:
+            M.shared_state["phone_active_until"] = 0       # разговор с телефона закончился
+        return "voice"
+    M.wait_for_wake_word = wake
+    M.shared_state["phone_active_until"] = _t.time() + 30
+    LISTEN[:] = ["выключись"]
+    try:
+        M._voice_loop()
+    finally:
+        M.wait_for_wake_word = saved
+        M.shared_state["phone_active_until"] = 0
+    assert calls["n"] == 2 and M.shared_state["should_quit"], "первое «Атлас» во время разговора с телефона пропущено"
+
+
+@test
 def short_noise_is_ignored():
     reset()
     LISTEN[:] = ["ээ", "выключись"]

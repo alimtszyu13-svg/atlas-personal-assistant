@@ -62,3 +62,6 @@ mini_window.json
 
 logs/
 memory_review.json
+
+phone_pairing.json
+*_test_output.txt

@@ -308,6 +308,18 @@ def music_talk_brings_volume_and_seek_and_video_tools_stay_honest():
 
 
 @test
+def install_on_device_ends_with_a_short_answer():
+    assert "install_on_device" in planner.SLIM_TOOLS
+
+
+@test
+def install_on_device_tool_is_offered():
+    s = fresh([{"content": "ок"}])
+    ai_brain.ask_ai(RU + "можешь поставить себя мне на смартфон, чтобы я говорил с тобой с улицы?")
+    assert "install_on_device" in {t["function"]["name"] for t in s.requests[0]["tools"]}
+
+
+@test
 def region_blocked_music_service_is_hidden():
     names = {t["function"]["name"] for t in tools.TOOLS_SCHEMA}
     assert "play_on_youtube_music" not in names and "play_on_spotify" in names

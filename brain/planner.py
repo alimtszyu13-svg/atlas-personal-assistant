@@ -214,7 +214,7 @@ SLIM_TOOLS = {
     "check_internet_speed", "ping_host", "is_website_up", "word_count", "take_screenshot", "lock_screen",
     "create_event", "get_unread_count", "list_steam_games", "launch_steam_game", "open_app", "close_app",
     "play_on_spotify", "play_pause_media", "next_track", "previous_track", "set_theme", "mini_mode",
-    "search_file_content", "open_found_file", "open_search_result", "spotify_seek", "spotify_library", "spotify_volume",
+    "search_file_content", "open_found_file", "open_search_result", "spotify_seek", "spotify_library", "spotify_volume", "install_on_device",
 }
 # После этих инструментов часто нужен следующий шаг — короткий ответ только если просьба одношаговая
 _MAY_CONTINUE = {"search_file_content", "open_found_file", "open_search_result"}

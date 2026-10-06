@@ -13,15 +13,10 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install numpy pillow
-      - name: Brain (offline, no keys)
-        run: python tests/test_brain.py
-      - name: Fast commands and control words
-        run: python tests/test_commands.py
-      - name: Main loop
-        run: python tests/test_main.py
-      - name: Log file
-        run: python tests/test_logbook.py
-      - name: Spotify
-        run: python tests/test_spotify.py
-      - name: Voice emotions
-        run: python tests/test_emotions.py
+      - run: python tests/test_brain.py
+      - run: python tests/test_commands.py
+      - run: python tests/test_emotions.py
+      - run: python tests/test_logbook.py
+      - run: python tests/test_main.py
+      - run: python tests/test_phone.py
+      - run: python tests/test_spotify.py

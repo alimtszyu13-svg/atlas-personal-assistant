@@ -247,6 +247,14 @@ def try_fast_command(text: str):
             from deep_links import open_deep_link
             return _ok(open_deep_link(service, m.group(1).strip()))
 
+    # ---------- Atlas на других устройствах ----------
+    m = re.fullmatch(r"(?:установи|поставь|загрузи|перенеси)\s+себя\s+(?:на|в)\s+(?:мой\s+)?"
+                     r"(телефон|смартфон|мобильник|айфон|андроид|планшет|айпад|телевизор|телек|тв|другое устройство)", t)
+    if m:
+        dev = {"планшет": "tablet", "айпад": "tablet", "телевизор": "tv", "телек": "tv", "тв": "tv"}.get(m.group(1), "phone")
+        from phone.install import install
+        return ("speak", install(dev))
+
     # ---------- моя библиотека Spotify: любимые треки и свои плейлисты ----------
     if not multi and re.fullmatch(r"(?:включи|поставь|запусти|врубай|play)\s+(?:мне\s+)?(?:мои\s+|мою\s+)?"
                                   r"(?:любимые|понравившиеся|сохран[её]нные)\s*(?:треки|песни|музыку)?|"

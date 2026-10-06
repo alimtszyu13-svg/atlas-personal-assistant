@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050814">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Atlas">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" href="/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<title>Atlas</title>
+<style>
+  :root {
+    --night: #050814;
+    --nebula: #141b3d;
+    --starlight: #e1eeff;
+    --dim: #7d89b3;
+    --listen: #7cf5c4;
+    --think: #ffc46b;
+    --speak: #a9b8ff;
+    --alert: #ff8a8a;
+    --glow: #4f7dff;
+    --lvl: 0;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background:
+      radial-gradient(120% 70% at 50% 38%, var(--nebula) 0%, rgba(20, 27, 61, 0) 70%),
+      var(--night);
+    color: var(--starlight);
+    font: 400 16px/1.5 "Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    overflow: hidden;
+  }
+  /* звёздная пыль — неподвижная, чтобы не отвлекать */
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .55;
+    background-image:
+      radial-gradient(1px 1px at 12% 18%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 78% 12%, #cfe0ff 50%, transparent 51%),
+      radial-gradient(1px 1px at 64% 72%, #fff 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 22% 64%, #dfe8ff 50%, transparent 51%),
+      radial-gradient(1px 1px at 88% 48%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 40% 88%, #cfe0ff 50%, transparent 51%),
+      radial-gradient(1px 1px at 8% 82%, #fff 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 52% 6%, #fff 50%, transparent 51%);
+  }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px 0; font-size: 14px; color: var(--dim);
+  }
+  .mark { color: var(--starlight); font-weight: 600; letter-spacing: .02em; font-size: 17px; }
+  .link { display: inline-flex; align-items: center; gap: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+  .link.on .dot { background: var(--listen); box-shadow: 0 0 8px var(--listen); }
+  .link.off .dot { background: var(--alert); }
+
+  main {
+    flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center;
+    padding: 0 20px;
+  }
+
+  /* ---------- звезда: она и есть кнопка ---------- */
+  .star {
+    --c: var(--glow);
+    position: relative; flex: none; margin-top: 4vh;
+    width: min(58vw, 290px); aspect-ratio: 1; border: 0; padding: 0; border-radius: 50%;
+    background: transparent; cursor: pointer; outline-offset: 10px;
+  }
+  .star:focus-visible { outline: 2px solid var(--starlight); }
+  .halo, .core, .ring { position: absolute; border-radius: 50%; pointer-events: none; }
+  .halo {
+    inset: 0;
+    background: radial-gradient(circle, color-mix(in srgb, var(--c) 70%, transparent) 0%,
+                color-mix(in srgb, var(--c) 18%, transparent) 42%, transparent 70%);
+    transform: scale(calc(.82 + var(--lvl) * .5));
+    transition: transform .08s linear, background .6s ease;
+  }
+  .core {
+    inset: 38%;
+    background: radial-gradient(circle at 42% 38%, #fff 0%, var(--starlight) 35%,
+                color-mix(in srgb, var(--c) 55%, var(--starlight)) 100%);
+    box-shadow: 0 0 34px 8px color-mix(in srgb, var(--c) 60%, transparent);
+    transition: box-shadow .6s ease, background .6s ease;
+  }
+  .ring {
+    inset: 22%; border: 1.5px solid transparent; opacity: 0;
+    border-top-color: var(--c); border-right-color: color-mix(in srgb, var(--c) 40%, transparent);
+    transition: opacity .3s ease;
+  }
+  body[data-state="idle"] .halo { animation: breathe 5s ease-in-out infinite; }
+  body[data-state="listening"] .star { --c: var(--listen); }
+  body[data-state="thinking"] .star { --c: var(--think); }
+  body[data-state="thinking"] .ring { opacity: 1; animation: orbit 1.6s linear infinite; }
+  body[data-state="speaking"] .star { --c: var(--speak); }
+  body[data-state="speaking"] .halo { animation: voice .5s ease-in-out infinite alternate; }
+  body[data-state="locked"] .star { --c: #2a3566; cursor: default; }
+  @keyframes breathe { 50% { transform: scale(.9); } }
+  @keyframes orbit { to { transform: rotate(360deg); } }
+  @keyframes voice { from { transform: scale(.86); } to { transform: scale(1.02); } }
+
+  .caption {
+    margin: 3vh 0 0; max-width: 34ch; min-height: 3em; text-align: center;
+    font-size: 19px; line-height: 1.45; font-weight: 500; text-wrap: balance;
+  }
+  .caption .heard { display: block; color: var(--dim); font-size: 15px; font-weight: 400; margin-bottom: 6px; }
+  .hint { color: var(--dim); font-size: 15px; font-weight: 400; }
+
+  .install {
+    margin-top: 14px; border: 1px solid color-mix(in srgb, var(--starlight) 35%, transparent);
+    background: transparent; color: var(--starlight); font: inherit; font-size: 15px;
+    padding: 8px 18px; border-radius: 999px; cursor: pointer;
+  }
+  .install[hidden] { display: none; }
+
+  /* ---------- история ---------- */
+  .history {
+    flex: 1; min-height: 0; width: 100%; max-width: 560px; margin-top: 2vh;
+    overflow-y: auto; padding: 8px 2px 4px; font-size: 15px;
+    mask-image: linear-gradient(to bottom, transparent 0, #000 28px);
+  }
+  .turn { margin: 0 0 12px; max-width: 80%; }
+  .turn.you { margin-left: auto; text-align: right; color: var(--dim); }
+  .turn.atlas { color: var(--starlight); }
+
+  /* ---------- текст ---------- */
+  form {
+    display: flex; gap: 10px; width: 100%; max-width: 560px; margin: 0 auto;
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom) * 0);
+  }
+  input {
+    flex: 1; min-width: 0; font: inherit; color: var(--starlight);
+    background: color-mix(in srgb, var(--nebula) 80%, transparent);
+    border: 1px solid #263063; border-radius: 22px; padding: 11px 16px;
+  }
+  input::placeholder { color: var(--dim); }
+  input:focus-visible, form button:focus-visible { outline: 2px solid var(--speak); outline-offset: 2px; }
+  form button {
+    border: 0; border-radius: 22px; padding: 0 18px; font: inherit; font-weight: 600;
+    background: var(--starlight); color: var(--night); cursor: pointer;
+  }
+  form button:disabled { opacity: .4; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .halo, .ring { animation: none !important; transition: none; }
+  }
+</style>
+</head>
+<body data-state="locked">
+<header>
+  <span class="mark">atlas</span>
+  <span class="link" id="link"><span class="dot"></span><span id="linkText">не сопряжено</span></span>
+</header>
+
+<main>
+  <button class="star" id="star" aria-label="Говорить с Atlas" disabled>
+    <span class="halo"></span><span class="ring"></span><span class="core"></span>
+  </button>
+  <p class="caption" id="caption" aria-live="polite"></p>
+  <button class="install" id="install" hidden>Установить на телефон</button>
+  <section class="history" id="history" aria-label="История разговора"></section>
+</main>
+
+<form id="form" autocomplete="off">
+  <input id="text" placeholder="Или напиши…" aria-label="Вопрос Atlas текстом" disabled>
+  <button id="send" disabled>Спросить</button>
+</form>
+
+<audio id="player" playsinline></audio>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const body = document.body, star = $("star"), caption = $("caption"), historyEl = $("history");
+  const input = $("text"), send = $("send"), player = $("player");
+  const KEY = "atlasKey";
+  let key = localStorage.getItem(KEY) || "";
+  let busy = false, rec = null;
+
+  const setState = (s) => { body.dataset.state = s; };
+  const say = (text, heard) => {
+    caption.innerHTML = "";
+    if (heard) { const h = document.createElement("span"); h.className = "heard"; h.textContent = heard; caption.append(h); }
+    caption.append(document.createTextNode(text || ""));
+  };
+  const hint = (text) => { caption.innerHTML = ""; const s = document.createElement("span"); s.className = "hint"; s.textContent = text; caption.append(s); };
+  const addTurn = (who, text) => {
+    if (!text) return;
+    const p = document.createElement("p"); p.className = "turn " + who; p.textContent = text;
+    historyEl.append(p); historyEl.scrollTop = historyEl.scrollHeight;
+  };
+  const link = (on, text) => { $("link").className = "link " + (on ? "on" : "off"); $("linkText").textContent = text; };
+  const unlock = (on) => { star.disabled = input.disabled = send.disabled = !on; setState(on ? "idle" : "locked"); };
+
+  async function api(path, opts = {}) {
+    const r = await fetch(path, { ...opts, headers: { "X-Atlas-Key": key, ...(opts.headers || {}) } });
+    if (r.status === 401) { link(false, "ключ устарел"); unlock(false);
+      hint("Ключ устарел. Скажи Атласу на компьютере «установи себя на телефон» и отсканируй QR-код заново."); throw new Error("401"); }
+    if (!r.ok) throw new Error(String(r.status));
+    return r.json();
+  }
+
+  // ---------- сопряжение ----------
+  async function pair() {
+    const q = new URLSearchParams(location.search).get("pair");
+    if (q) { key = q; localStorage.setItem(KEY, q); window.history.replaceState(null, "", "/"); }   // ключ не остаётся в адресе
+    if (!key) { link(false, "не сопряжено"); hint("Скажи Атласу на компьютере «Установи себя на телефон» и отсканируй QR-код."); return; }
+    try {
+      await api("/api/pair", { method: "POST" });
+      link(true, "на связи"); unlock(true);
+      hint(q ? "Готово. Нажми на звезду и говори." : "Нажми на звезду и говори.");
+    } catch (e) {
+      if (e.message !== "401") { link(false, "нет связи"); hint("Нет связи с компьютером. Atlas запущен?"); }
+    }
+  }
+
+  // ---------- ответ ----------
+  function unlockAudio() {          // iPhone разрешает звук только после нажатия — «открываем» плеер сразу
+    try { player.muted = true; player.play().catch(() => {}); player.pause(); player.muted = false; } catch (e) {}
+  }
+  function speak(res) {
+    return new Promise((done) => {
+      if (res.audio) {
+        const bytes = Uint8Array.from(atob(res.audio), (c) => c.charCodeAt(0));
+        player.src = URL.createObjectURL(new Blob([bytes], { type: res.mime || "audio/mpeg" }));
+        setState("speaking"); player.onended = player.onerror = () => done();
+        player.play().catch(() => done());
+      } else if (res.text && "speechSynthesis" in window) {   // голос не пришёл — говорит сам телефон
+        const u = new SpeechSynthesisUtterance(res.text); u.lang = /[а-яё]/i.test(res.text) ? "ru-RU" : "en-US";
+        setState("speaking"); u.onend = u.onerror = () => done(); speechSynthesis.speak(u);
+      } else done();
+    });
+  }
+  async function handle(promise, typed) {
+    busy = true; setState("thinking"); if (typed) { say("", typed); addTurn("you", typed); }
+    try {
+      const res = await promise;
+      if (res.heard === "") { hint("Не расслышал. Нажми на звезду и повтори."); return; }
+      if (res.heard) addTurn("you", res.heard);
+      say(res.text, res.heard || typed); addTurn("atlas", res.text);
+      await speak(res);
+    } catch (e) {
+      if (e.message !== "401") hint("Не получилось связаться с компьютером. Попробуй ещё раз.");
+    } finally { busy = false; if (!star.disabled) setState("idle"); }
+  }
+
+  // ---------- голос: нажал на звезду — говоришь, тишина — отправка ----------
+  const MIME = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"]
+    .find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || "";
+
+  async function listen() {
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+    catch (e) { hint("Нет доступа к микрофону. Разреши его в настройках браузера для этого сайта."); return; }
+    const chunks = []; const mr = new MediaRecorder(stream, MIME ? { mimeType: MIME } : undefined);
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const an = ctx.createAnalyser(); an.fftSize = 1024; ctx.createMediaStreamSource(stream).connect(an);
+    const buf = new Float32Array(an.fftSize);
+    let spoke = false, quietSince = 0; const t0 = performance.now();
+    rec = { stop: () => mr.state === "recording" && mr.stop() };
+    mr.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    mr.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop()); ctx.close(); rec = null;
+      document.documentElement.style.setProperty("--lvl", 0);
+      if (!spoke) { setState("idle"); hint("Ничего не услышал. Нажми на звезду и говори."); return; }
+      const blob = new Blob(chunks, { type: mr.mimeType || MIME || "audio/webm" });
+      handle(fetch("/api/talk", { method: "POST", body: blob,
+        headers: { "X-Atlas-Key": key, "Content-Type": blob.type } }).then((r) => {
+          if (r.status === 401) return api("/api/pair", { method: "POST" });
+          if (!r.ok) throw new Error(String(r.status)); return r.json(); }));
+    };
+    mr.start(250); setState("listening"); say("Слушаю…");
+    (function meter() {
+      if (!rec) return;
+      an.getFloatTimeDomainData(buf);
+      let s = 0; for (const v of buf) s += v * v; const rms = Math.sqrt(s / buf.length);
+      document.documentElement.style.setProperty("--lvl", Math.min(1, rms * 9).toFixed(3));
+      const now = performance.now();
+      if (rms > 0.025) { spoke = true; quietSince = 0; } else if (spoke && !quietSince) quietSince = now;
+      if ((spoke && quietSince && now - quietSince > 1200) || now - t0 > 15000 || (!spoke && now - t0 > 7000)) return rec.stop();
+      requestAnimationFrame(meter);
+    })();
+  }
+
+  star.addEventListener("click", () => {
+    if (rec) return rec.stop();                           // второе нажатие — отправить сразу
+    if (busy) { player.pause(); speechSynthesis && speechSynthesis.cancel(); return; }   // нажал во время ответа — замолчать
+    unlockAudio(); listen();
+  });
+  $("form").addEventListener("submit", (e) => {
+    e.preventDefault(); const t = input.value.trim(); if (!t || busy) return;
+    input.value = ""; unlockAudio();
+    handle(api("/api/ask", { method: "POST", body: JSON.stringify({ text: t }), headers: { "Content-Type": "application/json" } }), t);
+  });
+
+  // ---------- установка на рабочий стол ----------
+  let deferred = null;
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferred = e; $("install").hidden = false; });
+  $("install").addEventListener("click", async () => {
+    if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; $("install").hidden = true;
+  });
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone) {
+    setTimeout(() => addTurn("atlas", "Чтобы установить Atlas на iPhone: кнопка «Поделиться» внизу Safari → «На экран „Домой“»."), 1200);
+  }
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+
+  pair();
+})();
+</script>
+</body>
+</html>

@@ -71,6 +71,8 @@ def install():
                                                     "unmute_volume", "set_brightness", "lock_screen", "take_screenshot")})
     _mod("media_control", **{n: _rec(n) for n in ("play_pause_media", "next_track", "previous_track")})
     _mod("theme_control", set_theme=_rec("set_theme"))
+    _mod("phone").__path__ = []
+    _mod("phone.install", install=_rec("install", "Открыл на экране QR-код."))
     _mod("browser_agent", _browser_alive=lambda: STATE["browser_open"],
          **{n: _browser(n) for n in ("media_volume", "media_play_pause", "skip_intro", "next_episode",
                                      "media_player_fullscreen", "media_seek")})
@@ -237,6 +239,14 @@ def spotify_volume_phrases():
         STATE["spotify_playing"] = False
     assert fast("Сделай звук погромче.")[1] == ["volume_up"], "Spotify не играет — громкость компьютера"
     assert fast("громкость 40")[2][0][:2] == ("set_volume", (40,)), "системная громкость числом — как раньше"
+
+
+@test
+def install_yourself_phrases():
+    for p, dev in (("Атлас, установи себя на телефон", "phone"), ("установи себя на айфон", "phone"),
+                   ("поставь себя на планшет", "tablet"), ("установи себя на телевизор", "tv")):
+        r, names, calls = fast(p)
+        assert r == ("speak", "Открыл на экране QR-код.") and calls[0][:2] == ("install", (dev,)), (p, r, calls)
 
 
 @test

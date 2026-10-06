@@ -553,6 +553,17 @@ def start() -> None:
         if _n in AVAILABLE_FUNCTIONS:
             AVAILABLE_FUNCTIONS[_n] = _video_only(_n, getattr(AVAILABLE_FUNCTIONS[_n], "__wrapped__", AVAILABLE_FUNCTIONS[_n]))
 
+    # --- Atlas на других устройствах
+    def install_on_device(device: str = "phone") -> str:
+        """Opens a QR code to install Atlas on a phone, tablet or TV."""
+        from phone.install import install
+        return install(device)
+    register("install_on_device", install_on_device, "Installs Atlas on another device: shows a QR code on this screen; the "
+             "user scans it and taps Install. device: 'phone' | 'tablet' | 'tv' ('установи себя на телефон').",
+             {"device": {"type": "string", "description": "'phone', 'tablet' or 'tv'"}}, group="devices")
+    _triggers("devices", ("установи себя", "на телефон", "на смартфон", "на планшет", "на телевизор", "на другое устройство",
+                          "install yourself", "on my phone", "on the tv"))
+
     # Сервисы, недоступные в регионе пользователя, модели не показываются (по умолчанию —
     # YouTube Music: в Кыргызстане он закрыт). Список — ATLAS_BLOCKED_TOOLS в .env, через запятую.
     for name in filter(None, (os.getenv("ATLAS_BLOCKED_TOOLS", "play_on_youtube_music")).replace(" ", "").split(",")):

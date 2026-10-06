@@ -194,6 +194,9 @@ def _voice_loop() -> None:
         else:
             trigger = wait_for_wake_word()
         print(f"[DEBUG] trigger={trigger}")
+        if trigger == "voice" and time.time() < shared_state.get("phone_active_until", 0):
+            print("[голос] идёт разговор с телефона — компьютер не перебивает")
+            continue
 
         shared_state["state"] = "listening"
         command = listen()
@@ -251,6 +254,11 @@ def main() -> None:
     gestures.start()                              # хлопки (жесты — в интерфейсе)
     ai_brain.set_announcer(_announce)             # итоги фоновых задач — вслух
     ai_brain.features.start_memory_autoreview()   # раз в 3 дня — проверка памяти, удаление только после «да»
+    try:
+        from phone import server as _phone        # телефон уже сопряжён — приложение на нём просто работает
+        _phone.start_if_paired()
+    except Exception as e:
+        print(f"[телефон] не запустился: {e}")
 
     threading.Thread(target=_voice_loop, daemon=True).start()
     threading.Thread(target=_manual_queue_watcher, daemon=True).start()
