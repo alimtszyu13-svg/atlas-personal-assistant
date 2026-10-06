@@ -255,6 +255,11 @@ def main() -> None:
     ai_brain.set_announcer(_announce)             # итоги фоновых задач — вслух
     ai_brain.features.start_memory_autoreview()   # раз в 3 дня — проверка памяти, удаление только после «да»
     try:
+        from core import cloud_sync                 # одна память на все устройства (если настроен Supabase)
+        cloud_sync.start()
+    except Exception as e:
+        print(f"[облако] синхронизация не запустилась: {e}")
+    try:
         from phone import server as _phone        # телефон уже сопряжён — приложение на нём просто работает
         _phone.start_if_paired()
     except Exception as e:
