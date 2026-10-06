@@ -223,6 +223,25 @@ def offline_nothing_is_lost():
 
 
 @test
+def many_rows_at_once_are_all_received_and_sync_never_gets_stuck():
+    cloud, a, b = FakeCloud(), Device("a"), Device("b")
+    saved = CS.BATCH
+    CS.BATCH = 50                                                  # как 500, только быстрее
+    try:
+        for i in range(120):                                       # всё сразу, как первая отправка памяти
+            a.sql("INSERT INTO turns (ts, role, text) VALUES (?,?,?)", (i, "user", f"реплика {i}"))
+        a.sync(cloud)
+        b.sync(cloud)
+        assert b.sql("SELECT COUNT(*) FROM turns")[0][0] == 120, "получено не всё"
+        a.sql("INSERT INTO turns (ts, role, text) VALUES (999,'user','новая реплика')")
+        a.sync(cloud)
+        b.sync(cloud)
+        assert b.sql("SELECT COUNT(*) FROM turns WHERE text='новая реплика'")[0][0] == 1, "синхронизация застряла"
+    finally:
+        CS.BATCH = saved
+
+
+@test
 def computer_fills_vectors_for_memory_made_in_the_cloud():
     cloud, cl, pc = FakeCloud(), Device("cloud"), Device("pc")
     cl.sql("INSERT INTO nodes (name, label, emb) VALUES ('ielts','IELTS',?)", (b"\x00" * 16,))   # лёгкий режим облака

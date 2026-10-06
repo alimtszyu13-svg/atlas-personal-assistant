@@ -10,3 +10,5 @@ sqlalchemy
 pillow
 snowballstemmer
 requests
+ddgs
+feedparser

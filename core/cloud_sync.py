@@ -345,9 +345,12 @@ def sync_once(store, db: str = None) -> dict:
                 if note in part:
                     state["notes_sent"] = note["updated_at"]
             pulled, cursor = 0, state.get("pulled_until", "1970-01-01T00:00:00+00:00")
+            overlap = True
             while True:
-                # с небольшим нахлёстом: изменения, записанные одновременно, не теряются
-                since = _iso(max(0.0, _ts(cursor) - 5))
+                # первая страница — с нахлёстом 5 с (изменения, записанные одновременно, не теряются);
+                # следующие — строго после последней полученной: иначе, когда за 5 с записали больше
+                # одной страницы, листание стояло бы на одном месте
+                since = _iso(max(0.0, _ts(cursor) - 5)) if overlap else cursor
                 items = store.pull(since, device)
                 fresh = [it for it in items if _ts(it["synced_at"]) > _ts(cursor)]
                 for it in items:
@@ -356,11 +359,11 @@ def sync_once(store, db: str = None) -> dict:
                     else:
                         pulled += _apply(c, it)
                 c.commit()
-                if not fresh:
+                if fresh:
+                    cursor = max((it["synced_at"] for it in fresh), key=_ts)
+                if len(items) < BATCH or (not fresh and not overlap):
                     break
-                cursor = max((it["synced_at"] for it in fresh), key=_ts)
-                if len(items) < BATCH:
-                    break
+                overlap = False
             state["pulled_until"] = cursor
         finally:
             c.close()

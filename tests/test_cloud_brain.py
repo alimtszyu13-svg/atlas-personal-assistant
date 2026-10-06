@@ -263,6 +263,7 @@ def render_files_are_ready_and_keep_private_files_out():
     assert 'CMD ["python", "-m", "cloud.atlas_cloud"]' in df and "COPY . ." in df
     pkgs = [ln.strip() for ln in req.splitlines() if ln.strip() and not ln.strip().startswith("#")]
     assert "fastembed" not in pkgs and "onnxruntime" not in pkgs and "openai" in pkgs, pkgs
+    assert {"ddgs", "feedparser"} <= set(pkgs), "поиск в интернете и новости в облаке"
     for private in (".env", "*.db", "phone_pairing.json", "cloud_sync_state.json", "atlas_data.json", "logs"):
         assert private in ign, private
 
