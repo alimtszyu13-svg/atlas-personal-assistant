@@ -320,6 +320,34 @@ def install_on_device_tool_is_offered():
 
 
 @test
+def honest_about_itself_and_stays_on_task():
+    p = ai_brain.SYSTEM_PROMPT
+    assert "ABOUT YOURSELF" in p and "never invent apps, downloads" in p
+    assert "STAY ON TASK" in p and "never start another task on your own" in p
+    assert "never start actions because of it" in open(os.path.join(ROOT, "brain", "planner.py"), encoding="utf-8").read()
+
+
+@test
+def learned_tools_are_few_and_no_desktop_for_music():
+    les = sys.modules["core.lessons"]
+    les.LEARNED[:] = ["desktop_look", "desktop_switch", "desktop_windows", "open_app", "next_track", "add_note"]
+    try:
+        s = fresh([{"content": "ок"}])
+        state.conversation_history.append({"role": "assistant", "content": "Включил «Eminem - Stan» в Spotify."})
+        ai_brain.ask_ai(RU + "поставь что-нибудь повеселее")
+        names = {t["function"]["name"] for t in s.requests[0]["tools"]}
+        assert not any(n.startswith("desktop_") for n in names), sorted(names)
+        odd = ["kill_process", "empty_recycle_bin", "lock_screen", "get_uptime", "word_count", "generate_qr_code"]
+        les.LEARNED[:] = odd
+        s = fresh([{"content": "ок"}])
+        ai_brain.ask_ai(RU + "расскажи что-нибудь интересное про космос")
+        names = {t["function"]["name"] for t in s.requests[0]["tools"]}
+        assert len(set(odd) & names) <= 3, sorted(set(odd) & names)
+    finally:
+        les.LEARNED[:] = []
+
+
+@test
 def region_blocked_music_service_is_hidden():
     names = {t["function"]["name"] for t in tools.TOOLS_SCHEMA}
     assert "play_on_youtube_music" not in names and "play_on_spotify" in names

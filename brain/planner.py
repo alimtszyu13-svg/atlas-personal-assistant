@@ -192,8 +192,8 @@ def _user_profile() -> str:
                                  (row[0],)).fetchall()
                 facts = [f"{r.replace('_', ' ')}: {lbl}" for r, lbl in rows if lbl]
                 if facts:
-                    text = ("About the user (from memory — use it to understand what they want and why; don't recite "
-                            "it unless asked): " + "; ".join(facts))
+                    text = ("About the user (from memory — use it only to understand what they want and why; don't "
+                            "recite it unless asked and never start actions because of it): " + "; ".join(facts))
         finally:
             c.close()
     except Exception as e:

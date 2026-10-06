@@ -76,7 +76,11 @@ _THINK_EXAMPLES = (
 _HONEST_MEMORY = (" HONESTY ABOUT MEMORY: never say you saved or remembered something unless remember_fact (or add_note / "
                   "add_todo) succeeded in this turn. If the user says 'remember' without saying what, ask what to remember.")
 
-SYSTEM_PROMPT = _CORE + _HANDS + _THINK_EXAMPLES + _HONEST_MEMORY
+_STAY_TRUE = (" ABOUT YOURSELF: describe what you can do only from your tools — never invent apps, downloads, websites, "
+              "settings or features; if no tool covers it, say so plainly. STAY ON TASK: do only what the user asked in "
+              "this turn; never start another task on your own because of something in memory, the user's profile or "
+              "the Situation note (e.g. don't look up an exchange rate nobody asked for).")
+SYSTEM_PROMPT = _CORE + _HANDS + _THINK_EXAMPLES + _HONEST_MEMORY + _STAY_TRUE
 from core import emotions as _emo                        # noqa: E402
 if _emo.enabled():                                        # VOICE_EMOTIONS=off в .env — без меток
     SYSTEM_PROMPT += _emo.RULE

@@ -431,6 +431,10 @@ def _with_learned(schema: list) -> list:
         print(f"[уроки] память инструментов недоступна: {e}")
         return schema
     have = {t["function"]["name"] for t in schema}
+    q = state.turn.get("question", "")
+    if _INTENT_PINS[0][0].search(q) or _music_context():     # музыка: «опыт» лазить в окно Spotify — плохой опыт
+        names = [n for n in names if not str(n).startswith("desktop_")]
+    names = list(dict.fromkeys(names))[:3]                     # не больше трёх «из опыта»
     extra = [t for t in TOOLS_SCHEMA if t["function"]["name"] in set(names) - have]
     if extra:
         print(f"[уроки] + инструменты из опыта: {sorted(t['function']['name'] for t in extra)}")
