@@ -277,6 +277,20 @@ def _route(environ):
         if not text:
             raise HTTPError(400, "Пустой вопрос.")
         return _json(_answer(text))
+    if path == "/api/transcribe":                   # ответ на карточку голосом — только текст, без мозга
+        _check_key(environ)
+        data = _body(environ, MAX_AUDIO)
+        if not data:
+            raise HTTPError(400, "Пустая запись.")
+        return _json({"text": transcribe(data, environ.get("CONTENT_TYPE", ""))})
+    from phone import panels
+    if path in panels.ROUTES:
+        _check_key(environ)
+        try:
+            data = json.loads(_body(environ, 64 * 1024) or b"{}")
+        except ValueError:
+            raise HTTPError(400, "Нужен JSON.")
+        return _json(panels.ROUTES[path](data if isinstance(data, dict) else {}))
     if path == "/api/talk":
         _check_key(environ)
         data = _body(environ, MAX_AUDIO)

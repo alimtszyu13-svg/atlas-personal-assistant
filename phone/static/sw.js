@@ -1,5 +1,5 @@
 // Atlas: оболочка приложения работает и без сети (звезда, подсказка), разговор — только с сетью.
-const SHELL = "atlas-shell-v1";
+const SHELL = "atlas-shell-v2";        // v2: вкладки дел, заметок и учёбы
 const FILES = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/icon-180.png"];
 
 self.addEventListener("install", (e) => {

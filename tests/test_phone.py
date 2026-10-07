@@ -206,6 +206,81 @@ def phone_answers_short_in_the_language_spoken_and_pc_stays_quiet():
         v.get_response_language = saved
 
 
+def _panel(path, payload=None, key=None):
+    st, _, b = call(path, "POST", json.dumps(payload or {}).encode(),
+                    {"Content-Type": "application/json", "X-Atlas-Key": key if key is not None else TOKEN})
+    return st, json.loads(b)
+
+
+def _real_data():
+    """Настоящие notes.py и core/study.py — но на временных файлах, не на твоих данных."""
+    import importlib
+    import notes
+    d = tempfile.mkdtemp()
+    notes.DATA_FILE = os.path.join(d, "atlas_data.json")
+    study = importlib.import_module("core.study")
+    study.DB = os.path.join(d, "memory.db")
+    return notes, study
+
+
+@test
+def todos_and_notes_screens():
+    notes, _ = _real_data()
+    assert _panel("/api/home", key="wrong")[0] == 401, "без ключа экраны закрыты"
+    st, h = _panel("/api/home")
+    assert st == 200 and h["todos"] == [] and h["notes"] == []
+    _panel("/api/todo/add", {"task": "Сдать SAT practice test"})
+    st, h = _panel("/api/todo/add", {"task": "Купить тетрадь"})
+    assert [t["task"] for t in h["todos"]] == ["Сдать SAT practice test", "Купить тетрадь"]
+    st, h = _panel("/api/todo/done", {"i": 1})
+    assert h["todos"][0]["done"] and not h["todos"][1]["done"]
+    st, h = _panel("/api/todo/delete", {"i": 2})
+    assert len(h["todos"]) == 1
+    st, h = _panel("/api/note/add", {"text": "Идея: голосовые карточки по физике"})
+    assert h["notes"] == ["Идея: голосовые карточки по физике"]
+    assert "Идея" in notes.list_notes(), "голосовая команда видит заметку с экрана"
+    st, h = _panel("/api/note/delete", {"i": 1})
+    assert h["notes"] == []
+    assert _panel("/api/todo/add", {"task": "   "})[1]["todos"] == h["todos"], "пустое дело не добавляется"
+
+
+@test
+def study_screen_full_session():
+    _, study = _real_data()
+    study.add_cards("SAT", [{"front": "ubiquitous", "back": "вездесущий"}, {"front": "arcane", "back": "тайный"}])
+    st, h = _panel("/api/home")
+    assert h["decks"][0]["deck"] == "SAT" and h["decks"][0]["due"] == 2
+    st, r = _panel("/api/study/start", {"deck": "сат"})
+    assert st == 200 and r["card"]["front"] in ("ubiquitous", "arcane") and r["card"]["n"] == 1 and r["card"]["total"] == 2
+    first = r["card"]["front"]
+    right = {"ubiquitous": "вездесущий", "arcane": "тайный"}[first]
+    st, r = _panel("/api/study/answer", {"text": right})
+    assert r["feedback"].rstrip(".") in ("Верно", "Точно", "Так и есть", "Правильно"), r
+    assert r["card"]["n"] == 2 and "Вопрос" not in r["feedback"], "отзыв без следующего вопроса"
+    assert _panel("/api/home")[1]["study"]["n"] == 2, "открыл экран заново — тренировка продолжается"
+    st, r = _panel("/api/study/answer", {"text": ""})          # «показать ответ»
+    assert "Правильно:" in r["feedback"] and r["card"], "не знал — карточка вернётся в этой же тренировке"
+    st, r = _panel("/api/study/stop")
+    assert r["done"] and "Итог" in r["feedback"] and _panel("/api/home")[1]["study"] is None
+
+
+@test
+def answer_by_voice_is_only_transcribed():
+    LOG["ask"].clear()
+    HEARD[0] = "вездесущий"
+    st, _, b = call("/api/transcribe", "POST", b"audio", {"Content-Type": "audio/webm", "X-Atlas-Key": TOKEN})
+    assert st == 200 and json.loads(b) == {"text": "вездесущий"} and not LOG["ask"], "мозг не вызывался"
+    assert call("/api/transcribe", "POST", b"audio", {"Content-Type": "audio/webm", "X-Atlas-Key": "nope"})[0] == 401
+    HEARD[0] = "какая погода"
+
+
+@test
+def app_has_the_screens():
+    page = call("/")[2].decode()
+    for must in ('id="v-todos"', 'id="v-notes"', 'id="v-study"', "/api/home", "/api/study/answer", "/api/transcribe"):
+        assert must in page, must
+
+
 @test
 def tunnel_prefers_tailscale_and_explains_what_is_missing():
     from phone import tunnel

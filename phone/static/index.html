@@ -11,36 +11,34 @@
 <link rel="apple-touch-icon" href="/icon-180.png">
 <link rel="icon" href="/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Literata:opsz,wght@7..72,500&display=swap" rel="stylesheet">
 <title>Atlas</title>
 <style>
   :root {
     --night: #050814;
     --nebula: #141b3d;
+    --line: #263063;
     --starlight: #e1eeff;
-    --dim: #7d89b3;
+    --dim: #8592bd;
     --listen: #7cf5c4;
     --think: #ffc46b;
     --speak: #a9b8ff;
     --alert: #ff8a8a;
     --glow: #4f7dff;
     --lvl: 0;
+    --tabbar: 64px;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; margin: 0; }
   body {
-    background:
-      radial-gradient(120% 70% at 50% 38%, var(--nebula) 0%, rgba(20, 27, 61, 0) 70%),
-      var(--night);
+    background: radial-gradient(120% 70% at 50% 30%, var(--nebula) 0%, rgba(20, 27, 61, 0) 70%), var(--night);
     color: var(--starlight);
     font: 400 16px/1.5 "Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif;
-    display: flex; flex-direction: column;
-    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
-    overflow: hidden;
+    display: flex; flex-direction: column; overflow: hidden;
+    padding-top: env(safe-area-inset-top);
   }
-  /* звёздная пыль — неподвижная, чтобы не отвлекать */
   body::before {
-    content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .55;
+    content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .5;
     background-image:
       radial-gradient(1px 1px at 12% 18%, #fff 50%, transparent 51%),
       radial-gradient(1px 1px at 78% 12%, #cfe0ff 50%, transparent 51%),
@@ -48,53 +46,39 @@
       radial-gradient(1.5px 1.5px at 22% 64%, #dfe8ff 50%, transparent 51%),
       radial-gradient(1px 1px at 88% 48%, #fff 50%, transparent 51%),
       radial-gradient(1px 1px at 40% 88%, #cfe0ff 50%, transparent 51%),
-      radial-gradient(1px 1px at 8% 82%, #fff 50%, transparent 51%),
       radial-gradient(1.5px 1.5px at 52% 6%, #fff 50%, transparent 51%);
   }
+  button { font: inherit; color: inherit; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--speak); outline-offset: 2px; }
 
-  header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 20px 0; font-size: 14px; color: var(--dim);
-  }
-  .mark { color: var(--starlight); font-weight: 600; letter-spacing: .02em; font-size: 17px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px 4px; font-size: 14px; color: var(--dim); }
+  .mark { color: var(--starlight); font-weight: 600; font-size: 17px; letter-spacing: .01em; }
   .link { display: inline-flex; align-items: center; gap: 8px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
   .link.on .dot { background: var(--listen); box-shadow: 0 0 8px var(--listen); }
   .link.off .dot { background: var(--alert); }
 
-  main {
-    flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center;
-    padding: 0 20px;
-  }
+  main { flex: 1; min-height: 0; position: relative; }
+  .view { position: absolute; inset: 0; display: none; flex-direction: column; padding: 0 20px; overflow-y: auto;
+          padding-bottom: calc(var(--tabbar) + env(safe-area-inset-bottom) + 12px); }
+  .view.on { display: flex; }
+  .wrap { width: 100%; max-width: 560px; margin: 0 auto; }
+  h2 { font-size: 24px; font-weight: 600; margin: 14px 0 4px; }
+  .sub { color: var(--dim); font-size: 15px; margin: 0 0 16px; }
 
-  /* ---------- звезда: она и есть кнопка ---------- */
-  .star {
-    --c: var(--glow);
-    position: relative; flex: none; margin-top: 4vh;
-    width: min(58vw, 290px); aspect-ratio: 1; border: 0; padding: 0; border-radius: 50%;
-    background: transparent; cursor: pointer; outline-offset: 10px;
-  }
-  .star:focus-visible { outline: 2px solid var(--starlight); }
+  /* ---------- Atlas: звезда ---------- */
+  #v-atlas { align-items: center; overflow: hidden; }
+  .star { --c: var(--glow); position: relative; flex: none; margin-top: 2vh; width: min(52vw, 250px); aspect-ratio: 1;
+          border: 0; padding: 0; border-radius: 50%; background: transparent; cursor: pointer; }
   .halo, .core, .ring { position: absolute; border-radius: 50%; pointer-events: none; }
-  .halo {
-    inset: 0;
-    background: radial-gradient(circle, color-mix(in srgb, var(--c) 70%, transparent) 0%,
-                color-mix(in srgb, var(--c) 18%, transparent) 42%, transparent 70%);
-    transform: scale(calc(.82 + var(--lvl) * .5));
-    transition: transform .08s linear, background .6s ease;
-  }
-  .core {
-    inset: 38%;
-    background: radial-gradient(circle at 42% 38%, #fff 0%, var(--starlight) 35%,
-                color-mix(in srgb, var(--c) 55%, var(--starlight)) 100%);
-    box-shadow: 0 0 34px 8px color-mix(in srgb, var(--c) 60%, transparent);
-    transition: box-shadow .6s ease, background .6s ease;
-  }
-  .ring {
-    inset: 22%; border: 1.5px solid transparent; opacity: 0;
-    border-top-color: var(--c); border-right-color: color-mix(in srgb, var(--c) 40%, transparent);
-    transition: opacity .3s ease;
-  }
+  .halo { inset: 0; background: radial-gradient(circle, color-mix(in srgb, var(--c) 70%, transparent) 0%,
+          color-mix(in srgb, var(--c) 18%, transparent) 42%, transparent 70%);
+          transform: scale(calc(.82 + var(--lvl) * .5)); transition: transform .08s linear, background .6s ease; }
+  .core { inset: 38%; background: radial-gradient(circle at 42% 38%, #fff 0%, var(--starlight) 35%,
+          color-mix(in srgb, var(--c) 55%, var(--starlight)) 100%);
+          box-shadow: 0 0 34px 8px color-mix(in srgb, var(--c) 60%, transparent); transition: box-shadow .6s ease, background .6s ease; }
+  .ring { inset: 22%; border: 1.5px solid transparent; opacity: 0; border-top-color: var(--c);
+          border-right-color: color-mix(in srgb, var(--c) 40%, transparent); transition: opacity .3s ease; }
   body[data-state="idle"] .halo { animation: breathe 5s ease-in-out infinite; }
   body[data-state="listening"] .star { --c: var(--listen); }
   body[data-state="thinking"] .star { --c: var(--think); }
@@ -106,51 +90,86 @@
   @keyframes orbit { to { transform: rotate(360deg); } }
   @keyframes voice { from { transform: scale(.86); } to { transform: scale(1.02); } }
 
-  .caption {
-    margin: 3vh 0 0; max-width: 34ch; min-height: 3em; text-align: center;
-    font-size: 19px; line-height: 1.45; font-weight: 500; text-wrap: balance;
-  }
+  .caption { margin: 2vh 0 0; max-width: 34ch; min-height: 2.9em; text-align: center; font-size: 19px; line-height: 1.45;
+             font-weight: 500; text-wrap: balance; }
   .caption .heard { display: block; color: var(--dim); font-size: 15px; font-weight: 400; margin-bottom: 6px; }
   .hint { color: var(--dim); font-size: 15px; font-weight: 400; }
-
-  .install {
-    margin-top: 14px; border: 1px solid color-mix(in srgb, var(--starlight) 35%, transparent);
-    background: transparent; color: var(--starlight); font: inherit; font-size: 15px;
-    padding: 8px 18px; border-radius: 999px; cursor: pointer;
-  }
+  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 14px 0 0; }
+  .chip { border: 1px solid var(--line); background: color-mix(in srgb, var(--nebula) 70%, transparent);
+          border-radius: 999px; padding: 7px 14px; font-size: 15px; cursor: pointer; }
+  .chip:disabled { opacity: .4; }
+  .install { margin-top: 12px; border: 1px solid color-mix(in srgb, var(--starlight) 35%, transparent);
+             background: transparent; border-radius: 999px; padding: 7px 16px; font-size: 15px; cursor: pointer; }
   .install[hidden] { display: none; }
-
-  /* ---------- история ---------- */
-  .history {
-    flex: 1; min-height: 0; width: 100%; max-width: 560px; margin-top: 2vh;
-    overflow-y: auto; padding: 8px 2px 4px; font-size: 15px;
-    mask-image: linear-gradient(to bottom, transparent 0, #000 28px);
-  }
-  .turn { margin: 0 0 12px; max-width: 80%; }
+  .history { flex: 1; min-height: 0; width: 100%; max-width: 560px; margin-top: 12px; overflow-y: auto; padding: 8px 2px 4px;
+             font-size: 15px; mask-image: linear-gradient(to bottom, transparent 0, #000 24px); }
+  .turn { margin: 0 0 12px; max-width: 82%; }
   .turn.you { margin-left: auto; text-align: right; color: var(--dim); }
-  .turn.atlas { color: var(--starlight); }
+  .ask { display: flex; gap: 10px; width: 100%; max-width: 560px; padding: 8px 0 4px; }
 
-  /* ---------- текст ---------- */
-  form {
-    display: flex; gap: 10px; width: 100%; max-width: 560px; margin: 0 auto;
-    padding: 10px 16px calc(12px + env(safe-area-inset-bottom) * 0);
-  }
-  input {
-    flex: 1; min-width: 0; font: inherit; color: var(--starlight);
-    background: color-mix(in srgb, var(--nebula) 80%, transparent);
-    border: 1px solid #263063; border-radius: 22px; padding: 11px 16px;
-  }
-  input::placeholder { color: var(--dim); }
-  input:focus-visible, form button:focus-visible { outline: 2px solid var(--speak); outline-offset: 2px; }
-  form button {
-    border: 0; border-radius: 22px; padding: 0 18px; font: inherit; font-weight: 600;
-    background: var(--starlight); color: var(--night); cursor: pointer;
-  }
-  form button:disabled { opacity: .4; }
+  input, textarea {
+    flex: 1; min-width: 0; font: inherit; color: var(--starlight); background: color-mix(in srgb, var(--nebula) 80%, transparent);
+    border: 1px solid var(--line); border-radius: 14px; padding: 11px 14px; }
+  textarea { resize: none; min-height: 84px; }
+  input::placeholder, textarea::placeholder { color: var(--dim); }
+  .btn { border: 0; border-radius: 14px; padding: 0 18px; min-height: 44px; font-weight: 600; background: var(--starlight);
+         color: var(--night); cursor: pointer; }
+  .btn:disabled { opacity: .4; }
+  .btn.quiet { background: transparent; color: var(--starlight); border: 1px solid var(--line); font-weight: 500; }
 
-  @media (prefers-reduced-motion: reduce) {
-    .halo, .ring { animation: none !important; transition: none; }
-  }
+  /* ---------- списки ---------- */
+  .row { display: flex; gap: 10px; margin-bottom: 14px; }
+  ul.list { list-style: none; margin: 0; padding: 0; }
+  ul.list li { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+  .check { flex: none; width: 26px; height: 26px; margin-top: 1px; border-radius: 50%; border: 1.5px solid var(--dim);
+           background: transparent; cursor: pointer; display: grid; place-items: center; padding: 0; }
+  .check svg { opacity: 0; }
+  li.done .check { border-color: var(--listen); background: color-mix(in srgb, var(--listen) 20%, transparent); }
+  li.done .check svg { opacity: 1; }
+  li.done .what { color: var(--dim); text-decoration: line-through; }
+  .what { flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+  .del { flex: none; border: 0; background: transparent; color: var(--dim); cursor: pointer; width: 32px; height: 32px;
+         border-radius: 8px; padding: 0; display: grid; place-items: center; }
+  .empty { color: var(--dim); padding: 18px 0; }
+
+  /* ---------- учёба ---------- */
+  .streak { color: var(--dim); font-size: 15px; margin: 0 0 14px; }
+  .deck { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+  .deck .name { flex: 1; font-weight: 500; }
+  .deck .meta { color: var(--dim); font-size: 14px; font-weight: 400; display: block; }
+  .session[hidden], .decks[hidden] { display: none; }
+  .progress { height: 3px; background: var(--line); border-radius: 2px; margin: 6px 0 18px; overflow: hidden; }
+  .progress i { display: block; height: 100%; width: 0; background: var(--listen); transition: width .3s ease; }
+  .card { border: 1px solid var(--line); border-radius: 20px; padding: 28px 22px; min-height: 180px;
+          background: linear-gradient(180deg, color-mix(in srgb, var(--nebula) 90%, transparent), color-mix(in srgb, var(--night) 80%, transparent));
+          display: flex; flex-direction: column; justify-content: center; }
+  .card .deckname { color: var(--dim); font-size: 14px; margin-bottom: 10px; }
+  .card .front { font-family: "Literata", Georgia, serif; font-size: 30px; line-height: 1.25; font-weight: 500; overflow-wrap: anywhere; }
+  .feedback { min-height: 3em; margin: 16px 2px 0; font-size: 17px; }
+  .feedback.ok { color: var(--listen); }
+  .feedback.miss { color: var(--think); }
+  .answer-row { display: flex; gap: 10px; margin-top: 8px; }
+  .mic { flex: none; width: 48px; border-radius: 14px; border: 1px solid var(--line); background: transparent; cursor: pointer;
+         display: grid; place-items: center; }
+  .mic.rec { border-color: var(--listen); background: color-mix(in srgb, var(--listen) 18%, transparent); }
+  .study-actions { display: flex; gap: 10px; margin-top: 12px; }
+
+  /* ---------- нижняя панель ---------- */
+  nav { position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--tabbar) + env(safe-area-inset-bottom));
+        padding-bottom: env(safe-area-inset-bottom); display: flex; justify-content: center;
+        background: color-mix(in srgb, var(--night) 88%, transparent); backdrop-filter: blur(12px);
+        border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+  nav .tabs { display: flex; width: 100%; max-width: 560px; }
+  nav button { flex: 1; border: 0; background: transparent; color: var(--dim); display: flex; flex-direction: column;
+               align-items: center; justify-content: center; gap: 3px; font-size: 12px; cursor: pointer; position: relative; }
+  nav button[aria-current="page"] { color: var(--starlight); }
+  nav button[aria-current="page"] svg { stroke: var(--starlight); }
+  nav .badge { position: absolute; top: 9px; left: calc(50% + 8px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+               background: var(--think); color: var(--night); font-size: 11px; font-weight: 600; line-height: 16px; }
+  nav .badge[hidden] { display: none; }
+  svg.i { width: 22px; height: 22px; fill: none; stroke: var(--dim); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+  @media (prefers-reduced-motion: reduce) { .halo, .ring { animation: none !important; transition: none; } }
 </style>
 </head>
 <body data-state="locked">
@@ -160,71 +179,156 @@
 </header>
 
 <main>
-  <button class="star" id="star" aria-label="Говорить с Atlas" disabled>
-    <span class="halo"></span><span class="ring"></span><span class="core"></span>
-  </button>
-  <p class="caption" id="caption" aria-live="polite"></p>
-  <button class="install" id="install" hidden>Установить на телефон</button>
-  <section class="history" id="history" aria-label="История разговора"></section>
+  <section class="view on" id="v-atlas" aria-label="Atlas">
+    <button class="star" id="star" aria-label="Говорить с Atlas" disabled>
+      <span class="halo"></span><span class="ring"></span><span class="core"></span>
+    </button>
+    <p class="caption" id="caption" aria-live="polite"></p>
+    <div class="chips" id="chips">
+      <button class="chip" data-ask="Какая сейчас погода?" disabled>Погода</button>
+      <button class="chip" data-ask="Что у меня на сегодня?" disabled>Что на сегодня</button>
+      <button class="chip" data-tab="study" disabled>Повторить SAT</button>
+    </div>
+    <button class="install" id="install" hidden>Установить на телефон</button>
+    <section class="history" id="history" aria-label="История разговора"></section>
+    <form class="ask" id="askForm" autocomplete="off">
+      <input id="askText" placeholder="Или напиши…" aria-label="Вопрос Atlas текстом" disabled>
+      <button class="btn" id="askSend" disabled>Спросить</button>
+    </form>
+  </section>
+
+  <section class="view" id="v-todos" aria-label="Дела">
+    <div class="wrap">
+      <h2>Дела</h2>
+      <p class="sub">Те же, что Atlas помнит голосом: «добавь в дела…».</p>
+      <form class="row" id="todoForm" autocomplete="off">
+        <input id="todoText" placeholder="Новое дело" aria-label="Новое дело">
+        <button class="btn">Добавить</button>
+      </form>
+      <ul class="list" id="todoList"></ul>
+    </div>
+  </section>
+
+  <section class="view" id="v-notes" aria-label="Заметки">
+    <div class="wrap">
+      <h2>Заметки</h2>
+      <p class="sub">Записывай мысль здесь или скажи Atlas «запиши заметку…».</p>
+      <form id="noteForm" autocomplete="off">
+        <div class="row"><textarea id="noteText" placeholder="Текст заметки" aria-label="Текст заметки"></textarea></div>
+        <div class="row"><button class="btn">Сохранить заметку</button></div>
+      </form>
+      <ul class="list" id="noteList"></ul>
+    </div>
+  </section>
+
+  <section class="view" id="v-study" aria-label="Учёба">
+    <div class="wrap">
+      <div class="decks" id="decks">
+        <h2>Учёба</h2>
+        <p class="streak" id="streak"></p>
+        <div id="deckList"></div>
+      </div>
+      <div class="session" id="session" hidden>
+        <h2 id="sessTitle">Тренировка</h2>
+        <div class="progress"><i id="bar"></i></div>
+        <div class="card"><div class="deckname" id="cardDeck"></div><div class="front" id="cardFront"></div></div>
+        <p class="feedback" id="feedback" aria-live="polite"></p>
+        <form class="answer-row" id="answerForm" autocomplete="off">
+          <input id="answerText" placeholder="Твой ответ" aria-label="Ответ на карточку">
+          <button type="button" class="mic" id="answerMic" aria-label="Ответить голосом">
+            <svg class="i" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          </button>
+          <button class="btn">Проверить</button>
+        </form>
+        <div class="study-actions">
+          <button class="btn quiet" id="showAnswer">Показать ответ</button>
+          <button class="btn quiet" id="stopStudy">Закончить</button>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
-<form id="form" autocomplete="off">
-  <input id="text" placeholder="Или напиши…" aria-label="Вопрос Atlas текстом" disabled>
-  <button id="send" disabled>Спросить</button>
-</form>
+<nav aria-label="Разделы">
+  <div class="tabs">
+    <button data-view="atlas" aria-current="page">
+      <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>Atlas</button>
+    <button data-view="todos">
+      <svg class="i" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5"/><circle cx="5" cy="18" r="1.3"/></svg>Дела<span class="badge" id="todoBadge" hidden></span></button>
+    <button data-view="notes">
+      <svg class="i" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/></svg>Заметки</button>
+    <button data-view="study">
+      <svg class="i" viewBox="0 0 24 24"><rect x="3" y="6" width="14" height="12" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v10"/></svg>Учёба<span class="badge" id="studyBadge" hidden></span></button>
+  </div>
+</nav>
 
 <audio id="player" playsinline></audio>
 
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const body = document.body, star = $("star"), caption = $("caption"), historyEl = $("history");
-  const input = $("text"), send = $("send"), player = $("player");
+  const body = document.body, star = $("star"), caption = $("caption"), historyEl = $("history"), player = $("player");
   const KEY = "atlasKey";
   let key = localStorage.getItem(KEY) || "";
-  let busy = false, rec = null;
+  let busy = false, rec = null, paired = false, data = null;
 
   const setState = (s) => { body.dataset.state = s; };
-  const say = (text, heard) => {
-    caption.innerHTML = "";
-    if (heard) { const h = document.createElement("span"); h.className = "heard"; h.textContent = heard; caption.append(h); }
-    caption.append(document.createTextNode(text || ""));
-  };
-  const hint = (text) => { caption.innerHTML = ""; const s = document.createElement("span"); s.className = "hint"; s.textContent = text; caption.append(s); };
-  const addTurn = (who, text) => {
-    if (!text) return;
-    const p = document.createElement("p"); p.className = "turn " + who; p.textContent = text;
-    historyEl.append(p); historyEl.scrollTop = historyEl.scrollHeight;
-  };
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const say = (text, heard) => { caption.innerHTML = ""; if (heard) caption.append(el("span", "heard", heard)); caption.append(document.createTextNode(text || "")); };
+  const hint = (text) => { caption.innerHTML = ""; caption.append(el("span", "hint", text)); };
+  const addTurn = (who, text) => { if (!text) return; historyEl.append(el("p", "turn " + who, text)); historyEl.scrollTop = historyEl.scrollHeight; };
+  let shown = [];                                  // реплики под звездой; в историю уходят, когда начинается следующая
+  const archive = () => { shown.forEach(([w, t]) => addTurn(w, t)); shown = []; };
+  const plural = (n, one, few, many) => { const a = n % 10, b = n % 100;
+    return `${n} ${a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many}`; };
   const link = (on, text) => { $("link").className = "link " + (on ? "on" : "off"); $("linkText").textContent = text; };
-  const unlock = (on) => { star.disabled = input.disabled = send.disabled = !on; setState(on ? "idle" : "locked"); };
+  const unlock = (on) => {
+    paired = on;
+    document.querySelectorAll("#star, #askText, #askSend, .chip").forEach((b) => (b.disabled = !on));
+    setState(on ? "idle" : "locked");
+  };
 
-  async function api(path, opts = {}) {
-    const r = await fetch(path, { ...opts, headers: { "X-Atlas-Key": key, ...(opts.headers || {}) } });
-    if (r.status === 401) { link(false, "ключ устарел"); unlock(false);
-      hint("Ключ устарел. Скажи Атласу на компьютере «установи себя на телефон» и отсканируй QR-код заново."); throw new Error("401"); }
+  async function api(path, payload, raw) {
+    const opts = { method: "POST", headers: { "X-Atlas-Key": key } };
+    if (raw) { opts.body = raw; opts.headers["Content-Type"] = raw.type; }
+    else if (payload !== undefined) { opts.body = JSON.stringify(payload); opts.headers["Content-Type"] = "application/json"; }
+    const r = await fetch(path, opts);
+    if (r.status === 401) {
+      link(false, "ключ устарел"); unlock(false);
+      hint("Ключ устарел. Скажи Атласу на компьютере «установи себя на телефон» и отсканируй QR-код заново.");
+      throw new Error("401");
+    }
     if (!r.ok) throw new Error(String(r.status));
     return r.json();
   }
 
+  // ---------- вкладки ----------
+  function show(view) {
+    document.querySelectorAll(".view").forEach((v) => v.classList.toggle("on", v.id === "v-" + view));
+    document.querySelectorAll("nav button").forEach((b) => {
+      if (b.dataset.view === view) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
+    if (view !== "atlas") refresh();
+  }
+  document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => show(b.dataset.view)));
+
   // ---------- сопряжение ----------
   async function pair() {
     const q = new URLSearchParams(location.search).get("pair");
-    if (q) { key = q; localStorage.setItem(KEY, q); window.history.replaceState(null, "", "/"); }   // ключ не остаётся в адресе
+    if (q) { key = q; localStorage.setItem(KEY, q); window.history.replaceState(null, "", "/"); }
     if (!key) { link(false, "не сопряжено"); hint("Скажи Атласу на компьютере «Установи себя на телефон» и отсканируй QR-код."); return; }
     try {
-      await api("/api/pair", { method: "POST" });
+      await api("/api/pair");
       link(true, "на связи"); unlock(true);
       hint(q ? "Готово. Нажми на звезду и говори." : "Нажми на звезду и говори.");
+      refresh();
     } catch (e) {
-      if (e.message !== "401") { link(false, "нет связи"); hint("Нет связи с компьютером. Atlas запущен?"); }
+      if (e.message !== "401") { link(false, "нет связи"); hint("Нет связи с Atlas. Облаку иногда нужна минута, чтобы проснуться, — попробуй ещё раз."); }
     }
   }
 
-  // ---------- ответ ----------
-  function unlockAudio() {          // iPhone разрешает звук только после нажатия — «открываем» плеер сразу
-    try { player.muted = true; player.play().catch(() => {}); player.pause(); player.muted = false; } catch (e) {}
-  }
+  // ---------- разговор ----------
+  function unlockAudio() { try { player.muted = true; player.play().catch(() => {}); player.pause(); player.muted = false; } catch (e) {} }
   function speak(res) {
     return new Promise((done) => {
       if (res.audio) {
@@ -232,85 +336,193 @@
         player.src = URL.createObjectURL(new Blob([bytes], { type: res.mime || "audio/mpeg" }));
         setState("speaking"); player.onended = player.onerror = () => done();
         player.play().catch(() => done());
-      } else if (res.text && "speechSynthesis" in window) {   // голос не пришёл — говорит сам телефон
+      } else if (res.text && "speechSynthesis" in window) {
         const u = new SpeechSynthesisUtterance(res.text); u.lang = /[а-яё]/i.test(res.text) ? "ru-RU" : "en-US";
         setState("speaking"); u.onend = u.onerror = () => done(); speechSynthesis.speak(u);
       } else done();
     });
   }
   async function handle(promise, typed) {
-    busy = true; setState("thinking"); if (typed) { say("", typed); addTurn("you", typed); }
+    busy = true; setState("thinking"); archive(); if (typed) { say("", typed); shown.push(["you", typed]); }
     try {
       const res = await promise;
       if (res.heard === "") { hint("Не расслышал. Нажми на звезду и повтори."); return; }
-      if (res.heard) addTurn("you", res.heard);
-      say(res.text, res.heard || typed); addTurn("atlas", res.text);
+      if (res.heard) shown.push(["you", res.heard]);
+      say(res.text, res.heard || typed); shown.push(["atlas", res.text]);
       await speak(res);
+      refresh();                                   // «добавь в дела…» голосом — списки уже свежие
     } catch (e) {
-      if (e.message !== "401") hint("Не получилось связаться с компьютером. Попробуй ещё раз.");
-    } finally { busy = false; if (!star.disabled) setState("idle"); }
+      if (e.message !== "401") hint("Не получилось связаться с Atlas. Попробуй ещё раз.");
+    } finally { busy = false; if (paired) setState("idle"); }
   }
+  const ask = (t) => { unlockAudio(); handle(api("/api/ask", { text: t }), t); };
 
-  // ---------- голос: нажал на звезду — говоришь, тишина — отправка ----------
+  // запись голоса: тишина 1,2 с — конец фразы; onDone(запись или null, почему)
   const MIME = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"]
     .find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || "";
-
-  async function listen() {
+  async function record(onLevel, onDone) {
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
-    catch (e) { hint("Нет доступа к микрофону. Разреши его в настройках браузера для этого сайта."); return; }
+    catch (e) { onDone(null, "Нет доступа к микрофону. Разреши его в настройках браузера для этого сайта."); return null; }
     const chunks = []; const mr = new MediaRecorder(stream, MIME ? { mimeType: MIME } : undefined);
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const an = ctx.createAnalyser(); an.fftSize = 1024; ctx.createMediaStreamSource(stream).connect(an);
     const buf = new Float32Array(an.fftSize);
-    let spoke = false, quietSince = 0; const t0 = performance.now();
-    rec = { stop: () => mr.state === "recording" && mr.stop() };
+    let spoke = false, quietSince = 0, live = true; const t0 = performance.now();
+    const ctl = { stop: () => mr.state === "recording" && mr.stop() };
     mr.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     mr.onstop = () => {
-      stream.getTracks().forEach((t) => t.stop()); ctx.close(); rec = null;
-      document.documentElement.style.setProperty("--lvl", 0);
-      if (!spoke) { setState("idle"); hint("Ничего не услышал. Нажми на звезду и говори."); return; }
-      const blob = new Blob(chunks, { type: mr.mimeType || MIME || "audio/webm" });
-      handle(fetch("/api/talk", { method: "POST", body: blob,
-        headers: { "X-Atlas-Key": key, "Content-Type": blob.type } }).then((r) => {
-          if (r.status === 401) return api("/api/pair", { method: "POST" });
-          if (!r.ok) throw new Error(String(r.status)); return r.json(); }));
+      live = false; stream.getTracks().forEach((t) => t.stop()); ctx.close(); onLevel(0);
+      onDone(spoke ? new Blob(chunks, { type: mr.mimeType || MIME || "audio/webm" }) : null, spoke ? "" : "Ничего не услышал.");
     };
-    mr.start(250); setState("listening"); say("Слушаю…");
+    mr.start(250);
     (function meter() {
-      if (!rec) return;
+      if (!live) return;
       an.getFloatTimeDomainData(buf);
       let s = 0; for (const v of buf) s += v * v; const rms = Math.sqrt(s / buf.length);
-      document.documentElement.style.setProperty("--lvl", Math.min(1, rms * 9).toFixed(3));
+      onLevel(Math.min(1, rms * 9));
       const now = performance.now();
       if (rms > 0.025) { spoke = true; quietSince = 0; } else if (spoke && !quietSince) quietSince = now;
-      if ((spoke && quietSince && now - quietSince > 1200) || now - t0 > 15000 || (!spoke && now - t0 > 7000)) return rec.stop();
+      if ((spoke && quietSince && now - quietSince > 1200) || now - t0 > 15000 || (!spoke && now - t0 > 7000)) return ctl.stop();
       requestAnimationFrame(meter);
     })();
+    return ctl;
   }
+  const level = (v) => document.documentElement.style.setProperty("--lvl", v.toFixed(3));
 
-  star.addEventListener("click", () => {
-    if (rec) return rec.stop();                           // второе нажатие — отправить сразу
-    if (busy) { player.pause(); speechSynthesis && speechSynthesis.cancel(); return; }   // нажал во время ответа — замолчать
-    unlockAudio(); listen();
+  star.addEventListener("click", async () => {
+    if (rec) return rec.stop();                     // второе нажатие — отправить сразу
+    if (busy) { player.pause(); if (window.speechSynthesis) speechSynthesis.cancel(); return; }
+    unlockAudio(); setState("listening"); say("Слушаю…");
+    archive();
+    rec = await record(level, (blob, why) => {
+      rec = null;
+      if (!blob) { setState("idle"); hint(why + " Нажми на звезду и говори."); return; }
+      handle(api("/api/talk", undefined, blob));
+    });
   });
-  $("form").addEventListener("submit", (e) => {
-    e.preventDefault(); const t = input.value.trim(); if (!t || busy) return;
-    input.value = ""; unlockAudio();
-    handle(api("/api/ask", { method: "POST", body: JSON.stringify({ text: t }), headers: { "Content-Type": "application/json" } }), t);
+  $("askForm").addEventListener("submit", (e) => {
+    e.preventDefault(); const t = $("askText").value.trim(); if (!t || busy) return;
+    $("askText").value = ""; ask(t);
+  });
+  document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => {
+    if (c.dataset.tab === "study") { show("study"); startStudy(pickDeck("sat")); return; }
+    if (!busy) ask(c.dataset.ask);
+  }));
+
+  // ---------- данные экранов ----------
+  async function refresh() {
+    if (!paired) return;
+    try { render(await api("/api/home")); } catch (e) {}
+  }
+  const iconCheck = '<svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--listen)"><path d="M5 12l4 4 10-10"/></svg>';
+  const iconDel = '<svg class="i" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  const send = (path, payload) => api(path, payload).then(render).catch(() => {});
+
+  function render(d) {
+    data = d;
+    const tl = $("todoList"); tl.innerHTML = "";
+    if (!d.todos.length) tl.append(el("li", "empty", "Дел нет. Добавь первое или скажи Atlas «добавь в дела…»."));
+    d.todos.forEach((t, i) => {
+      const li = el("li", t.done ? "done" : "");
+      const c = el("button", "check"); c.innerHTML = iconCheck;
+      c.setAttribute("aria-label", t.done ? "Сделано" : "Отметить сделанным: " + t.task); c.disabled = t.done;
+      c.addEventListener("click", () => send("/api/todo/done", { i: i + 1 }));
+      const x = el("button", "del"); x.innerHTML = iconDel; x.setAttribute("aria-label", "Удалить дело: " + t.task);
+      x.addEventListener("click", () => send("/api/todo/delete", { i: i + 1 }));
+      li.append(c, el("span", "what", t.task), x); tl.append(li);
+    });
+    const open = d.todos.filter((t) => !t.done).length;
+    $("todoBadge").hidden = !open; $("todoBadge").textContent = open;
+
+    const nl = $("noteList"); nl.innerHTML = "";
+    if (!d.notes.length) nl.append(el("li", "empty", "Заметок нет."));
+    d.notes.map((n, i) => [n, i]).reverse().forEach(([n, i]) => {      // свежие сверху
+      const li = el("li"); const x = el("button", "del"); x.innerHTML = iconDel; x.setAttribute("aria-label", "Удалить заметку");
+      x.addEventListener("click", () => send("/api/note/delete", { i: i + 1 }));
+      li.append(el("span", "what", n), x); nl.append(li);
+    });
+
+    const due = d.decks.reduce((s, k) => s + (k.due || 0), 0);
+    $("studyBadge").hidden = !due; $("studyBadge").textContent = due;
+    if ($("session").hidden)
+      $("streak").textContent = (due ? `К повторению сегодня: ${due}.` : "На сегодня всё повторено.")
+        + (d.streak > 1 ? ` Серия: ${d.streak} дн. подряд.` : "");
+    const dl = $("deckList"); dl.innerHTML = "";
+    if (!d.decks.length) dl.append(el("p", "empty", "Колод пока нет. Скажи Atlas: «сделай 10 карточек по SAT-словам»."));
+    d.decks.forEach((k) => {
+      const row = el("div", "deck"); const name = el("span", "name", k.deck);
+      name.append(el("span", "meta", `${plural(k.total, "карточка", "карточки", "карточек")}, к повторению ${k.due}, выучено ${k.learned}`));
+      const go = el("button", "btn" + (k.due ? "" : " quiet"), "Повторить");
+      go.addEventListener("click", () => startStudy(k.deck));
+      row.append(name, go); dl.append(row);
+    });
+    if (d.study && $("session").hidden) showCard(d.study);          // тренировка уже идёт — продолжаем её
+  }
+  const pickDeck = (name) => { const k = ((data && data.decks) || []).find((x) => x.deck.toLowerCase().includes(name)); return k ? k.deck : ""; };
+
+  $("todoForm").addEventListener("submit", (e) => {
+    e.preventDefault(); const t = $("todoText").value.trim(); if (!t) return;
+    $("todoText").value = ""; send("/api/todo/add", { task: t });
+  });
+  $("noteForm").addEventListener("submit", (e) => {
+    e.preventDefault(); const t = $("noteText").value.trim(); if (!t) return;
+    $("noteText").value = ""; send("/api/note/add", { text: t });
   });
 
-  // ---------- установка на рабочий стол ----------
+  // ---------- тренировка ----------
+  function showCard(c) {
+    $("decks").hidden = true; $("session").hidden = false;
+    $("sessTitle").textContent = `Карточка ${c.n} из ${c.total}`;
+    $("bar").style.width = Math.round(((c.n - 1) / c.total) * 100) + "%";
+    $("cardDeck").textContent = c.deck; $("cardFront").textContent = c.front;
+    $("answerText").value = "";
+  }
+  function endStudy(msg) {
+    $("session").hidden = true; $("decks").hidden = false;
+    refresh().then(() => { if (msg) $("streak").textContent = msg; });
+  }
+  function studyResult(r) {
+    const fb = $("feedback"); fb.textContent = r.feedback || "";
+    fb.className = "feedback " + (/^(верно|точно|так и есть|правильно|correct|right|exactly|spot on)/i.test(r.feedback || "") ? "ok" : "miss");
+    if (r.done) { $("bar").style.width = "100%"; setTimeout(() => endStudy(r.feedback), 1800); return; }
+    if (r.card) showCard(r.card);
+  }
+  async function startStudy(deck) {
+    $("feedback").textContent = "";
+    try {
+      const r = await api("/api/study/start", { deck });
+      if (r.card) showCard(r.card); else endStudy(r.feedback);
+    } catch (e) {}
+  }
+  const answerCard = (text) => api("/api/study/answer", { text }).then(studyResult).catch(() => {});
+  $("answerForm").addEventListener("submit", (e) => { e.preventDefault(); const t = $("answerText").value.trim(); if (t) answerCard(t); });
+  $("showAnswer").addEventListener("click", () => answerCard(""));
+  $("stopStudy").addEventListener("click", () => api("/api/study/stop").then((r) => endStudy(r.feedback)).catch(() => {}));
+  let ansRec = null;
+  $("answerMic").addEventListener("click", async () => {
+    if (ansRec) return ansRec.stop();
+    $("answerMic").classList.add("rec"); $("feedback").className = "feedback"; $("feedback").textContent = "Слушаю ответ…";
+    ansRec = await record(() => {}, async (blob, why) => {
+      ansRec = null; $("answerMic").classList.remove("rec");
+      if (!blob) { $("feedback").textContent = why; return; }
+      try {
+        const r = await api("/api/transcribe", undefined, blob);
+        $("answerText").value = r.text || "";
+        if (r.text) answerCard(r.text); else $("feedback").textContent = "Не расслышал — повтори или напиши.";
+      } catch (e) {}
+    });
+  });
+
+  // ---------- установка ----------
   let deferred = null;
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferred = e; $("install").hidden = false; });
-  $("install").addEventListener("click", async () => {
-    if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; $("install").hidden = true;
-  });
+  $("install").addEventListener("click", async () => { if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; $("install").hidden = true; });
   const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-  if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone) {
+  if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone)
     setTimeout(() => addTurn("atlas", "Чтобы установить Atlas на iPhone: кнопка «Поделиться» внизу Safari → «На экран „Домой“»."), 1200);
-  }
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 
   pair();
 })();
