@@ -147,6 +147,30 @@ def pc_does_not_wake_while_the_phone_is_talking():
 
 
 @test
+def an_error_in_one_conversation_does_not_stop_listening():
+    reset()
+    calls = {"n": 0}
+    saved_process, saved_speak = M._process_command, M._speak_and_update
+
+    def boom(cmd):
+        calls["n"] += 1
+        raise FileNotFoundError("temp_speech.wav")          # как в живом логе
+
+    def speak_boom(*a, **k):
+        if not calls.get("greeted"):                         # ломается только приветствие, как в логе
+            calls["greeted"] = True
+            raise PermissionError("temp_speech.wav")
+        return saved_speak(*a, **k)
+    M._process_command, M._speak_and_update = boom, speak_boom
+    LISTEN[:] = ["какая погода", "выключись"]
+    try:
+        M._voice_loop()                                       # раньше падал уже на приветствии
+    finally:
+        M._process_command, M._speak_and_update = saved_process, saved_speak
+    assert calls["n"] == 1 and M.shared_state["should_quit"], "после ошибки Atlas слушал дальше и выключился по команде"
+
+
+@test
 def short_noise_is_ignored():
     reset()
     LISTEN[:] = ["ээ", "выключись"]

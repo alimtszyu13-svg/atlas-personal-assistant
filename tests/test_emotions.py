@@ -149,6 +149,29 @@ def english_voices_never_read_tags_aloud():
 
 
 @test
+def two_replies_never_speak_at_once():
+    import threading
+    import time as _t
+    st = {"now": 0, "max": 0}
+
+    def slow(text, interruptible=True, cache_as=None):
+        st["now"] += 1
+        st["max"] = max(st["max"], st["now"])
+        _t.sleep(0.05)
+        st["now"] -= 1
+    saved = V._speak_unlocked
+    V._speak_unlocked = slow
+    try:
+        ts = [threading.Thread(target=V.speak, args=(f"реплика {i}",)) for i in range(4)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+    finally:
+        V._speak_unlocked = saved
+    assert st["max"] == 1, "приветствие и проактивное сообщение звучали одновременно"
+    V._rm(tmp(".wav"))                                        # файла нет — не ошибка
+
+
+@test
 def subtitles_of_streaming_speech_are_clean():
     st = V.SpeechStream.__new__(V.SpeechStream)
     st.interruptible = False

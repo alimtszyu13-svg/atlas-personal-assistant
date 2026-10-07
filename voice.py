@@ -870,7 +870,7 @@ def speak(text: str, interruptible: bool = True, cache_as: str = None) -> None:
                 _shutil.copy(filename, _cache_path(cache_as, os.path.splitext(filename)[1]))
             except Exception as e:
                 print(f"[cache save]: {e}")
-        os.remove(filename)
+        _rm(filename)
         return
 
     filename = "temp_speech.wav"
@@ -913,7 +913,26 @@ def speak(text: str, interruptible: bool = True, cache_as: str = None) -> None:
             _shutil.copy(filename, _cache_path(cache_as, os.path.splitext(filename)[1]))
         except Exception as e:
             print(f"[cache save]: {e}")
-    os.remove(filename)
+    _rm(filename)
+
+def _rm(path) -> None:
+    """Удалить временный файл озвучки; если его уже нет — не ошибка."""
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+_speak_lock = threading.RLock()
+_speak_unlocked = speak
+
+
+def speak(text: str, interruptible: bool = True, cache_as: str = None) -> None:
+    """Одна реплика за раз. Раньше приветствие и проактивное сообщение могли зазвучать одновременно:
+    обе писали в temp_speech.wav, одна удаляла файл другой — и падал поток прослушивания."""
+    with _speak_lock:
+        return _speak_unlocked(text, interruptible=interruptible, cache_as=cache_as)
+
 
 LISTEN_START_TIMEOUT = 8.0     # сколько ждать начала речи после нажатия / имени
 

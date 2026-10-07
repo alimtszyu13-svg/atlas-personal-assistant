@@ -177,9 +177,25 @@ def _voice_loop() -> None:
         time.sleep(0.1)
     lang = get_response_language()
     print(f"[запуск] Atlas готов за {time.time() - _T0:.1f} с")
-    _speak_and_update(f"{_time_greeting()} {random.choice(GREETING_TAIL[lang])}", interruptible=False)
+    try:
+        _speak_and_update(f"{_time_greeting()} {random.choice(GREETING_TAIL[lang])}", interruptible=False)
+    except Exception as e:
+        print(f"[голос] приветствие не прозвучало: {e}")
 
     while True:
+        try:
+            if _voice_turn() == "quit":
+                break
+        except Exception as e:                    # раньше любая ошибка здесь навсегда останавливала прослушивание
+            import traceback
+            print(f"[голос] ошибка в разговоре: {e!r} — слушаю дальше")
+            traceback.print_exc()
+            time.sleep(1)
+
+
+def _voice_turn():
+    """Один разговор: ждём имя → слушаем → выполняем. → "quit", если Atlas выключают."""
+    if True:
         _push_to_talk_event.clear()               # «призрачное» нажатие от системного хука клавиатуры
         shared_state["state"] = "idle"
         shared_state["text"] = ""
@@ -196,12 +212,12 @@ def _voice_loop() -> None:
         print(f"[DEBUG] trigger={trigger}")
         if trigger == "voice" and time.time() < shared_state.get("phone_active_until", 0):
             print("[голос] идёт разговор с телефона — компьютер не перебивает")
-            continue
+            return
 
         shared_state["state"] = "listening"
         command = listen()
         if len(command.strip()) < MIN_COMMAND_LENGTH and not re.search(r"\d", command):
-            continue                              # пустое распознавание — не тратим запрос к модели
+            return                              # пустое распознавание — не тратим запрос к модели
 
         if trigger != "manual":                   # F9 и текст не проверяем — это запасной путь
             from core import speaker_id
@@ -211,16 +227,16 @@ def _voice_loop() -> None:
             if not ok:
                 print("[голос] это не ваш голос — команда пропущена")
                 shared_state["text"] = ""
-                continue
+                return
 
         if is_stop(command):
             from core import study                # «хватит» во время тренировки — закончить её
             if study.active():
                 _speak_and_update(study.stop(), interruptible=False)
-            continue                              # прерывать нечего — не тратим запрос к модели
+            return                              # прерывать нечего — не тратим запрос к модели
         if is_shutdown(command):
             _shutdown()
-            break
+            return "quit"
         _process_command(command)
 
         # Режим продолжения: вопрос в конце ответа или активная игра
