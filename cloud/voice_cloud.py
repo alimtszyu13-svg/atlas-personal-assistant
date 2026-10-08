@@ -86,7 +86,12 @@ def _edge(text: str, filename: str, lang: str) -> None:
 def _generate_any(text: str, filename: str) -> str:
     """Голос ответа в файл (mp3). Fish — если настроен, иначе Edge. → путь к файлу."""
     lang = _lang_of(text)
-    voice_id = os.getenv("FISH_VOICE_RU" if lang == "ru" else "FISH_VOICE_EN")
+    voice_id = (os.getenv("FISH_VOICE_RU" if lang == "ru" else "FISH_VOICE_EN") or "").strip()
+    if ":" in voice_id or "," in voice_id:            # вписали список «Имя:номер,…» — берём первый голос
+        voice_id = voice_id.split(",")[0].rpartition(":")[2].strip()
+    if not voice_id:                                   # или голос из списка FISH_VOICES_RU / _EN
+        lst = os.getenv("FISH_VOICES_RU" if lang == "ru" else "FISH_VOICES_EN") or ""
+        voice_id = lst.split(",")[0].rpartition(":")[2].strip()
     if voice_id and os.getenv("FISH_API_KEY"):
         try:
             _fish(text, filename, voice_id)

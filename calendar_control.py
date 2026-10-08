@@ -1,8 +1,25 @@
-from datetime import datetime, timedelta
+import os
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from google_auth import get_credentials
 
 _calendar_service = None
+TZ_NAME = os.getenv("ATLAS_TZ") or "Asia/Bishkek"   # «сегодня» и время событий — по твоему поясу, а не по UTC
+
+
+_FIXED_HOURS = {"Asia/Bishkek": 6, "Asia/Almaty": 5, "Asia/Tashkent": 5, "Europe/Moscow": 3, "UTC": 0}
+
+
+def _tz():
+    try:
+        return ZoneInfo(TZ_NAME)
+    except Exception:          # на Windows без пакета tzdata базы поясов нет — берём постоянное смещение
+        return timezone(timedelta(hours=_FIXED_HOURS.get(TZ_NAME, 0)))
+
+
+def _now():
+    return datetime.now(_tz())
 
 
 def _get_service():
@@ -15,9 +32,8 @@ def _get_service():
 def list_today_events(count: int = None) -> str:
     """Lists all calendar events scheduled for today."""
     service = _get_service()
-    now = datetime.utcnow()
-    start = datetime(now.year, now.month, now.day).isoformat() + "Z"
-    end = (datetime(now.year, now.month, now.day) + timedelta(days=1)).isoformat() + "Z"
+    day = _now().replace(hour=0, minute=0, second=0, microsecond=0)
+    start, end = day.isoformat(), (day + timedelta(days=1)).isoformat()
 
     events = service.events().list(calendarId="primary", timeMin=start, timeMax=end,
                                      singleEvents=True, orderBy="startTime").execute().get("items", [])
@@ -30,8 +46,8 @@ def list_today_events(count: int = None) -> str:
 def list_upcoming_events(days: int = 7) -> str:
     """Lists upcoming calendar events within the next N days."""
     service = _get_service()
-    now = datetime.utcnow().isoformat() + "Z"
-    end = (datetime.utcnow() + timedelta(days=days)).isoformat() + "Z"
+    now = _now().isoformat()
+    end = (_now() + timedelta(days=days)).isoformat()
 
     events = service.events().list(calendarId="primary", timeMin=now, timeMax=end,
                                      singleEvents=True, orderBy="startTime").execute().get("items", [])
@@ -52,8 +68,8 @@ def create_event(title: str, date: str, time: str = "09:00", duration_minutes: i
     service = _get_service()
     event = {
         "summary": title,
-        "start": {"dateTime": start_dt.isoformat()},
-        "end": {"dateTime": end_dt.isoformat()},
+        "start": {"dateTime": start_dt.isoformat(), "timeZone": TZ_NAME},
+        "end": {"dateTime": end_dt.isoformat(), "timeZone": TZ_NAME},
     }
     service.events().insert(calendarId="primary", body=event).execute()
     return f"Created '{title}' on {date} at {time}."
@@ -62,7 +78,7 @@ def create_event(title: str, date: str, time: str = "09:00", duration_minutes: i
 def delete_event(title: str) -> str:
     """Deletes the next upcoming event matching the given title."""
     service = _get_service()
-    now = datetime.utcnow().isoformat() + "Z"
+    now = _now().isoformat()
     events = service.events().list(calendarId="primary", timeMin=now, q=title,
                                      singleEvents=True, orderBy="startTime", maxResults=1).execute().get("items", [])
     if not events:

@@ -12,3 +12,9 @@ snowballstemmer
 requests
 ddgs
 feedparser
+deep-translator
+qrcode
+google-api-python-client
+google-auth
+google-auth-oauthlib
+tzdata

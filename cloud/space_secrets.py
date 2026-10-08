@@ -11,7 +11,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REQUIRED = ("GROQ_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_KEY", "PHONE_KEY")
-OPTIONAL = ("CEREBRAS_API_KEY", "GEMINI_API_KEY", "FISH_API_KEY", "FISH_VOICE_RU", "FISH_VOICE_EN", "STT_LANGUAGE")
+OPTIONAL = ("CEREBRAS_API_KEY", "GEMINI_API_KEY", "FISH_API_KEY", "FISH_VOICES_RU", "FISH_VOICES_EN", "STT_LANGUAGE",
+            "GOOGLE_TOKEN_JSON")
 
 
 def collect() -> dict:
@@ -24,6 +25,11 @@ def collect() -> dict:
     try:
         with open(os.path.join(ROOT, "phone_pairing.json"), encoding="utf-8") as f:
             env["PHONE_KEY"] = json.load(f).get("token", "")
+    except Exception:
+        pass
+    try:                                              # вход в Google с компьютера — для Календаря и Gmail в облаке
+        with open(os.path.join(ROOT, "token.json"), encoding="utf-8") as f:
+            env["GOOGLE_TOKEN_JSON"] = json.dumps(json.load(f), separators=(",", ":"))
     except Exception:
         pass
     # голос Fish: первый русский/английский из FISH_VOICES_RU / FISH_VOICES_EN («Имя:id,…»)

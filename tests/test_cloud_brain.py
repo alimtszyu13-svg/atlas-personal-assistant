@@ -72,6 +72,17 @@ def isolate():
                 _mod("dotenv", load_dotenv=lambda *a, **k: None, dotenv_values=lambda p: {})
             else:
                 _mod("edge_tts", Communicate=None)
+    class GoogleTranslator:                                  # подставной переводчик: тест не ходит в Google
+        def __init__(self, source="auto", target="en"):
+            self.target = target
+
+        def translate(self, text):
+            return f"[{self.target}] {text}"
+    _mod("deep_translator", GoogleTranslator=GoogleTranslator)
+    try:
+        import qrcode  # noqa: F401
+    except ImportError:
+        _mod("qrcode", make=lambda text: None)
     try:
         importlib.import_module("core.llm_gateway")
     except ImportError:                                      # песочница: шлюз из тестовых заглушек мозга
@@ -140,6 +151,82 @@ def model_never_sees_computer_only_tools():
                "holo_weather", "look", "learn_skill", "install_on_device", "run_routine"):
         assert pc not in names, pc
     assert {"execute_plan", "update_plan"} <= names, "мозговые инструменты на месте"
+
+
+@test
+def cloud_can_translate_and_check_websites_but_hides_server_facts():
+    from brain import tools
+    names = {t["function"]["name"] for t in tools.TOOLS_SCHEMA}
+    assert {"translate_text", "is_website_up", "word_count"} <= names, sorted(names)
+    for server_fact in ("get_my_ip", "get_local_ip", "ping_host", "check_internet_speed", "generate_qr_code"):
+        assert server_fact not in names, server_fact
+    res, ok, _ = tools._run_one_tool("translate_text", {"text": "привет", "target_language": "en"})
+    assert ok and "привет" in str(res) and "недоступ" not in str(res), res
+
+
+@test
+def google_without_token_is_honestly_unavailable_and_never_opens_a_browser():
+    from brain import tools
+    from cloud import atlas_cloud, stubs
+    names = {t["function"]["name"] for t in tools.TOOLS_SCHEMA}
+    assert "list_today_events" not in names and "get_recent_emails" not in names, "без токена Google скрыт"
+    d = tempfile.mkdtemp()
+    saved_root, saved_auth = atlas_cloud.ROOT, sys.modules.get("google_auth")
+    fake = types.ModuleType("google_auth")
+    fake.InstalledAppFlow = None
+    sys.modules["google_auth"] = fake
+    atlas_cloud.ROOT = d
+    os.environ["GOOGLE_TOKEN_JSON"] = '{"token": "t", "refresh_token": "r", "client_id": "c", "client_secret": "s"}'
+    try:
+        assert atlas_cloud._google_setup() is True
+        assert os.path.exists(os.path.join(d, "token.json"))
+        try:
+            fake.InstalledAppFlow.from_client_secrets_file("credentials.json", [])
+            assert False, "окно входа Google в облаке открываться не должно"
+        except RuntimeError as e:
+            assert "GOOGLE_TOKEN_JSON" in str(e)
+        os.environ["GOOGLE_TOKEN_JSON"] = "не json"
+        assert atlas_cloud._google_setup() is False
+        assert getattr(sys.modules["calendar_control"], "__atlas_stub__", False), "испорченный токен — честная заглушка"
+    finally:
+        os.environ.pop("GOOGLE_TOKEN_JSON", None)
+        atlas_cloud.ROOT = saved_root
+        if saved_auth is None:
+            sys.modules.pop("google_auth", None)
+        else:
+            sys.modules["google_auth"] = saved_auth
+
+
+@test
+def calendar_uses_your_time_zone():
+    import importlib.util
+    for name in ("googleapiclient", "googleapiclient.discovery"):
+        if name not in sys.modules:
+            _mod(name, build=lambda *a, **k: None)
+    saved = sys.modules.get("google_auth")
+    _mod("google_auth", get_credentials=lambda: None)
+    try:
+        spec = importlib.util.spec_from_file_location("cal_test", os.path.join(ROOT, "calendar_control.py"))
+        cal = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cal)
+    finally:
+        if saved is not None:
+            sys.modules["google_auth"] = saved
+    got = {}
+
+    class Events:
+        def list(self, **kw):
+            got["list"] = kw
+            return types.SimpleNamespace(execute=lambda: {"items": []})
+
+        def insert(self, **kw):
+            got["insert"] = kw
+            return types.SimpleNamespace(execute=lambda: {})
+    cal._calendar_service = types.SimpleNamespace(events=lambda: Events())
+    cal.list_today_events()
+    assert got["list"]["timeMin"].endswith("+06:00") and "T00:00:00" in got["list"]["timeMin"], got["list"]["timeMin"]
+    assert cal.create_event("SAT", "2026-12-05", "08:30").startswith("Created")
+    assert got["insert"]["body"]["start"] == {"dateTime": "2026-12-05T08:30:00", "timeZone": "Asia/Bishkek"}
 
 
 @test
@@ -264,8 +351,25 @@ def render_files_are_ready_and_keep_private_files_out():
     pkgs = [ln.strip() for ln in req.splitlines() if ln.strip() and not ln.strip().startswith("#")]
     assert "fastembed" not in pkgs and "onnxruntime" not in pkgs and "openai" in pkgs, pkgs
     assert {"ddgs", "feedparser"} <= set(pkgs), "поиск в интернете и новости в облаке"
+    assert {"deep-translator", "google-api-python-client", "google-auth-oauthlib", "tzdata"} <= set(pkgs), pkgs
     for private in (".env", "*.db", "phone_pairing.json", "cloud_sync_state.json", "atlas_data.json", "logs"):
         assert private in ign, private
+
+
+@test
+def cloud_voice_tolerates_a_list_in_the_single_variable():
+    from cloud import voice_cloud
+    got = []
+    saved_fish, saved_edge = voice_cloud._fish, voice_cloud._edge
+    voice_cloud._fish = lambda text, fn, vid: (got.append(vid), open(fn, "wb").write(b"F"))
+    os.environ.update(FISH_API_KEY="k", FISH_VOICE_RU="Джарвис:680d74fbef69419f87cfc70f092a1451,Леонид:17e5fd9aed774aedb98141de6e5c4447")
+    try:
+        voice_cloud._generate_any("Привет, сэр.", os.path.join(tempfile.mkdtemp(), "a.mp3"))
+    finally:
+        voice_cloud._fish, voice_cloud._edge = saved_fish, saved_edge
+        os.environ.pop("FISH_API_KEY", None)
+        os.environ.pop("FISH_VOICE_RU", None)
+    assert got == ["680d74fbef69419f87cfc70f092a1451"], got
 
 
 @test
@@ -294,6 +398,8 @@ def main():
     file_search_cloud._embed = fake_embed
     voice_cloud._edge = lambda text, fn, lang: (LOG["tts"].append(text), open(fn, "wb").write(b"EDGE-MP3"))
     S = atlas_cloud.boot(serve=False)
+    for k in ("FISH_API_KEY", "FISH_VOICE_RU", "FISH_VOICE_EN", "FISH_VOICES_RU", "FISH_VOICES_EN"):
+        os.environ.pop(k, None)                              # boot читает .env компьютера — настоящий Fish в тесте не нужен
     sys.modules["file_search"]._embed = fake_embed
     ok = 0
     for t in TESTS:

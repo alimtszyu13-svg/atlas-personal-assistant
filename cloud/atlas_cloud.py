@@ -55,6 +55,39 @@ def _light_router() -> None:
         print(f"[облако] выбор инструментов: {e}")
 
 
+GOOGLE_HINT = ("Google не подключён к облаку: добавь в Render секрет GOOGLE_TOKEN_JSON — его выводит "
+               "«python -m cloud.space_secrets» на компьютере. Календарь и почта работают и на самом компьютере.")
+
+
+def _google_setup() -> bool:
+    """GOOGLE_TOKEN_JSON → token.json рядом с кодом; окно входа Google в облаке не открывается никогда."""
+    raw = (os.getenv("GOOGLE_TOKEN_JSON") or "").strip()
+    if not raw:
+        stubs.stub("calendar_control")
+        stubs.stub("email_reader")
+        print("[облако] Google (Календарь, Gmail): нет GOOGLE_TOKEN_JSON — недоступно из облака")
+        return False
+    try:
+        import json as _json
+        _json.loads(raw)
+        with open(os.path.join(ROOT, "token.json"), "w", encoding="utf-8") as f:
+            f.write(raw)
+        import google_auth
+
+        class _NoBrowser:
+            @staticmethod
+            def from_client_secrets_file(*a, **k):
+                raise RuntimeError(GOOGLE_HINT)
+        google_auth.InstalledAppFlow = _NoBrowser
+        print("[облако] Google (Календарь, Gmail): подключён")
+        return True
+    except Exception as e:
+        stubs.stub("calendar_control")
+        stubs.stub("email_reader")
+        print(f"[облако] Google не подключился ({e}) — Календарь и Gmail недоступны из облака")
+        return False
+
+
 def _is_unavailable(fn) -> bool:
     while fn is not None:
         if getattr(fn, "__doc__", "") == "Недоступно из облака.":
@@ -68,7 +101,9 @@ def _is_unavailable(fn) -> bool:
 CLOUD_HIDE = {"holo_show", "holo_weather", "holo_graph", "holo_control", "look", "gestures_control", "learn_skill",
               "install_skill", "reject_skill", "list_learned_skills", "remove_skill", "heal_status", "heal_apply",
               "heal_reject", "day_report", "mini_mode", "install_on_device", "create_routine", "list_routines",
-              "run_routine", "delete_routine", "get_cpu_usage"}   # нагрузка сервера — не твоего компьютера
+              "run_routine", "delete_routine", "get_cpu_usage",   # нагрузка сервера — не твоего компьютера
+              "get_my_ip", "get_local_ip", "ping_host", "check_internet_speed",   # это IP и скорость сервера
+              "generate_qr_code"}                                                   # сохраняет на рабочий стол
 
 
 def _hide_pc_tools() -> list:
@@ -136,6 +171,7 @@ def boot(serve: bool = True, port: int = None):
     stubs.stub("pygetwindow", getActiveWindow=lambda: None)
     stubs.stub("pyperclip", paste=lambda: "", copy=lambda text: None)
     stubs.stub("pyautogui", hotkey=lambda *a, **k: None, position=lambda: (0, 0))
+    _google_setup()
     early = _prepare_optional()
     ai_brain, stubbed = stubs.import_with_autostub("ai_brain", keep=ESSENTIAL)
     stubbed = early + stubbed

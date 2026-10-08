@@ -282,6 +282,47 @@ def app_has_the_screens():
 
 
 @test
+def voice_list_and_choice_from_the_phone():
+    v = sys.modules["voice"]
+    said = []
+    v._generate_speech_fish = lambda text, fn, vid: (said.append((vid, text)), open(fn, "wb").write(b"FISH"))
+    env = {"FISH_API_KEY": "k", "FISH_VOICES_RU": "Джарвис:680d74fbef69419f87cfc70f092a1451,Леонид:17e5fd9aed774aedb98141de6e5c4447",
+           "FISH_VOICE_EN": "Jarvis:14129c3e320149449d6bada6862f7338"}          # список в одиночном поле — как на скриншоте
+    saved = {k: os.environ.get(k) for k in env}
+    os.environ.update(env)
+    try:
+        st, lst = _panel("/api/voices")
+        assert st == 200 and lst["fish"] and [x["name"] for x in lst["ru"]] == ["Джарвис", "Леонид"], lst
+        assert lst["en"] == [{"name": "Jarvis", "id": "14129c3e320149449d6bada6862f7338"}], lst["en"]
+        REPLY[0] = "Добрый вечер, сэр."
+        hdr = {"Content-Type": "application/json", "X-Atlas-Key": TOKEN, "X-Atlas-Voice-Ru": "17e5fd9aed774aedb98141de6e5c4447"}
+        st, _, b = call("/api/ask", "POST", json.dumps({"text": "привет"}).encode(), hdr)
+        assert said[-1] == ("17e5fd9aed774aedb98141de6e5c4447", "Добрый вечер, сэр.") and base64.b64decode(json.loads(b)["audio"]) == b"FISH"
+        n = len(said)
+        hdr["X-Atlas-Voice-Ru"] = "deadbeefdeadbeefdeadbeefdeadbeef"                  # не из списка — не принимаем
+        call("/api/ask", "POST", json.dumps({"text": "привет"}).encode(), hdr)
+        assert len(said) == n, "чужой номер голоса не используется"
+        st, _, b = call("/api/voice/test", "POST", b'{"lang":"en"}', {"Content-Type": "application/json", "X-Atlas-Key": TOKEN,
+                                                                         "X-Atlas-Voice-En": "14129c3e320149449d6bada6862f7338"})
+        assert said[-1][0] == "14129c3e320149449d6bada6862f7338" and "sir" in json.loads(b)["text"]
+        assert call("/api/voices", "POST", b"{}", {"X-Atlas-Key": "nope"})[0] == 401
+    finally:
+        for k, val in saved.items():
+            if val is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = val
+        del v._generate_speech_fish
+
+
+@test
+def app_has_voice_settings():
+    page = call("/")[2].decode()
+    for must in ('id="v-settings"', 'id="gear"', "/api/voices", "/api/voice/test", "X-Atlas-Voice-", "atlasMute"):
+        assert must in page, must
+
+
+@test
 def tunnel_prefers_tailscale_and_explains_what_is_missing():
     from phone import tunnel
     saved = (tunnel._tailscale_exe, tunnel._cloudflared_exe, tunnel._run, tunnel.subprocess.Popen)

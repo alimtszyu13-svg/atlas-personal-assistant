@@ -169,13 +169,33 @@
   nav .badge[hidden] { display: none; }
   svg.i { width: 22px; height: 22px; fill: none; stroke: var(--dim); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
+  /* ---------- настройки ---------- */
+  .gear { border: 0; background: transparent; width: 36px; height: 36px; margin-left: 6px; border-radius: 10px; cursor: pointer;
+          display: grid; place-items: center; padding: 0; }
+  .gear[aria-pressed="true"] svg { stroke: var(--starlight); }
+  .right { display: flex; align-items: center; }
+  fieldset { border: 0; margin: 0 0 22px; padding: 0; }
+  legend { font-weight: 600; font-size: 17px; margin-bottom: 6px; padding: 0; }
+  .opt { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+  .opt label { flex: 1; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+  .opt input[type=radio] { flex: none; width: 20px; height: 20px; accent-color: var(--listen); margin: 0; }
+  .opt .btn.quiet { min-height: 36px; padding: 0 12px; font-size: 14px; }
+  .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; margin-bottom: 18px; }
+  .switch input { width: 22px; height: 22px; accent-color: var(--listen); flex: none; }
+  .note { color: var(--dim); font-size: 15px; }
+
   @media (prefers-reduced-motion: reduce) { .halo, .ring { animation: none !important; transition: none; } }
 </style>
 </head>
 <body data-state="locked">
 <header>
   <span class="mark">atlas</span>
-  <span class="link" id="link"><span class="dot"></span><span id="linkText">не сопряжено</span></span>
+  <span class="right">
+    <span class="link" id="link"><span class="dot"></span><span id="linkText">не сопряжено</span></span>
+    <button class="gear" id="gear" aria-label="Настройки" aria-pressed="false">
+      <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </span>
 </header>
 
 <main>
@@ -247,6 +267,14 @@
       </div>
     </div>
   </section>
+  <section class="view" id="v-settings" aria-label="Настройки">
+    <div class="wrap">
+      <h2>Настройки</h2>
+      <p class="sub">Хранятся на этом телефоне.</p>
+      <div class="switch"><label for="speakOn">Озвучивать ответы</label><input type="checkbox" id="speakOn"></div>
+      <div id="voiceBlock"></div>
+    </div>
+  </section>
 </main>
 
 <nav aria-label="Разделы">
@@ -290,6 +318,7 @@
 
   async function api(path, payload, raw) {
     const opts = { method: "POST", headers: { "X-Atlas-Key": key } };
+    ["ru", "en"].forEach((l) => { const v = localStorage.getItem("atlasVoice_" + l); if (v) opts.headers["X-Atlas-Voice-" + l[0].toUpperCase() + l[1]] = v; });
     if (raw) { opts.body = raw; opts.headers["Content-Type"] = raw.type; }
     else if (payload !== undefined) { opts.body = JSON.stringify(payload); opts.headers["Content-Type"] = "application/json"; }
     const r = await fetch(path, opts);
@@ -304,6 +333,8 @@
 
   // ---------- вкладки ----------
   function show(view) {
+    $("gear").setAttribute("aria-pressed", view === "settings");
+    if (view === "settings") loadVoices();
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("on", v.id === "v-" + view));
     document.querySelectorAll("nav button").forEach((b) => {
       if (b.dataset.view === view) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
@@ -329,8 +360,9 @@
 
   // ---------- разговор ----------
   function unlockAudio() { try { player.muted = true; player.play().catch(() => {}); player.pause(); player.muted = false; } catch (e) {} }
-  function speak(res) {
+  function speak(res, force) {
     return new Promise((done) => {
+      if (!force && localStorage.getItem("atlasMute") === "1") return done();
       if (res.audio) {
         const bytes = Uint8Array.from(atob(res.audio), (c) => c.charCodeAt(0));
         player.src = URL.createObjectURL(new Blob([bytes], { type: res.mime || "audio/mpeg" }));
@@ -513,6 +545,51 @@
       } catch (e) {}
     });
   });
+
+  // ---------- настройки ----------
+  let lastView = "atlas";
+  $("gear").addEventListener("click", () => {
+    const on = $("v-settings").classList.contains("on");
+    if (!on) lastView = (document.querySelector("nav button[aria-current]") || {}).dataset?.view || "atlas";
+    show(on ? lastView : "settings");
+  });
+  $("speakOn").checked = localStorage.getItem("atlasMute") !== "1";
+  $("speakOn").addEventListener("change", (e) => localStorage.setItem("atlasMute", e.target.checked ? "0" : "1"));
+  async function loadVoices() {
+    const box = $("voiceBlock");
+    if (!paired) { box.replaceChildren(el("p", "note", "Сначала сопряги телефон с Atlas.")); return; }
+    let v;
+    try { v = await api("/api/voices"); } catch (e) { box.replaceChildren(el("p", "note", "Не получилось загрузить голоса. Проверь связь.")); return; }
+    box.replaceChildren();
+    if (!v.fish || (!v.ru.length && !v.en.length)) {
+      box.append(el("p", "note", "Голоса Fish не настроены. Добавь в Render (Environment) FISH_API_KEY и списки FISH_VOICES_RU, FISH_VOICES_EN в виде «Имя:номер,Имя:номер» — и они появятся здесь."));
+      return;
+    }
+    [["ru", "Голос для ответов на русском"], ["en", "Голос для ответов на английском"]].forEach(([lang, title]) => {
+      if (!v[lang].length) return;
+      const fs = el("fieldset"); fs.append(el("legend", null, title));
+      const cur = localStorage.getItem("atlasVoice_" + lang) || "";
+      [{ name: "Как на сервере", id: "" }, ...v[lang]].forEach((o) => {
+        const row = el("div", "opt"); const lab = el("label");
+        const r = el("input"); r.type = "radio"; r.name = "voice_" + lang; r.value = o.id; r.checked = o.id === cur;
+        r.addEventListener("change", () => { if (o.id) localStorage.setItem("atlasVoice_" + lang, o.id); else localStorage.removeItem("atlasVoice_" + lang); });
+        lab.append(r, document.createTextNode(o.name)); row.append(lab);
+        const t = el("button", "btn quiet", "Послушать"); t.type = "button";
+        t.addEventListener("click", async () => {
+          const prev = localStorage.getItem("atlasVoice_" + lang);
+          if (o.id) localStorage.setItem("atlasVoice_" + lang, o.id); else localStorage.removeItem("atlasVoice_" + lang);
+          t.disabled = true; unlockAudio();
+          try { await speak(await api("/api/voice/test", { lang }), true); } catch (e) {}
+          finally {
+            t.disabled = false; if (paired) setState("idle");
+            if (prev) localStorage.setItem("atlasVoice_" + lang, prev); else localStorage.removeItem("atlasVoice_" + lang);
+          }
+        });
+        row.append(t); fs.append(row);
+      });
+      box.append(fs);
+    });
+  }
 
   // ---------- установка ----------
   let deferred = null;

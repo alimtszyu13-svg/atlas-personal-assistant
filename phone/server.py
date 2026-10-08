@@ -149,14 +149,65 @@ def handle_text(text: str) -> str:
     return reply
 
 
-def synthesize(text: str):
+def _parse_voices(raw: str) -> list:
+    """'Джарвис:id1,Леонид:id2' → [{'name': 'Джарвис', 'id': 'id1'}, …] (как FISH_VOICES_RU в .env)."""
+    out = []
+    for item in (raw or "").split(","):
+        name, sep, vid = item.partition(":")
+        if sep and re.fullmatch(r"[0-9a-fA-F]{16,64}", vid.strip()):
+            out.append({"name": name.strip() or vid.strip()[:8], "id": vid.strip()})
+    return out
+
+
+def voices() -> dict:
+    """Голоса Fish на выбор: FISH_VOICES_RU / FISH_VOICES_EN (списки) и FISH_VOICE_RU / _EN (голос по умолчанию)."""
+    out = {"fish": bool(os.getenv("FISH_API_KEY"))}
+    for lang in ("ru", "en"):
+        lst = _parse_voices(os.getenv(f"FISH_VOICES_{lang.upper()}") or "")
+        one = (os.getenv(f"FISH_VOICE_{lang.upper()}") or "").strip()
+        if ":" in one:                                 # вписали в одиночное поле целый список — тоже поймём
+            lst += [v for v in _parse_voices(one) if v["id"] not in {x["id"] for x in lst}]
+            one = lst[0]["id"] if lst else ""
+        if one and one not in {v["id"] for v in lst}:
+            lst.insert(0, {"name": "Голос по умолчанию", "id": one})
+        out[lang] = lst
+    return out
+
+
+def _voice_choice(environ) -> dict:
+    """Голос, выбранный в настройках телефона (заголовки X-Atlas-Voice-Ru / -En); только из разрешённого списка."""
+    known = voices()
+    got = {}
+    for lang in ("ru", "en"):
+        vid = (environ.get(f"HTTP_X_ATLAS_VOICE_{lang.upper()}") or "").strip()
+        if vid and vid in {v["id"] for v in known[lang]}:
+            got[lang] = vid
+    return got
+
+
+def _fish_say(text: str, filename: str, voice_id: str) -> bool:
+    """Сказать конкретным голосом Fish (и на компьютере, и в облаке). → удалось ли."""
+    import voice
+    fn = getattr(voice, "_generate_speech_fish", None) or getattr(voice, "_fish", None)
+    if not fn or not os.getenv("FISH_API_KEY"):
+        return False
+    try:
+        fn(text, filename, voice_id)
+        return os.path.exists(filename) and os.path.getsize(filename) > 0
+    except Exception as e:
+        print(f"[телефон] выбранный голос Fish не ответил ({e}) — говорю голосом по умолчанию")
+        return False
+
+
+def synthesize(text: str, choice: dict = None):
     """Голос Atlas файлом для телефона → (base64, mime) или (None, None) — тогда телефон скажет сам."""
     if not text:
         return None, None
     try:
         import voice
         fn = os.path.join(tempfile.mkdtemp(prefix="atlas_phone_"), "reply.mp3")
-        real = voice._generate_any(text, fn)
+        vid = (choice or {}).get("ru" if re.search(r"[а-яё]", text, re.I) else "en")
+        real = fn if vid and _fish_say(text, fn, vid) else voice._generate_any(text, fn)
         with open(real, "rb") as f:
             data = f.read()
         mime = "audio/wav" if real.lower().endswith(".wav") else "audio/mpeg"
@@ -195,9 +246,9 @@ def transcribe(data: bytes, mime: str) -> str:
     return text
 
 
-def _answer(text: str, heard: str = None) -> dict:
+def _answer(text: str, heard: str = None, choice: dict = None) -> dict:
     reply = handle_text(text)
-    audio, mime = synthesize(reply)
+    audio, mime = synthesize(reply, choice)
     em = _emo()
     out = {"text": em.strip(reply) if em else reply, "audio": audio, "mime": mime}
     if heard is not None:
@@ -276,13 +327,26 @@ def _route(environ):
         text = str(data.get("text") or "").strip()[:2000]
         if not text:
             raise HTTPError(400, "Пустой вопрос.")
-        return _json(_answer(text))
+        return _json(_answer(text, choice=_voice_choice(environ)))
     if path == "/api/transcribe":                   # ответ на карточку голосом — только текст, без мозга
         _check_key(environ)
         data = _body(environ, MAX_AUDIO)
         if not data:
             raise HTTPError(400, "Пустая запись.")
         return _json({"text": transcribe(data, environ.get("CONTENT_TYPE", ""))})
+    if path == "/api/voices":
+        _check_key(environ)
+        return _json(voices())
+    if path == "/api/voice/test":                      # «Послушать» в настройках
+        _check_key(environ)
+        try:
+            data = json.loads(_body(environ, 4096) or b"{}")
+        except ValueError:
+            data = {}
+        lang = "en" if data.get("lang") == "en" else "ru"
+        sample = "Добрый вечер, сэр. Так я буду звучать." if lang == "ru" else "Good evening, sir. This is how I'll sound."
+        audio, mime = synthesize(sample, _voice_choice(environ))
+        return _json({"text": sample, "audio": audio, "mime": mime})
     from phone import panels
     if path in panels.ROUTES:
         _check_key(environ)
@@ -300,7 +364,7 @@ def _route(environ):
         if not heard:
             return _json({"heard": "", "text": "", "audio": None, "mime": None})
         print(f"[телефон] 📱 {heard}")
-        return _json(_answer(heard, heard))
+        return _json(_answer(heard, heard, _voice_choice(environ)))
     raise HTTPError(404, "Нет такой страницы.")
 
 
