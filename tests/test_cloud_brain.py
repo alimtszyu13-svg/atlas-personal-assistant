@@ -243,6 +243,31 @@ def phone_question_answered_from_the_cloud_with_voice():
     user_msgs = [m["content"] for m in LOG["asked"][0] if m.get("role") == "user"]
     assert user_msgs[-1].startswith("(Respond in Russian.) (Said on the phone; Atlas is answering from the cloud"), \
         user_msgs[-1][:120]
+    assert "calendar" in user_msgs[-1] and "not available" not in user_msgs[-1], "облако не говорит «компьютер недоступен» про всё"
+
+
+@test
+def phone_hint_does_not_slow_down_or_pick_tools():
+    from brain import planner
+    import tool_router
+    from cloud import atlas_cloud
+    q = "(Respond in Russian.) " + atlas_cloud.CLOUD_HINT + "что у меня сегодня в календаре"
+    assert planner._bare(q) == "что у меня сегодня в календаре"
+    assert planner._effort_for(planner._bare(q), set()) == "low", "подсказка телефона не включает долгие размышления"
+    tool_router._last_groups = set()
+    assert tool_router.groups_for(planner._bare(q)) == {"calendar"}
+    tool_router._last_groups = set()
+    assert "network" in tool_router.groups_for("работает ли сайт youtube.com"), "проверка сайта находит инструмент"
+
+
+@test
+def translation_in_brackets_is_spoken_not_eaten_as_emotion():
+    from core import emotions
+    assert emotions.strip("[warm] Готово, сэр.") == "Готово, сэр."
+    assert emotions.strip("[light chuckle] Ну конечно.") == "Ну конечно."
+    t = "Перевод: [I am preparing for the exam]"
+    assert emotions.strip(t) == "Перевод: I am preparing for the exam"
+    assert emotions.for_fish("[calm] " + t, "s2.1-pro-free") == "[calm] Перевод: I am preparing for the exam"
 
 
 @test

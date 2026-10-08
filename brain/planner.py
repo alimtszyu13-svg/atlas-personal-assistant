@@ -167,6 +167,16 @@ _COMPLEX_HINTS = ("сравни", "compare", "проанализ", "analy", "и�
                   "напиши", "write", "объясни", "explain", "почему", "why", "потом", "затем", "then", "найди и", "find and")
 
 
+# подсказки в начале запроса: «(Respond in Russian.) (Said on the phone; …)» — их несколько подряд
+_HINTS = re.compile(r"^\s*(?:\([^)]*\)\s*)+")
+
+
+def _bare(question: str) -> str:
+    """Запрос без служебных подсказок: по ним нельзя выбирать инструменты и глубину размышлений
+    (длинная подсказка телефона включала «high» и группы «музыка/файлы» на каждый вопрос)."""
+    return _HINTS.sub("", question or "")
+
+
 def _effort_for(question: str, groups: set) -> str:
     """high — только для сложных многошаговых задач, иначе low (быстрее в разы)."""
     q = question.lower()
@@ -301,14 +311,15 @@ def _brain_ask(question: str, speech=None) -> str:
     state._cancel_event.clear()
     hist.append({"role": "user", "content": question})
     context_msg = {"role": "system", "content": _context_snapshot(question)}
-    active_groups = tool_router.groups_for(question)
-    schema = tools._with_learned(tools._with_pairs(tool_router.smart_schema(question, tools.TOOLS_SCHEMA, active_groups)))
-    schema = tools._trim_schema(question, schema)
-    schema = tools._with_intent(question, schema)          # «включи …» — музыка и кино всегда под рукой
-    words = re.sub(r"^\s*\([^)]*\)\s*", "", question).split()
+    bare = _bare(question)
+    active_groups = tool_router.groups_for(bare)
+    schema = tools._with_learned(tools._with_pairs(tool_router.smart_schema(bare, tools.TOOLS_SCHEMA, active_groups)))
+    schema = tools._trim_schema(bare, schema)
+    schema = tools._with_intent(bare, schema)              # «включи …» — музыка и кино всегда под рукой
+    words = bare.split()
     mem_block = memory.recall_block(question) if len(words) > 2 else None   # «да», «открой его» — память не нужна
     names = {t["function"]["name"] for t in schema}
-    first_effort = _effort_for(question, {"browser"} if "browser_open" in names else set())
+    first_effort = _effort_for(bare, {"browser"} if "browser_open" in names else set())
     print(f"[мозг] инструментов: {len(schema)} | {sorted(names)}")
 
     try:

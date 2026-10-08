@@ -22,9 +22,10 @@ if ROOT not in sys.path:
 
 from cloud import stubs  # noqa: E402
 
-CLOUD_HINT = ("(Said on the phone; Atlas is answering from the cloud server and the computer is not available: "
-              "reply in 1-2 short spoken sentences; for anything that needs the computer — music, apps, files, "
-              "volume — say briefly that it works when the computer is on.) ")
+CLOUD_HINT = ("(Said on the phone; Atlas is answering from the cloud: calendar, mail, web search, weather, news, "
+              "translation, website checks, notes, todos, flashcards and memory all work here — use the tools. "
+              "Only music, apps, files and volume need the computer; for those say briefly it works when the "
+              "computer is on. Reply in 1-2 short spoken sentences, plain text, no brackets or quotes.) ")
 # без этого облако бессмысленно — если не загрузились, лучше честно упасть с ошибкой в логе Space
 ESSENTIAL = ("ai_brain", "brain", "brain.state", "brain.prompt", "brain.providers", "brain.tools", "brain.features",
              "brain.planner", "brain.instant", "brain.pipeline", "tool_router", "core", "core.llm_gateway",

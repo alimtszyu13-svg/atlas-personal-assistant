@@ -247,8 +247,11 @@ def transcribe(data: bytes, mime: str) -> str:
 
 
 def _answer(text: str, heard: str = None, choice: dict = None) -> dict:
+    t0 = time.time()
     reply = handle_text(text)
+    t1 = time.time()
     audio, mime = synthesize(reply, choice)
+    print(f"[время] телефон: ответ {t1 - t0:.1f} с, голос {time.time() - t1:.1f} с")
     em = _emo()
     out = {"text": em.strip(reply) if em else reply, "audio": audio, "mime": mime}
     if heard is not None:
