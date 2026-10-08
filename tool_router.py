@@ -55,7 +55,7 @@ GROUPS = {
     },
     "calendar": {
         "list_today_events", "list_upcoming_events", "create_event",
-        "delete_event", "set_timer", "list_timers",
+        "delete_event", "set_timer", "list_timers", "set_reminder", "cancel_reminder",
     },
     "mail": {"get_recent_emails", "get_unread_count"},
     "dev": {
@@ -110,7 +110,7 @@ TRIGGERS = {
     ),
     "calendar": (
         "календар", "событи", "встреч", "расписан", "таймер", "будильник",
-        "напомни", "через", "завтра", "сегодня", "повестк",
+        "напомни", "напоминан", "через", "завтра", "сегодня", "повестк",
         "calendar", "event", "meeting", "schedule", "timer", "remind",
         "tomorrow", "today", "agenda",
     ),

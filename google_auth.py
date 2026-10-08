@@ -19,16 +19,23 @@ def get_credentials():
 
     creds = None
     if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+        try:
+            creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+        except Exception as e:                      # пустой или испорченный файл — просто войти заново
+            print(f"[google] token.json не читается ({e}) — нужен новый вход")
 
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
+    if creds and not creds.valid and creds.expired and creds.refresh_token:
+        try:
             creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open("token.json", "w") as f:
-            f.write(creds.to_json())
+        except Exception as e:                      # invalid_grant: доступ отозван или истёк — войти заново
+            print(f"[google] токен больше не действует ({e}) — нужен новый вход")
+            creds = None
+
+    if not creds or not creds.valid:                # окно входа Google (в облаке вместо него — понятная ошибка)
+        flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+        creds = flow.run_local_server(port=0)
+    with open("token.json", "w") as f:
+        f.write(creds.to_json())
 
     _creds = creds
     return creds

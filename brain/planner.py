@@ -218,7 +218,7 @@ def _user_profile() -> str:
 SLIM_TOOLS = {
     "get_weather", "holo_weather", "get_disk_usage", "get_cpu_usage", "get_memory_usage", "get_battery_status",
     "get_uptime", "get_volume", "get_brightness", "calculate", "convert_units", "list_todos", "list_notes",
-    "list_timers", "get_news", "get_exchange_rate", "set_timer", "add_todo", "add_note", "complete_todo",
+    "list_timers", "get_news", "get_exchange_rate", "set_timer", "set_reminder", "cancel_reminder", "add_todo", "add_note", "complete_todo",
     "set_volume", "volume_up", "volume_down", "mute_volume", "unmute_volume", "set_brightness", "holo_show",
     "holo_graph", "translate_text", "list_today_events", "list_upcoming_events", "study_stats", "get_my_ip",
     "check_internet_speed", "ping_host", "is_website_up", "word_count", "take_screenshot", "lock_screen",

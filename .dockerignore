@@ -17,3 +17,6 @@ phone_pairing.json
 cloud_sync_state.json
 voice_prefs.json
 atlas_data.json
+atlas_reminders.json
+atlas_push.json
+*.json.tmp

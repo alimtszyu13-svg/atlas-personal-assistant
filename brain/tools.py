@@ -20,7 +20,7 @@ from system_control import open_app, close_app, open_youtube, open_url, search_g
 from info_services import get_weather, get_news
 from file_control import open_file, create_folder, delete_file, locate_file, rename_file, copy_file, move_file
 from system_info import get_cpu_usage, get_memory_usage, get_battery_status, get_disk_usage
-from reminders import set_timer, list_timers
+from reminders import set_timer, list_timers, set_reminder, cancel_reminder
 from web_search_tool import search_web
 from email_reader import get_recent_emails, get_unread_count
 from theme_control import set_theme
@@ -63,6 +63,7 @@ AVAILABLE_FUNCTIONS = {
     "locate_file": locate_file, "rename_file": rename_file, "copy_file": copy_file, "move_file": move_file,
     "get_weather": get_weather, "get_news": get_news, "get_cpu_usage": get_cpu_usage, "get_memory_usage": get_memory_usage,
     "get_battery_status": get_battery_status, "get_disk_usage": get_disk_usage, "set_timer": set_timer, "list_timers": list_timers,
+    "set_reminder": set_reminder, "cancel_reminder": cancel_reminder,
     "search_web": search_web, "get_recent_emails": get_recent_emails, "get_unread_count": get_unread_count, "set_theme": set_theme,
     "set_volume": set_volume, "get_volume": get_volume, "volume_up": volume_up, "volume_down": volume_down,
     "mute_volume": mute_volume, "unmute_volume": unmute_volume, "set_brightness": set_brightness, "get_brightness": get_brightness,
@@ -123,8 +124,14 @@ TOOLS_SCHEMA = [
     _s("get_memory_usage", "Gets current RAM usage"),
     _s("get_battery_status", "Gets battery charge level and charging status"),
     _s("get_disk_usage", "Gets free/used disk space for a drive", {"drive": _S}),
-    _s("set_timer", "Sets a timer for a number of minutes with an optional message", {"minutes": _N, "message": _S}, ["minutes"]),
-    _s("list_timers", "Lists all active timers"),
+    _s("set_timer", "Sets a timer for a number of minutes with an optional message; it rings on the computer and "
+       "comes as a phone notification", {"minutes": _N, "message": _S}, ["minutes"]),
+    _s("set_reminder", "Reminds the user at a date and time (phone notification + said aloud on the computer). "
+       "time_local: the user's local time as 'YYYY-MM-DD HH:MM' (use today's date from the context), or 'HH:MM'. "
+       "text: what to remind about, in the user's language", {"text": _S, "time_local": _S}, ["text", "time_local"]),
+    _s("list_timers", "Lists active timers and reminders"),
+    _s("cancel_reminder", "Cancels a timer or reminder by its number in list_timers or by words from its text",
+       {"which": _S}, ["which"]),
     _s("search_web", "Searches the web for current information", {"query": _S}, ["query"]),
     _s("get_recent_emails", "Reads and summarizes recent inbox emails", {"count": _I}),
     _s("get_unread_count", "Gets the number of unread emails"),

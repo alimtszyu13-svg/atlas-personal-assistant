@@ -67,3 +67,6 @@ phone_pairing.json
 *_test_output.txt
 
 cloud_sync_state.json
+atlas_reminders.json
+atlas_push.json
+*.json.tmp

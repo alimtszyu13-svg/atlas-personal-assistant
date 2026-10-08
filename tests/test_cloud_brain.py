@@ -14,6 +14,7 @@ import os
 import re
 import sys
 import tempfile
+import time
 import traceback
 import types
 from wsgiref.util import setup_testing_defaults
@@ -258,6 +259,36 @@ def phone_hint_does_not_slow_down_or_pick_tools():
     assert tool_router.groups_for(planner._bare(q)) == {"calendar"}
     tool_router._last_groups = set()
     assert "network" in tool_router.groups_for("работает ли сайт youtube.com"), "проверка сайта находит инструмент"
+
+
+@test
+def cloud_sets_reminders_and_knows_your_time():
+    from brain import tools
+    from cloud import atlas_cloud
+    names = {t["function"]["name"] for t in tools.TOOLS_SCHEMA}
+    assert {"set_reminder", "set_timer", "list_timers", "cancel_reminder"} <= names, "напоминания работают из облака"
+    assert "reminders" in atlas_cloud.CLOUD_HINT
+    saved = os.environ.get("TZ")
+    try:
+        assert atlas_cloud._local_time() == "Asia/Bishkek (UTC+06:00)"
+        if hasattr(time, "tzset"):
+            assert time.strftime("%z") == "+0600", time.strftime("%z")
+    finally:
+        if saved is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = saved
+        if hasattr(time, "tzset"):
+            time.tzset()
+
+
+@test
+def google_token_survives_paste_mistakes():
+    from cloud import atlas_cloud
+    good = '{"token":"t","refresh_token":"r"}'
+    for pasted in (good, ' "token":"t","refresh_token":"r"}', 'GOOGLE_TOKEN_JSON = ' + good, "'" + good + "'",
+                   '{"token":"t","refresh_token":"r"'):
+        assert json.loads(atlas_cloud._token_text(pasted)) == {"token": "t", "refresh_token": "r"}, pasted
 
 
 @test

@@ -183,6 +183,10 @@
   .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; margin-bottom: 18px; }
   .switch input { width: 22px; height: 22px; accent-color: var(--listen); flex: none; }
   .note { color: var(--dim); font-size: 15px; }
+  h3.sec { font-size: 15px; font-weight: 600; color: var(--dim); margin: 22px 0 4px; }
+  h3.sec[hidden], #remList[hidden] { display: none; }
+  .when { flex: none; color: var(--dim); font-size: 14px; font-variant-numeric: tabular-nums; }
+  .push-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 
   @media (prefers-reduced-motion: reduce) { .halo, .ring { animation: none !important; transition: none; } }
 </style>
@@ -226,6 +230,8 @@
         <button class="btn">Добавить</button>
       </form>
       <ul class="list" id="todoList"></ul>
+      <h3 class="sec" id="remTitle" hidden>Напоминания</h3>
+      <ul class="list" id="remList" hidden></ul>
     </div>
   </section>
 
@@ -272,6 +278,14 @@
       <h2>Настройки</h2>
       <p class="sub">Хранятся на этом телефоне.</p>
       <div class="switch"><label for="speakOn">Озвучивать ответы</label><input type="checkbox" id="speakOn"></div>
+      <fieldset>
+        <legend>Уведомления</legend>
+        <p class="note" id="pushNote">Напоминания и таймеры будут приходить, даже когда Atlas закрыт.</p>
+        <div class="push-row">
+          <button class="btn" type="button" id="pushOn">Включить уведомления</button>
+          <button class="btn quiet" type="button" id="pushTest" hidden>Проверить</button>
+        </div>
+      </fieldset>
       <div id="voiceBlock"></div>
     </div>
   </section>
@@ -334,7 +348,7 @@
   // ---------- вкладки ----------
   function show(view) {
     $("gear").setAttribute("aria-pressed", view === "settings");
-    if (view === "settings") loadVoices();
+    if (view === "settings") { loadVoices(); pushState(); }
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("on", v.id === "v-" + view));
     document.querySelectorAll("nav button").forEach((b) => {
       if (b.dataset.view === view) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
@@ -353,6 +367,7 @@
       link(true, "на связи"); unlock(true);
       hint(q ? "Готово. Нажми на звезду и говори." : "Нажми на звезду и говори.");
       refresh();
+      subscribePush(false).catch(() => {});        // подписка уже разрешена — напоминаем серверу о ней
     } catch (e) {
       if (e.message !== "401") { link(false, "нет связи"); hint("Нет связи с Atlas. Облаку иногда нужна минута, чтобы проснуться, — попробуй ещё раз."); }
     }
@@ -466,6 +481,16 @@
     });
     const open = d.todos.filter((t) => !t.done).length;
     $("todoBadge").hidden = !open; $("todoBadge").textContent = open;
+
+    const rl = $("remList"); rl.innerHTML = "";
+    const rem = d.reminders || [];
+    $("remTitle").hidden = rl.hidden = !rem.length;
+    rem.forEach((r) => {
+      const li = el("li"); const x = el("button", "del"); x.innerHTML = iconDel;
+      x.setAttribute("aria-label", "Отменить напоминание: " + r.text);
+      x.addEventListener("click", () => send("/api/reminder/delete", { id: r.id }));
+      li.append(el("span", "what", r.text), el("span", "when", r.when), x); rl.append(li);
+    });
 
     const nl = $("noteList"); nl.innerHTML = "";
     if (!d.notes.length) nl.append(el("li", "empty", "Заметок нет."));
@@ -590,6 +615,57 @@
       box.append(fs);
     });
   }
+
+  // ---------- уведомления ----------
+  const b64 = (s) => { const p = "=".repeat((4 - (s.length % 4)) % 4); const r = atob((s + p).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(r, (c) => c.charCodeAt(0)); };
+  const sameKey = (sub, key) => { try { const a = new Uint8Array(sub.options.applicationServerKey), b = b64(key);
+    return a.length === b.length && a.every((v, i) => v === b[i]); } catch (e) { return true; } };
+  const pushOk = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  const pushNote = (t) => { $("pushNote").textContent = t; };
+  async function subscribePush(ask) {
+    if (!paired || !pushOk()) return false;
+    if (Notification.permission !== "granted") {
+      if (!ask || (await Notification.requestPermission()) !== "granted") return false;
+    }
+    const { key, error } = await api("/api/push/key");
+    if (!key) { pushNote(error || "Сервер не дал ключ уведомлений."); return false; }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (sub && !sameKey(sub, key)) { await sub.unsubscribe(); sub = null; }
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(key) });
+    const r = await api("/api/push/subscribe", { sub: sub.toJSON(), name: (navigator.userAgentData?.platform || navigator.platform || "телефон") });
+    return !!r.ok;
+  }
+  async function pushState() {
+    $("pushTest").hidden = true; $("pushOn").hidden = false;
+    if (!pushOk()) {
+      pushNote(/iphone|ipad|ipod/i.test(navigator.userAgent)
+        ? "На iPhone уведомления работают, когда Atlas установлен на экран «Домой» (iOS 16.4 и новее). Открой Atlas оттуда."
+        : "Этот браузер не умеет показывать уведомления. Открой Atlas в Chrome.");
+      $("pushOn").hidden = true; return;
+    }
+    if (Notification.permission === "denied") {
+      pushNote("Уведомления запрещены. Разреши их: настройки телефона → Приложения → Chrome (или Atlas) → Уведомления.");
+      $("pushOn").hidden = true; return;
+    }
+    if (Notification.permission === "granted") {
+      try { if (await subscribePush(false)) { pushNote("Включены: напоминания и таймеры придут, даже когда Atlas закрыт.");
+        $("pushOn").hidden = true; $("pushTest").hidden = false; } } catch (e) { pushNote("Не получилось подключить уведомления: " + e.message); }
+    }
+  }
+  $("pushOn").addEventListener("click", async () => {
+    $("pushOn").disabled = true;
+    try { await subscribePush(true); } catch (e) { pushNote("Не получилось: " + e.message); }
+    finally { $("pushOn").disabled = false; pushState(); }
+  });
+  $("pushTest").addEventListener("click", async () => {
+    $("pushTest").disabled = true;
+    try { const r = await api("/api/push/test");
+      pushNote(r.sent ? "Отправил — уведомление сейчас появится." : "Не дошло ни одного уведомления. Нажми «Включить уведомления» ещё раз.");
+      if (!r.sent) $("pushOn").hidden = false;
+    } catch (e) {} finally { $("pushTest").disabled = false; }
+  });
 
   // ---------- установка ----------
   let deferred = null;

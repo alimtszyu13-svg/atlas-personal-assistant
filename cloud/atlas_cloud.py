@@ -22,8 +22,10 @@ if ROOT not in sys.path:
 
 from cloud import stubs  # noqa: E402
 
-CLOUD_HINT = ("(Said on the phone; Atlas is answering from the cloud: calendar, mail, web search, weather, news, "
-              "translation, website checks, notes, todos, flashcards and memory all work here — use the tools. "
+# без скобок внутри: подсказка — одна пара скобок, её отрезают перед выбором инструментов
+CLOUD_HINT = ("(Said on the phone; Atlas is answering from the cloud: calendar, mail, reminders and timers — they "
+              "arrive as phone notifications —, web search, weather, news, translation, website checks, notes, todos, "
+              "flashcards and memory all work here — use the tools. "
               "Only music, apps, files and volume need the computer; for those say briefly it works when the "
               "computer is on. Reply in 1-2 short spoken sentences, plain text, no brackets or quotes.) ")
 # без этого облако бессмысленно — если не загрузились, лучше честно упасть с ошибкой в логе Space
@@ -56,13 +58,28 @@ def _light_router() -> None:
         print(f"[облако] выбор инструментов: {e}")
 
 
-GOOGLE_HINT = ("Google не подключён к облаку: добавь в Render секрет GOOGLE_TOKEN_JSON — его выводит "
-               "«python -m cloud.space_secrets» на компьютере. Календарь и почта работают и на самом компьютере.")
+GOOGLE_HINT = ("Google access in the cloud has expired or was revoked. Tell the user: sign in to Google again on the "
+               "computer (ask Atlas there about the calendar), then paste the new token.json into GOOGLE_TOKEN_JSON "
+               "in Render. Calendar and mail keep working on the computer itself.")
+
+
+def _token_text(raw: str) -> str:
+    """Токен, как его вставили в Render: без «GOOGLE_TOKEN_JSON =», кавычек вокруг и потерянных скобок."""
+    t = (raw or "").strip()
+    if t.upper().startswith("GOOGLE_TOKEN_JSON"):
+        t = t.split("=", 1)[-1].strip()
+    if len(t) > 1 and t[0] == t[-1] and t[0] in "'\"" and not t.startswith('"token'):
+        t = t[1:-1].strip()
+    if t and not t.startswith("{"):
+        t = "{" + t
+    if t and not t.endswith("}"):
+        t += "}"
+    return t
 
 
 def _google_setup() -> bool:
     """GOOGLE_TOKEN_JSON → token.json рядом с кодом; окно входа Google в облаке не открывается никогда."""
-    raw = (os.getenv("GOOGLE_TOKEN_JSON") or "").strip()
+    raw = _token_text(os.getenv("GOOGLE_TOKEN_JSON") or "")
     if not raw:
         stubs.stub("calendar_control")
         stubs.stub("email_reader")
@@ -70,7 +87,8 @@ def _google_setup() -> bool:
         return False
     try:
         import json as _json
-        _json.loads(raw)
+        if not isinstance(_json.loads(raw), dict):
+            raise ValueError("это не токен Google")
         with open(os.path.join(ROOT, "token.json"), "w", encoding="utf-8") as f:
             f.write(raw)
         import google_auth
@@ -138,6 +156,56 @@ def _prepare_optional() -> list:
     return got
 
 
+def _local_time() -> str:
+    """Сервер живёт по UTC, а «сегодня», «через час» и напоминания — по времени пользователя (ATLAS_TZ)."""
+    name = os.getenv("ATLAS_TZ") or "Asia/Bishkek"
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        off = datetime.now(ZoneInfo(name)).utcoffset()
+    except Exception:
+        from datetime import timedelta
+        off = timedelta(hours={"Asia/Bishkek": 6, "Asia/Almaty": 5, "Europe/Moscow": 3}.get(name, 0))
+    mins = int(off.total_seconds() // 60)
+    sign = "+" if mins >= 0 else "-"
+    hh, mm = divmod(abs(mins), 60)
+    # POSIX: «<+06>-6» — знак наоборот; файлы часовых поясов системе не нужны
+    os.environ["TZ"] = f"<{sign}{hh:02d}{mm:02d}>{'-' if sign == '+' else '+'}{hh}:{mm:02d}"
+    if hasattr(time, "tzset"):
+        time.tzset()
+    return f"{name} (UTC{sign}{hh:02d}:{mm:02d})"
+
+
+def _keep_awake() -> None:
+    """Бесплатный Render засыпает через 15 минут без запросов — тогда напоминание не пришло бы вовремя.
+    Atlas сам заходит на свой адрес каждые 9 минут (GitHub keepalive — запасной)."""
+    url = (os.getenv("RENDER_EXTERNAL_URL") or os.getenv("ATLAS_CLOUD_URL") or "").rstrip("/")
+    if not url.startswith("https://"):
+        return
+    import urllib.request
+
+    def loop():
+        while True:
+            time.sleep(9 * 60)
+            try:
+                urllib.request.urlopen(url + "/manifest.webmanifest", timeout=20).read()
+            except Exception as e:
+                print(f"[облако] не достучался до себя ({e})")
+    threading.Thread(target=loop, daemon=True, name="keep-awake").start()
+    print(f"[облако] не засыпаю: захожу на {url} каждые 9 минут")
+
+
+def _start_reminders() -> None:
+    try:
+        import reminders
+        reminders.start_reminder_thread(None, push=True)
+        from core import push
+        print("[облако] напоминания: " + ("уведомления на телефон включены" if push.available()
+                                          else "нет библиотеки cryptography — уведомления не уйдут"))
+    except Exception as e:
+        print(f"[облако] напоминания не запустились: {e}")
+
+
 def _replace(name: str, module) -> None:
     sys.modules[name] = module
 
@@ -145,6 +213,7 @@ def _replace(name: str, module) -> None:
 def boot(serve: bool = True, port: int = None):
     """Поднять облачного Atlas. serve=False — без сервера (для тестов). → модуль сервера телефона."""
     t0 = time.time()
+    print(f"[облако] время: {_local_time()}")
     stubs.install_pc_stubs()
     import cloud.voice_cloud as voice_cloud
     import cloud.file_search_cloud as fs_cloud
@@ -192,10 +261,17 @@ def boot(serve: bool = True, port: int = None):
     server.PHONE_HINT = os.getenv("PHONE_HINT") or CLOUD_HINT
     if not key:
         print("[облако] нет PHONE_KEY — телефон не сможет подключиться (секрет в настройках Space)")
+    try:
+        import database
+        database.init_db()                          # журнал инструментов (task_log) — как на компьютере
+    except Exception as e:
+        print(f"[облако] журнал инструментов: {e}")
     if store is not None:
         cloud_sync.start()
     print(f"[облако] Atlas готов за {time.time() - t0:.1f} с")
     if serve:
+        _start_reminders()
+        _keep_awake()
         server.start(port=port or int(os.getenv("PORT") or 7860), host="0.0.0.0")
         threading.Event().wait()                      # сервер работает в своём потоке; держим процесс
     return server

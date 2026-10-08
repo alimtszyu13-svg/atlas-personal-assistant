@@ -18,7 +18,7 @@ UNAVAILABLE = ("Это недоступно из облака: компьюте�
 
 # Только для компьютера: окна, файлы, звук, браузер, программы, железо
 PC_ONLY = (
-    "system_control", "file_control", "system_info", "reminders", "theme_control",
+    "system_control", "file_control", "system_info", "theme_control",
     "system_advanced", "media_control", "dev_tools", "listening_mode",
     "browser_agent", "deep_links", "web_gui", "window_hotkey", "hotkeys", "selection_hotkey",
     "core.desktop_agent", "core.holo", "core.gestures", "core.day_report", "core.healer", "core.skill_forge",

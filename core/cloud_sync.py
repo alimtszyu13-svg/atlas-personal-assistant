@@ -31,6 +31,8 @@ from datetime import datetime, timezone
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB = os.path.join(ROOT, "memory.db")
 NOTES = os.path.join(ROOT, "atlas_data.json")
+REMINDERS = os.path.join(ROOT, "atlas_reminders.json")      # таймеры и напоминания (reminders.py)
+PUSH = os.path.join(ROOT, "atlas_push.json")                # ключи и подписки уведомлений (core/push.py)
 STATE = os.path.join(ROOT, "cloud_sync_state.json")
 SYNC_EVERY = float(os.getenv("CLOUD_SYNC_EVERY") or 20)
 BATCH = 500
@@ -276,29 +278,89 @@ def _fill_vector(text):
 
 
 # =============================================================================
-# Заметки и дела: atlas_data.json одним документом
+# Документы целиком: заметки и дела, напоминания, подписки на уведомления
 # =============================================================================
-def _notes_item(state: dict, device: str):
-    if not os.path.exists(NOTES):
+def _kv_docs() -> dict:
+    """uid → файл. Заметки: новее — побеждает. Остальные сливаются по записям (у каждой своё «updated»)."""
+    return {"kv:notes": NOTES, "kv:reminders": REMINDERS, "kv:push": PUSH}
+
+
+def _sent_key(uid: str) -> str:
+    return "notes_sent" if uid == "kv:notes" else "sent:" + uid
+
+
+def _kv_item(uid: str, path: str, state: dict, device: str):
+    if not os.path.exists(path):
         return None
-    mtime = os.path.getmtime(NOTES)
-    if mtime <= state.get("notes_sent", 0):
+    mtime = os.path.getmtime(path)
+    if mtime <= state.get(_sent_key(uid), 0):
         return None
-    with open(NOTES, encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         content = f.read()
-    return {"uid": "kv:notes", "tbl": "kv", "data": {"json": content}, "updated_at": mtime, "deleted": False,
+    return {"uid": uid, "tbl": "kv", "data": {"json": content}, "updated_at": mtime, "deleted": False,
             "device": device}
 
 
-def _apply_notes(item: dict, state: dict) -> bool:
-    ts = float(item["updated_at"])
-    if os.path.exists(NOTES) and os.path.getmtime(NOTES) >= ts:
+def _notes_item(state: dict, device: str):
+    return _kv_item("kv:notes", NOTES, state, device)
+
+
+def merge(a, b):
+    """Слить два документа: запись с полем «updated» — новее побеждает; словарь записей — по ключам."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        if "updated" in a or "updated" in b:
+            return a if float(a.get("updated") or 0) >= float(b.get("updated") or 0) else b
+        out = dict(a)
+        for k, v in b.items():
+            out[k] = merge(a[k], v) if k in a else v
+        return out
+    return b
+
+
+def _write(path: str, text: str) -> None:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
+def _apply_kv(item: dict, state: dict) -> bool:
+    uid = item["uid"]
+    path = _kv_docs().get(uid)
+    if not path:
         return False
-    with open(NOTES, "w", encoding="utf-8") as f:
-        f.write((item.get("data") or {}).get("json") or '{"notes": [], "todos": []}')
-    os.utime(NOTES, (ts, ts))                      # время из облака — чтобы не отправить обратно
-    state["notes_sent"] = ts
+    ts = float(item["updated_at"])
+    raw = (item.get("data") or {}).get("json")
+    if uid == "kv:notes":
+        if os.path.exists(path) and os.path.getmtime(path) >= ts:
+            return False
+        _write(path, raw or '{"notes": [], "todos": []}')
+        os.utime(path, (ts, ts))                   # время из облака — чтобы не отправить обратно
+        state[_sent_key(uid)] = ts
+        return True
+    try:
+        remote = json.loads(raw or "{}")
+    except ValueError:
+        return False
+    local = None
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                local = json.load(f)
+        except Exception:
+            local = None
+    merged = merge(local, remote) if isinstance(local, dict) else remote
+    if merged == local:
+        return False                               # ничего нового (своё отправится, если оно новее)
+    _write(path, json.dumps(merged, ensure_ascii=False))
+    if merged == remote:                           # совпало с облаком — обратно не отправляем
+        os.utime(path, (ts, ts))
+        state[_sent_key(uid)] = max(ts, state.get(_sent_key(uid), 0))
     return True
+
+
+def _apply_notes(item: dict, state: dict) -> bool:
+    return _apply_kv(dict(item, uid="kv:notes"), state)
 
 
 # =============================================================================
@@ -335,15 +397,15 @@ def sync_once(store, db: str = None) -> dict:
         try:
             prepare(c)
             rows = _collect(c, device)
-            note = _notes_item(state, device)
-            if note:
-                rows.append(note)
+            docs = [d for d in (_kv_item(uid, path, state, device) for uid, path in _kv_docs().items()) if d]
+            rows += docs
             for i in range(0, len(rows), BATCH):
                 part = rows[i:i + BATCH]
                 store.push(part)
                 _mark_sent(c, part)
-                if note in part:
-                    state["notes_sent"] = note["updated_at"]
+                for d in docs:
+                    if d in part:
+                        state[_sent_key(d["uid"])] = d["updated_at"]
             pulled, cursor = 0, state.get("pulled_until", "1970-01-01T00:00:00+00:00")
             overlap = True
             while True:
@@ -354,8 +416,8 @@ def sync_once(store, db: str = None) -> dict:
                 items = store.pull(since, device)
                 fresh = [it for it in items if _ts(it["synced_at"]) > _ts(cursor)]
                 for it in items:
-                    if it["tbl"] == "kv" and it["uid"] == "kv:notes":
-                        pulled += _apply_notes(it, state)
+                    if it["tbl"] == "kv":
+                        pulled += _apply_kv(it, state)
                     else:
                         pulled += _apply(c, it)
                 c.commit()

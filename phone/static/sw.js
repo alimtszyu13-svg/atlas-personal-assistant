@@ -1,5 +1,5 @@
 // Atlas: оболочка приложения работает и без сети (звезда, подсказка), разговор — только с сетью.
-const SHELL = "atlas-shell-v2";        // v2: вкладки дел, заметок и учёбы
+const SHELL = "atlas-shell-v3";        // v3: напоминания и уведомления
 const FILES = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/icon-180.png"];
 
 self.addEventListener("install", (e) => {
@@ -17,4 +17,22 @@ self.addEventListener("fetch", (e) => {
     return;
   }
   e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request)));
+});
+
+// Уведомления (напоминания и таймеры) — приходят, даже когда приложение закрыто
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : "" }; }
+  e.waitUntil(self.registration.showNotification(d.title || "Atlas", {
+    body: d.body || "", tag: d.tag || "atlas", renotify: true, icon: "/icon-192.png", badge: "/icon-192.png",
+    vibrate: [180, 80, 180], data: { url: d.url || "/" },
+  }));
+});
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || "/";
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+    for (const c of list) if ("focus" in c) return c.focus();
+    return self.clients.openWindow(url);
+  }));
 });
