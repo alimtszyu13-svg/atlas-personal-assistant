@@ -8,8 +8,10 @@ voice для облака: без микрофона и колонок — то�
 """
 import asyncio
 import os
+import queue
 import re
 import threading
+import time
 
 from cloud.stubs import UNAVAILABLE
 
@@ -83,15 +85,98 @@ def _edge(text: str, filename: str, lang: str) -> None:
     asyncio.run(gen())
 
 
-def _generate_any(text: str, filename: str) -> str:
-    """Голос ответа в файл (mp3). Fish — если настроен, иначе Edge. → путь к файлу."""
-    lang = _lang_of(text)
+def _default_voice(lang: str) -> str:
     voice_id = (os.getenv("FISH_VOICE_RU" if lang == "ru" else "FISH_VOICE_EN") or "").strip()
     if ":" in voice_id or "," in voice_id:            # вписали список «Имя:номер,…» — берём первый голос
         voice_id = voice_id.split(",")[0].rpartition(":")[2].strip()
     if not voice_id:                                   # или голос из списка FISH_VOICES_RU / _EN
         lst = os.getenv("FISH_VOICES_RU" if lang == "ru" else "FISH_VOICES_EN") or ""
         voice_id = lst.split(",")[0].rpartition(":")[2].strip()
+    return voice_id
+
+
+_FAST = {"on": True}       # «latency: balanced» — быстрее первый звук; если Fish его не примет — без него
+
+
+def _fish_stream(text: str, voice_id: str):
+    """Fish отдаёт mp3 кусками, пока ещё говорит, — телефон начинает играть с первого куска."""
+    import httpx
+    from core import emotions
+    model = os.getenv("FISH_MODEL", "s2.1-pro-free")
+    for attempt in (0, 1):
+        body = {"text": emotions.for_fish(text, model), "reference_id": voice_id, "format": "mp3"}
+        if _FAST["on"]:
+            body["latency"] = "balanced"
+        with httpx.stream("POST", "https://api.fish.audio/v1/tts", timeout=60, json=body,
+                          headers={"Authorization": f"Bearer {os.getenv('FISH_API_KEY')}",
+                                   "Content-Type": "application/json", "model": model}) as r:
+            if r.status_code in (400, 422) and _FAST["on"] and attempt == 0:
+                _FAST["on"] = False
+                print("[облако] Fish не принял быстрый режим — говорю обычным")
+                continue
+            if r.status_code != 200:
+                raise RuntimeError(f"Fish {r.status_code}: {r.read()[:200]!r}")
+            for chunk in r.iter_bytes():
+                if chunk:
+                    yield chunk
+            return
+
+
+def _edge_stream(text: str, lang: str):
+    import edge_tts
+    from core import emotions
+    q = queue.Queue()
+
+    def run():
+        async def go():
+            async for ch in edge_tts.Communicate(emotions.strip(text), EDGE_VOICES[lang]).stream():
+                if ch.get("type") == "audio" and ch.get("data"):
+                    q.put(ch["data"])
+        try:
+            asyncio.run(go())
+        except Exception as e:
+            q.put(e)
+        finally:
+            q.put(None)
+    threading.Thread(target=run, daemon=True).start()
+    while True:
+        x = q.get()
+        if x is None:
+            return
+        if isinstance(x, Exception):
+            raise x
+        yield x
+
+
+def stream_speech(text: str, voice_id: str = None):
+    """Голос ответа потоком mp3 (для телефона). Fish — если настроен; не ответил до первого звука — Edge."""
+    lang = _lang_of(text)
+    vid = voice_id or _default_voice(lang)
+    t0, first = time.time(), True
+    if vid and os.getenv("FISH_API_KEY"):
+        try:
+            for chunk in _fish_stream(text, vid):
+                if first:
+                    print(f"[время] голос: первый звук через {time.time() - t0:.1f} с (Fish)")
+                    first = False
+                yield chunk
+            return
+        except Exception as e:
+            if not first:                              # уже играет — обрываем, не начинаем заново другим голосом
+                print(f"[облако] Fish оборвался ({e})")
+                return
+            print(f"[облако] Fish не ответил ({e}) — говорю голосом Edge")
+    for chunk in _edge_stream(text, lang):
+        if first:
+            print(f"[время] голос: первый звук через {time.time() - t0:.1f} с (Edge)")
+            first = False
+        yield chunk
+
+
+def _generate_any(text: str, filename: str) -> str:
+    """Голос ответа в файл (mp3). Fish — если настроен, иначе Edge. → путь к файлу."""
+    lang = _lang_of(text)
+    voice_id = _default_voice(lang)
     if voice_id and os.getenv("FISH_API_KEY"):
         try:
             _fish(text, filename, voice_id)

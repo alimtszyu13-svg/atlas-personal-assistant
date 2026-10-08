@@ -484,6 +484,31 @@ def answer_brings_a_link_to_open_on_the_phone():
         brain.ask_ai = saved
 
 
+@test
+def voice_comes_as_a_stream_and_text_right_away():
+    n = len(LOG["tts"])
+    st, _, b = call("/api/ask", "POST", json.dumps({"text": "какая погода"}).encode(),
+                    {"Content-Type": "application/json", "X-Atlas-Key": TOKEN, "X-Atlas-Audio": "stream"})
+    r = json.loads(b)
+    assert st == 200 and r["text"] == "Готово." and r["audio"] is None and r["say"], r
+    assert len(LOG["tts"]) == n, "текст пришёл раньше, чем начался голос"
+    st, h, audio = call("/api/say/" + r["say"])
+    assert st == 200 and audio == b"MP3DATA" and h.get("Content-Type") == "audio/mpeg", (st, h)
+    st, _, _ = call("/api/say/" + r["say"])
+    assert st == 404, "ссылка на звук одноразовая"
+    st, _, _ = call("/api/say/nonexistent123")
+    assert st == 404
+
+
+@test
+def muted_phone_gets_no_voice_at_all():
+    n = len(LOG["tts"])
+    st, _, b = call("/api/ask", "POST", json.dumps({"text": "какая погода"}).encode(),
+                    {"Content-Type": "application/json", "X-Atlas-Key": TOKEN, "X-Atlas-Audio": "none"})
+    r = json.loads(b)
+    assert r["audio"] is None and "say" not in r and len(LOG["tts"]) == n, "озвучка выключена — голос не делаем"
+
+
 def main():
     global S, BASE, TOKEN
     install()

@@ -11,29 +11,36 @@
 <link rel="apple-touch-icon" href="/icon-180.png">
 <link rel="icon" href="/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Literata:opsz,wght@7..72,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@400;500&family=Literata:opsz,wght@7..72,500&display=swap" rel="stylesheet">
 <title>Atlas</title>
 <style>
   :root {
-    --night: #050814;
-    --nebula: #141b3d;
-    --line: #263063;
-    --starlight: #e1eeff;
-    --dim: #8592bd;
-    --listen: #7cf5c4;
-    --think: #ffc46b;
-    --speak: #a9b8ff;
+    --night: #03050d;
+    --nebula: #1a1446;
+    --tide: #0b3b4a;
+    --line: rgba(170, 190, 255, .16);
+    --glass: rgba(150, 170, 255, .055);
+    --starlight: #e6f0ff;
+    --dim: #8b97c4;
+    --listen: #67e8f9;
+    --think: #ffb86b;
+    --speak: #b4a6ff;
     --alert: #ff8a8a;
-    --glow: #4f7dff;
+    --glow: #7d8cff;
+    --display: "Unbounded", "Onest", system-ui, sans-serif;
     --lvl: 0;
     --tabbar: 64px;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; margin: 0; }
   body {
-    background: radial-gradient(120% 70% at 50% 30%, var(--nebula) 0%, rgba(20, 27, 61, 0) 70%), var(--night);
+    background:
+      radial-gradient(70% 45% at 18% 12%, rgba(88, 62, 190, .38) 0%, transparent 70%),
+      radial-gradient(60% 40% at 92% 58%, rgba(11, 95, 120, .34) 0%, transparent 72%),
+      radial-gradient(90% 60% at 50% 34%, rgba(26, 20, 70, .9) 0%, transparent 75%),
+      var(--night);
     color: var(--starlight);
-    font: 400 16px/1.5 "Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 400 16px/1.5 "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
     display: flex; flex-direction: column; overflow: hidden;
     padding-top: env(safe-area-inset-top);
   }
@@ -52,7 +59,7 @@
   button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--speak); outline-offset: 2px; }
 
   header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px 4px; font-size: 14px; color: var(--dim); }
-  .mark { color: var(--starlight); font-weight: 600; font-size: 17px; letter-spacing: .01em; }
+  .mark { color: var(--starlight); font: 500 17px/1 var(--display); letter-spacing: .08em; }
   .link { display: inline-flex; align-items: center; gap: 8px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
   .link.on .dot { background: var(--listen); box-shadow: 0 0 8px var(--listen); }
@@ -63,40 +70,27 @@
           padding-bottom: calc(var(--tabbar) + env(safe-area-inset-bottom) + 12px); }
   .view.on { display: flex; }
   .wrap { width: 100%; max-width: 560px; margin: 0 auto; }
-  h2 { font-size: 24px; font-weight: 600; margin: 14px 0 4px; }
+  h2 { font: 500 22px/1.25 var(--display); letter-spacing: .01em; margin: 16px 0 6px; }
   .sub { color: var(--dim); font-size: 15px; margin: 0 0 16px; }
 
-  /* ---------- Atlas: звезда ---------- */
+  /* ---------- Atlas: сфера частиц ---------- */
   #v-atlas { align-items: center; overflow: hidden; }
-  .star { --c: var(--glow); position: relative; flex: none; margin-top: 2vh; width: min(52vw, 250px); aspect-ratio: 1;
+  .star { position: relative; flex: none; margin-top: 1vh; width: min(78vw, 40vh, 340px); aspect-ratio: 1;
           border: 0; padding: 0; border-radius: 50%; background: transparent; cursor: pointer; }
-  .halo, .core, .ring { position: absolute; border-radius: 50%; pointer-events: none; }
-  .halo { inset: 0; background: radial-gradient(circle, color-mix(in srgb, var(--c) 70%, transparent) 0%,
-          color-mix(in srgb, var(--c) 18%, transparent) 42%, transparent 70%);
-          transform: scale(calc(.82 + var(--lvl) * .5)); transition: transform .08s linear, background .6s ease; }
-  .core { inset: 38%; background: radial-gradient(circle at 42% 38%, #fff 0%, var(--starlight) 35%,
-          color-mix(in srgb, var(--c) 55%, var(--starlight)) 100%);
-          box-shadow: 0 0 34px 8px color-mix(in srgb, var(--c) 60%, transparent); transition: box-shadow .6s ease, background .6s ease; }
-  .ring { inset: 22%; border: 1.5px solid transparent; opacity: 0; border-top-color: var(--c);
-          border-right-color: color-mix(in srgb, var(--c) 40%, transparent); transition: opacity .3s ease; }
-  body[data-state="idle"] .halo { animation: breathe 5s ease-in-out infinite; }
-  body[data-state="listening"] .star { --c: var(--listen); }
-  body[data-state="thinking"] .star { --c: var(--think); }
-  body[data-state="thinking"] .ring { opacity: 1; animation: orbit 1.6s linear infinite; }
-  body[data-state="speaking"] .star { --c: var(--speak); }
-  body[data-state="speaking"] .halo { animation: voice .5s ease-in-out infinite alternate; }
-  body[data-state="locked"] .star { --c: #2a3566; cursor: default; }
-  @keyframes breathe { 50% { transform: scale(.9); } }
-  @keyframes orbit { to { transform: rotate(360deg); } }
-  @keyframes voice { from { transform: scale(.86); } to { transform: scale(1.02); } }
+  .star canvas { position: absolute; inset: -12%; width: 124%; height: 124%; pointer-events: none; }
+  body[data-state="locked"] .star { cursor: default; }
+  .state { margin: 0; min-height: 1.4em; color: var(--dim); font-size: 13px; letter-spacing: .04em; }
+  body[data-state="listening"] .state { color: var(--listen); }
+  body[data-state="thinking"] .state { color: var(--think); }
+  body[data-state="speaking"] .state { color: var(--speak); }
 
   .caption { margin: 2vh 0 0; max-width: 34ch; min-height: 2.9em; text-align: center; font-size: 19px; line-height: 1.45;
              font-weight: 500; text-wrap: balance; }
   .caption .heard { display: block; color: var(--dim); font-size: 15px; font-weight: 400; margin-bottom: 6px; }
   .hint { color: var(--dim); font-size: 15px; font-weight: 400; }
   .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 14px 0 0; }
-  .chip { border: 1px solid var(--line); background: color-mix(in srgb, var(--nebula) 70%, transparent);
-          border-radius: 999px; padding: 7px 14px; font-size: 15px; cursor: pointer; }
+  .chip { border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(10px);
+          border-radius: 999px; padding: 8px 15px; font-size: 15px; cursor: pointer; }
   .chip:disabled { opacity: .4; }
   .acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; max-width: 34ch; }
   .acts:empty { display: none; }
@@ -114,8 +108,8 @@
   .ask { display: flex; gap: 10px; width: 100%; max-width: 560px; padding: 8px 0 4px; }
 
   input, textarea {
-    flex: 1; min-width: 0; font: inherit; color: var(--starlight); background: color-mix(in srgb, var(--nebula) 80%, transparent);
-    border: 1px solid var(--line); border-radius: 14px; padding: 11px 14px; }
+    flex: 1; min-width: 0; font: inherit; color: var(--starlight); background: var(--glass); backdrop-filter: blur(12px);
+    border: 1px solid var(--line); border-radius: 16px; padding: 11px 15px; }
   textarea { resize: none; min-height: 84px; }
   input::placeholder, textarea::placeholder { color: var(--dim); }
   .btn { border: 0; border-radius: 14px; padding: 0 18px; min-height: 44px; font-weight: 600; background: var(--starlight);
@@ -125,8 +119,11 @@
 
   /* ---------- списки ---------- */
   .row { display: flex; gap: 10px; margin-bottom: 14px; }
-  ul.list { list-style: none; margin: 0; padding: 0; }
-  ul.list li { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+  ul.list, #deckList { list-style: none; margin: 0; padding: 2px 16px; background: var(--glass); backdrop-filter: blur(14px);
+          border: 1px solid var(--line); border-radius: 20px; }
+  ul.list:empty, #deckList:empty { display: none; }
+  ul.list li { display: flex; align-items: flex-start; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+  ul.list li:last-child, #deckList .deck:last-child { border-bottom: 0; }
   .check { flex: none; width: 26px; height: 26px; margin-top: 1px; border-radius: 50%; border: 1.5px solid var(--dim);
            background: transparent; cursor: pointer; display: grid; place-items: center; padding: 0; }
   .check svg { opacity: 0; }
@@ -140,7 +137,7 @@
 
   /* ---------- учёба ---------- */
   .streak { color: var(--dim); font-size: 15px; margin: 0 0 14px; }
-  .deck { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+  .deck { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
   .deck .name { flex: 1; font-weight: 500; }
   .deck .meta { color: var(--dim); font-size: 14px; font-weight: 400; display: block; }
   .session[hidden], .decks[hidden] { display: none; }
@@ -194,7 +191,7 @@
   .when { flex: none; color: var(--dim); font-size: 14px; font-variant-numeric: tabular-nums; }
   .push-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 
-  @media (prefers-reduced-motion: reduce) { .halo, .ring { animation: none !important; transition: none; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body data-state="locked">
@@ -211,8 +208,9 @@
 <main>
   <section class="view on" id="v-atlas" aria-label="Atlas">
     <button class="star" id="star" aria-label="Говорить с Atlas" disabled>
-      <span class="halo"></span><span class="ring"></span><span class="core"></span>
+      <canvas id="orb" aria-hidden="true"></canvas>
     </button>
+    <p class="state" id="stateText"></p>
     <p class="caption" id="caption" aria-live="polite"></p>
     <div class="acts" id="acts"></div>
     <div class="chips" id="chips">
@@ -321,7 +319,8 @@
   let key = localStorage.getItem(KEY) || "";
   let busy = false, rec = null, paired = false, data = null;
 
-  const setState = (s) => { body.dataset.state = s; };
+  const STATE_TEXT = { idle: "", listening: "Слушаю", thinking: "Думаю", speaking: "Говорю", locked: "" };
+  const setState = (s) => { body.dataset.state = s; $("stateText").textContent = STATE_TEXT[s] ?? ""; };
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const say = (text, heard) => { caption.innerHTML = ""; if (heard) caption.append(el("span", "heard", heard)); caption.append(document.createTextNode(text || "")); };
   const hint = (text) => { caption.innerHTML = ""; caption.append(el("span", "hint", text)); };
@@ -338,7 +337,8 @@
   };
 
   async function api(path, payload, raw) {
-    const opts = { method: "POST", headers: { "X-Atlas-Key": key } };
+    const opts = { method: "POST", headers: { "X-Atlas-Key": key,
+      "X-Atlas-Audio": localStorage.getItem("atlasMute") === "1" ? "none" : "stream" } };   // звук — потоком, отдельно
     ["ru", "en"].forEach((l) => { const v = localStorage.getItem("atlasVoice_" + l); if (v) opts.headers["X-Atlas-Voice-" + l[0].toUpperCase() + l[1]] = v; });
     if (raw) { opts.body = raw; opts.headers["Content-Type"] = raw.type; }
     else if (payload !== undefined) { opts.body = JSON.stringify(payload); opts.headers["Content-Type"] = "application/json"; }
@@ -372,7 +372,7 @@
     try {
       await api("/api/pair");
       link(true, "на связи"); unlock(true);
-      hint(q ? "Готово. Нажми на звезду и говори." : "Нажми на звезду и говори.");
+      hint(q ? "Готово. Нажми на сферу и говори." : "Нажми на сферу и говори.");
       refresh();
       subscribePush(false).catch(() => {});        // подписка уже разрешена — напоминаем серверу о ней
     } catch (e) {
@@ -385,7 +385,15 @@
   function speak(res, force) {
     return new Promise((done) => {
       if (!force && localStorage.getItem("atlasMute") === "1") return done();
-      if (res.audio) {
+      if (res.say) {                                // звук потоком: играет с первых кусков
+        let started = false;
+        player.src = "/api/say/" + encodeURIComponent(res.say);
+        setState("speaking"); player.onended = () => done();
+        player.onplaying = () => { started = true; };
+        player.onerror = () => { if (started) return done();      // не дошёл — скажет голос телефона
+          speak({ text: res.text }, force).then(done); };
+        player.play().catch(() => speak({ text: res.text }, force).then(done));
+      } else if (res.audio) {
         const bytes = Uint8Array.from(atob(res.audio), (c) => c.charCodeAt(0));
         player.src = URL.createObjectURL(new Blob([bytes], { type: res.mime || "audio/mpeg" }));
         setState("speaking"); player.onended = player.onerror = () => done();
@@ -415,7 +423,7 @@
     busy = true; setState("thinking"); archive(); if (typed) { say("", typed); shown.push(["you", typed]); }
     try {
       const res = await promise;
-      if (res.heard === "") { hint("Не расслышал. Нажми на звезду и повтори."); return; }
+      if (res.heard === "") { hint("Не расслышал. Нажми на сферу и повтори."); return; }
       if (res.heard) shown.push(["you", res.heard]);
       say(res.text, res.heard || typed); shown.push(["atlas", res.text]);
       showActions(res.actions);
@@ -453,12 +461,12 @@
       onLevel(Math.min(1, rms * 9));
       const now = performance.now();
       if (rms > 0.025) { spoke = true; quietSince = 0; } else if (spoke && !quietSince) quietSince = now;
-      if ((spoke && quietSince && now - quietSince > 1200) || now - t0 > 15000 || (!spoke && now - t0 > 7000)) return ctl.stop();
+      if ((spoke && quietSince && now - quietSince > 1000) || now - t0 > 15000 || (!spoke && now - t0 > 7000)) return ctl.stop();
       requestAnimationFrame(meter);
     })();
     return ctl;
   }
-  const level = (v) => document.documentElement.style.setProperty("--lvl", v.toFixed(3));
+  const level = (v) => { window.atlasLevel = v; };
 
   star.addEventListener("click", async () => {
     if (rec) return rec.stop();                     // второе нажатие — отправить сразу
@@ -467,7 +475,7 @@
     archive();
     rec = await record(level, (blob, why) => {
       rec = null;
-      if (!blob) { setState("idle"); hint(why + " Нажми на звезду и говори."); return; }
+      if (!blob) { setState("idle"); hint(why + " Нажми на сферу и говори."); return; }
       handle(api("/api/talk", undefined, blob));
     });
   });
@@ -700,8 +708,86 @@
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 
+  orb();
   pair();
 })();
+
+// ---------- сфера Atlas: облако частиц, живёт вместе с разговором ----------
+function orb() {
+  const cv = document.getElementById("orb"), g = cv.getContext("2d");
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const N = (navigator.hardwareConcurrency || 4) <= 4 ? 620 : 900;
+  const P = [];
+  for (let i = 0; i < N; i++) {                       // ровно по сфере (спираль Фибоначчи) + лёгкий разброс
+    const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * 2.399963;
+    P.push({ x: Math.cos(th) * r, y, z: Math.sin(th) * r, j: 1 + (Math.random() - .5) * .06, ph: Math.random() * 6.28 });
+  }
+  const RING = 140, ring = Array.from({ length: RING }, (_, i) => ({ a: i / RING * 6.283, j: Math.random() }));
+  const COL = { idle: [125, 140, 255], listening: [103, 232, 249], thinking: [255, 184, 107], speaking: [180, 166, 255],
+                locked: [70, 80, 130] };
+  const SPIN = { idle: .12, listening: .28, thinking: .9, speaking: .3, locked: .05 };
+  let sprite = null, col = [125, 140, 255], spin = .12, rot = 0, lvl = 0, voice = 0, ringA = 0, last = performance.now(), W = 0, H = 0;
+  function size() {
+    const d = Math.min(devicePixelRatio || 1, 2), b = cv.getBoundingClientRect();
+    W = cv.width = Math.round(b.width * d); H = cv.height = Math.round(b.height * d);
+  }
+  size(); addEventListener("resize", size);
+  function frame(now) {
+    const dt = Math.min(.05, (now - last) / 1000); last = now;
+    if (document.hidden) return requestAnimationFrame(frame);
+    const st = document.body.dataset.state || "idle", c = COL[st] || COL.idle, k = 1 - Math.exp(-dt * 4);
+    for (let i = 0; i < 3; i++) col[i] += (c[i] - col[i]) * k;
+    spin += ((SPIN[st] || .12) * (calm ? .4 : 1) - spin) * k;
+    rot += spin * dt;
+    lvl += (((st === "listening" && window.atlasLevel) || 0) - lvl) * Math.min(1, dt * 14);
+    voice += ((st === "speaking" ? .55 + .45 * Math.sin(now / 130) * Math.sin(now / 370) : 0) - voice) * Math.min(1, dt * 10);
+    g.clearRect(0, 0, W, H);
+    const cx = W / 2, cy = H / 2, R = Math.min(W, H) * .33 * (1 + lvl * .22), t = now / 1000;
+    const [r0, g0, b0] = col.map(Math.round);
+    // свет в глубине
+    const glow = g.createRadialGradient(cx, cy, 0, cx, cy, R * 1.5);
+    glow.addColorStop(0, `rgba(${r0},${g0},${b0},${.3 + lvl * .3 + voice * .15})`);
+    glow.addColorStop(.45, `rgba(${r0},${g0},${b0},.08)`); glow.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = glow; g.fillRect(0, 0, W, H);
+    g.globalCompositeOperation = "lighter";
+    const ca = Math.cos(rot), sa = Math.sin(rot), tilt = .42, ct = Math.cos(tilt), stl = Math.sin(tilt);
+    const dot = Math.max(1, W / 260);
+    if (!sprite || Math.abs(sprite.c[0] - r0) + Math.abs(sprite.c[1] - g0) + Math.abs(sprite.c[2] - b0) > 6) {
+      const sc = document.createElement("canvas"); sc.width = sc.height = 32; const sg = sc.getContext("2d");
+      const gr = sg.createRadialGradient(16, 16, 0, 16, 16, 16);
+      gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(.18, `rgba(${r0},${g0},${b0},.95)`);
+      gr.addColorStop(.5, `rgba(${r0},${g0},${b0},.22)`); gr.addColorStop(1, "rgba(0,0,0,0)");
+      sg.fillStyle = gr; sg.fillRect(0, 0, 32, 32); sprite = { cv: sc, c: [r0, g0, b0] };
+    }
+    for (const p of P) {
+      let wob = 1;
+      if (!calm) {
+        wob += lvl * .28 * Math.sin(t * 9 + p.ph) + voice * .07 * Math.sin(t * 7 + p.y * 7 + p.ph * .3);
+        if (st === "thinking") wob += .04 * Math.sin(t * 3 + p.y * 10);
+      }
+      const x0 = p.x * ca - p.z * sa, z0 = p.x * sa + p.z * ca;          // вращение вокруг оси
+      const y1 = p.y * ct - z0 * stl, z1 = p.y * stl + z0 * ct;          // наклон
+      const s = R * p.j * wob, depth = (z1 + 1) / 2;                      // 0 — сзади, 1 — спереди
+      const persp = 1 / (1.9 - z1 * .45);
+      g.globalAlpha = .08 + depth * .85;
+      const sz = dot * (2.2 + depth * 3.6);                               // светящаяся точка, ближние — крупнее
+      g.drawImage(sprite.cv, cx + x0 * s * persp * 1.5 - sz / 2, cy + y1 * s * persp * 1.5 - sz / 2, sz, sz);
+    }
+    if (st === "thinking" || st === "listening") {                        // орбита: думает — бежит быстрее
+      ringA += dt * (st === "thinking" ? 2.4 : .6);
+      for (const q of ring) {
+        const a = q.a + ringA, rr = R * (1.22 + q.j * .06);
+        const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
+        const y = z * .32, front = (Math.sin(a) + 1) / 2;
+        g.globalAlpha = .1 + front * .6;
+        g.drawImage(sprite.cv, cx + x - dot * 1.6, cy + y - dot * 1.6, dot * 3.2, dot * 3.2);
+      }
+    }
+    g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
 </script>
 </body>
 </html>

@@ -318,6 +318,44 @@ def phone_opens_things_itself_computer_only_when_named():
 
 
 @test
+def cloud_voice_streams_fish_and_falls_back_to_edge():
+    from cloud import voice_cloud
+    saved = voice_cloud._fish_stream, voice_cloud._edge_stream
+    os.environ.update(FISH_API_KEY="k", FISH_VOICE_RU="680d74fbef69419f87cfc70f092a1451")
+    try:
+        got = []
+        voice_cloud._fish_stream = lambda text, vid: (got.append(vid), iter([b"F1", b"F2"]))[1]
+        assert b"".join(voice_cloud.stream_speech("Привет, сэр.")) == b"F1F2"
+        assert b"".join(voice_cloud.stream_speech("Привет", "17e5fd9aed774aedb98141de6e5c4447")) == b"F1F2"
+        assert got == ["680d74fbef69419f87cfc70f092a1451", "17e5fd9aed774aedb98141de6e5c4447"], "выбранный на телефоне голос"
+
+        def broken(text, vid):
+            raise RuntimeError("Fish 402")
+            yield b""
+        voice_cloud._fish_stream = broken
+        voice_cloud._edge_stream = lambda text, lang: iter([b"E1"])
+        assert b"".join(voice_cloud.stream_speech("Привет")) == b"E1", "Fish не ответил — Edge"
+    finally:
+        voice_cloud._fish_stream, voice_cloud._edge_stream = saved
+        os.environ.pop("FISH_API_KEY", None)
+        os.environ.pop("FISH_VOICE_RU", None)
+
+
+@test
+def phone_gets_text_first_then_streamed_voice_from_the_cloud():
+    from brain import providers
+
+    def model(on_text, **kw):
+        return {"role": "assistant", "content": "Солнечно, сэр."}, None
+    providers._call_model_stream = model
+    st, r = call("/api/ask", "POST", json.dumps({"text": "какая погода?"}).encode(),
+                 {"Content-Type": "application/json", "X-Atlas-Key": "k123", "X-Atlas-Audio": "stream"})
+    assert st == 200 and r["text"] == "Солнечно, сэр." and r["say"] and r["audio"] is None, r
+    st, audio = call("/api/say/" + r["say"])
+    assert st == 200 and audio == b"EDGE-STREAM", audio
+
+
+@test
 def google_token_survives_paste_mistakes():
     from cloud import atlas_cloud
     good = '{"token":"t","refresh_token":"r"}'
@@ -488,6 +526,7 @@ def main():
     from cloud import atlas_cloud, file_search_cloud, voice_cloud
     file_search_cloud._embed = fake_embed
     voice_cloud._edge = lambda text, fn, lang: (LOG["tts"].append(text), open(fn, "wb").write(b"EDGE-MP3"))
+    voice_cloud._edge_stream = lambda text, lang: iter([b"EDGE-", b"STREAM"])
     S = atlas_cloud.boot(serve=False)
     for k in ("FISH_API_KEY", "FISH_VOICE_RU", "FISH_VOICE_EN", "FISH_VOICES_RU", "FISH_VOICES_EN"):
         os.environ.pop(k, None)                              # boot читает .env компьютера — настоящий Fish в тесте не нужен

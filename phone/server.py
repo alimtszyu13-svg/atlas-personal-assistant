@@ -269,16 +269,64 @@ def _actions() -> list:
         return []
 
 
-def _answer(text: str, heard: str = None, choice: dict = None) -> dict:
+# Голос потоком: ответ приходит текстом сразу, а звук телефон забирает отдельно по одноразовой ссылке
+# /api/say/<id> и начинает играть с первых кусков, пока остальное ещё говорится.
+_SAY = {}
+_say_lock = threading.Lock()
+SAY_TTL = 120
+
+
+def _audio_mode(environ) -> str:
+    """X-Atlas-Audio: stream — звук потоком; none — без звука (озвучка выключена); иначе — файлом в ответе."""
+    m = (environ.get("HTTP_X_ATLAS_AUDIO") or "").strip().lower()
+    return m if m in ("stream", "none") else "inline"
+
+
+def _put_say(text: str, choice: dict) -> str:
+    sid = secrets.token_urlsafe(18)
+    now = time.time()
+    with _say_lock:
+        for k in [k for k, v in _SAY.items() if now - v["t"] > SAY_TTL]:
+            del _SAY[k]
+        _SAY[sid] = {"text": text, "choice": choice or {}, "t": now}
+    return sid
+
+
+def stream_audio(text: str, choice: dict = None):
+    """Звук ответа кусками. В облаке — поток Fish/Edge; на компьютере — целым файлом (тот же голос)."""
+    import voice
+    vid = (choice or {}).get("ru" if re.search(r"[а-яё]", text, re.I) else "en")
+    fn = getattr(voice, "stream_speech", None)
+    if fn:
+        try:
+            yield from fn(text, vid)
+            return
+        except Exception as e:
+            print(f"[телефон] голос потоком не получился ({e})")
+            return
+    audio, _ = synthesize(text, choice)
+    if audio:
+        yield base64.b64decode(audio)
+
+
+def _answer(text: str, heard: str = None, choice: dict = None, mode: str = "inline") -> dict:
     t0 = time.time()
     _actions()                                          # остатки прошлого ответа не открываем
     reply = handle_text(text)
     acts = _actions()
     t1 = time.time()
-    audio, mime = synthesize(reply, choice)
-    print(f"[время] телефон: ответ {t1 - t0:.1f} с, голос {time.time() - t1:.1f} с")
     em = _emo()
-    out = {"text": em.strip(reply) if em else reply, "audio": audio, "mime": mime, "actions": acts}
+    shown = em.strip(reply) if em else reply
+    audio = mime = say = None
+    if reply and mode == "stream":
+        say = _put_say(reply, choice)
+    elif reply and mode == "inline":
+        audio, mime = synthesize(reply, choice)
+    print(f"[время] телефон: ответ {t1 - t0:.1f} с" + (f", голос {time.time() - t1:.1f} с" if mode == "inline" else
+                                                         ", голос — потоком" if say else ""))
+    out = {"text": shown, "audio": audio, "mime": mime, "actions": acts}
+    if say:
+        out["say"] = say
     if heard is not None:
         out["heard"] = heard
     return out
@@ -331,6 +379,13 @@ def _body(environ, limit: int) -> bytes:
 def _route(environ):
     method, path = environ.get("REQUEST_METHOD", "GET"), environ.get("PATH_INFO", "/")
     if method == "GET":
+        if path.startswith("/api/say/"):                # одноразовая ссылка на звук ответа — сама и есть пропуск
+            with _say_lock:
+                item = _SAY.pop(path[len("/api/say/"):], None)
+            if not item or time.time() - item["t"] > SAY_TTL:
+                raise HTTPError(404, "Звук уже забран или устарел.")
+            return "200 OK", [("Content-Type", "audio/mpeg"), ("Cache-Control", "no-store")], \
+                stream_audio(item["text"], item["choice"])
         if path in ("/", "/index.html"):
             return _static("index.html")
         if path == "/sw.js":
@@ -355,7 +410,7 @@ def _route(environ):
         text = str(data.get("text") or "").strip()[:2000]
         if not text:
             raise HTTPError(400, "Пустой вопрос.")
-        return _json(_answer(text, choice=_voice_choice(environ)))
+        return _json(_answer(text, choice=_voice_choice(environ), mode=_audio_mode(environ)))
     if path == "/api/transcribe":                   # ответ на карточку голосом — только текст, без мозга
         _check_key(environ)
         data = _body(environ, MAX_AUDIO)
@@ -406,7 +461,7 @@ def _route(environ):
         if not heard:
             return _json({"heard": "", "text": "", "audio": None, "mime": None})
         print(f"[телефон] 📱 {heard}")
-        return _json(_answer(heard, heard, _voice_choice(environ)))
+        return _json(_answer(heard, heard, _voice_choice(environ), _audio_mode(environ)))
     raise HTTPError(404, "Нет такой страницы.")
 
 
@@ -422,8 +477,20 @@ def app(environ, start_response):
     except Exception as e:
         print(f"[телефон] ошибка: {e}")
         status, headers, data = _json({"error": "Внутренняя ошибка Atlas."}, "500 Internal Server Error")
-    start_response(status, headers + [("Content-Length", str(len(data)))])
-    return [data]
+    if isinstance(data, (bytes, bytearray)):
+        start_response(status, headers + [("Content-Length", str(len(data)))])
+        return [data]
+    start_response(status, headers)                     # поток (звук): без длины, куски уходят сразу
+    return _chunks(data)
+
+
+def _chunks(gen):
+    try:
+        for chunk in gen:
+            if chunk:
+                yield chunk
+    except Exception as e:
+        print(f"[телефон] поток оборвался: {e}")
 
 
 # =============================================================================
