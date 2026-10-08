@@ -167,6 +167,7 @@ VOSK_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                "models", "vosk-model-small-ru-0.22")
 _vosk_model = None
 _vosk_warned = {}
+_vosk_lock = threading.Lock()
 
 
 def _vosk_recognizer(words):
@@ -174,9 +175,10 @@ def _vosk_recognizer(words):
     global _vosk_model
     import json
     from vosk import Model, KaldiRecognizer, SetLogLevel
-    if _vosk_model is None:
-        SetLogLevel(-1)
-        _vosk_model = Model(VOSK_MODEL_PATH)
+    with _vosk_lock:                                       # заранее грузит фоновый поток — не дважды
+        if _vosk_model is None:
+            SetLogLevel(-1)
+            _vosk_model = Model(VOSK_MODEL_PATH)
     finder = getattr(_vosk_model, "find_word", None)      # есть не во всех версиях Vosk
     known = ([w for w in words if finder(w) >= 0] if finder else list(words)) or list(words)[:1]
     missing = [w for w in words if w not in known]
@@ -680,6 +682,26 @@ def _play_file(path: str, interruptible: bool = False) -> None:
     if listener is not None:
         listener.join(timeout=2)
     pygame.mixer.music.unload()
+
+
+def preload_wake() -> None:
+    """Загрузить модель «Атлас» заранее, пока грузится остальное, — слушать можно сразу после запуска."""
+    def run():
+        try:
+            t0 = time.time()
+            _vosk_recognizer(WAKE_WORDS_LOCAL)
+            print(f"[запуск] модель «Атлас» готова за {time.time() - t0:.1f} с")
+        except Exception as e:
+            print(f"[запуск] модель «Атлас» не загрузилась заранее: {e}")
+    threading.Thread(target=run, daemon=True, name="wake-preload").start()
+
+
+def hush() -> None:
+    """Оборвать то, что сейчас звучит (приветствие, когда уже позвали «Атлас»)."""
+    try:
+        pygame.mixer.music.stop()
+    except Exception:
+        pass
 
 
 def speak_cached(text: str, interruptible: bool = False) -> None:

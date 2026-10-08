@@ -169,18 +169,52 @@ def _manual_queue_watcher() -> None:
 # =============================================================================
 # Голосовой цикл
 # =============================================================================
-def _voice_loop() -> None:
-    start_reminder_thread(_speak_and_update)
-    # приветствие — в момент вспышки звезды в заставке (не дольше 15 с ожидания)
+_greeting = {"thread": None}
+
+
+def _greet(text: str) -> None:
+    """Приветствие звучит в своём потоке — слушать «Атлас» можно сразу, не дожидаясь, пока оно договорит.
+    Из кэша: первый раз генерируется, дальше играет с диска мгновенно."""
     t0 = time.time()
-    while not shared_state.get("intro_done") and time.time() - t0 < 15:
+    while not shared_state.get("intro_done") and time.time() - t0 < 15:   # в момент вспышки в заставке
         time.sleep(0.1)
-    lang = get_response_language()
-    print(f"[запуск] Atlas готов за {time.time() - _T0:.1f} с")
     try:
-        _speak_and_update(f"{_time_greeting()} {random.choice(GREETING_TAIL[lang])}", interruptible=False)
+        import voice as _v
+        say = getattr(_v, "speak_cached", None)
+        shared_state["state"] = "speaking"
+        if say:
+            say(text, interruptible=False)
+        else:
+            speak(text, interruptible=False)
     except Exception as e:
         print(f"[голос] приветствие не прозвучало: {e}")
+    finally:
+        if shared_state.get("state") == "speaking":
+            shared_state["state"] = "idle"
+
+
+def _hush_greeting() -> None:
+    """Сказали «Атлас», пока Atlas ещё здоровается, — приветствие замолкает и Atlas слушает."""
+    t = _greeting["thread"]
+    if t is not None and t.is_alive():
+        try:
+            import voice as _v
+            getattr(_v, "hush", lambda: None)()
+        except Exception:
+            pass
+
+
+def _voice_loop() -> None:
+    start_reminder_thread(_speak_and_update)
+    try:
+        text = f"{_time_greeting()} {random.choice(GREETING_TAIL[get_response_language()])}"
+        shared_state["text"] = text
+        shared_state["chat_history"].append(("Atlas", text))
+        _greeting["thread"] = threading.Thread(target=_greet, args=(text,), daemon=True, name="greeting")
+        _greeting["thread"].start()
+    except Exception as e:
+        print(f"[голос] приветствие не прозвучало: {e}")
+    print(f"[запуск] слушаю через {time.time() - _T0:.1f} с после запуска")
 
     while True:
         try:
@@ -197,8 +231,9 @@ def _voice_turn():
     """Один разговор: ждём имя → слушаем → выполняем. → "quit", если Atlas выключают."""
     if True:
         _push_to_talk_event.clear()               # «призрачное» нажатие от системного хука клавиатуры
-        shared_state["state"] = "idle"
-        shared_state["text"] = ""
+        if not (_greeting["thread"] and _greeting["thread"].is_alive()):
+            shared_state["state"] = "idle"
+            shared_state["text"] = ""
 
         print(f"[DEBUG] always_listening={shared_state.get('always_listening')}")
         follow_up = shared_state.pop("follow_up", False)
@@ -214,6 +249,7 @@ def _voice_turn():
             print("[голос] идёт разговор с телефона — компьютер не перебивает")
             return
 
+        _hush_greeting()
         shared_state["state"] = "listening"
         command = listen()
         if len(command.strip()) < MIN_COMMAND_LENGTH and not re.search(r"\d", command):
@@ -254,6 +290,11 @@ def main() -> None:
     from voice import output_device_name, output_is_headphones
     from core import proactive, missions, healer, routines, skill_forge, day_report, gestures
 
+    try:
+        import voice as _v
+        getattr(_v, "preload_wake", lambda: None)()    # модель «Атлас» грузится параллельно со всем остальным
+    except Exception:
+        pass
     start_push_to_talk_hotkey("f9")
     keyboard.add_hotkey("f8", cancel_current_task)
     print("(cancel hotkey active: f8)")

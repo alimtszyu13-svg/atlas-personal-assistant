@@ -150,24 +150,62 @@ def pc_does_not_wake_while_the_phone_is_talking():
 def an_error_in_one_conversation_does_not_stop_listening():
     reset()
     calls = {"n": 0}
-    saved_process, saved_speak = M._process_command, M._speak_and_update
+    saved_process, saved_speak = M._process_command, M.speak
 
     def boom(cmd):
         calls["n"] += 1
         raise FileNotFoundError("temp_speech.wav")          # как в живом логе
 
-    def speak_boom(*a, **k):
-        if not calls.get("greeted"):                         # ломается только приветствие, как в логе
-            calls["greeted"] = True
+    def speak_boom(text, *a, **k):
+        if any(text.endswith(t) for t in M.GREETING_TAIL["ru"]):   # ломается только приветствие, как в логе
             raise PermissionError("temp_speech.wav")
-        return saved_speak(*a, **k)
-    M._process_command, M._speak_and_update = boom, speak_boom
+        return saved_speak(text, *a, **k)
+    M._process_command, M.speak = boom, speak_boom
     LISTEN[:] = ["какая погода", "выключись"]
     try:
         M._voice_loop()                                       # раньше падал уже на приветствии
     finally:
-        M._process_command, M._speak_and_update = saved_process, saved_speak
+        M._process_command, M.speak = saved_process, saved_speak
     assert calls["n"] == 1 and M.shared_state["should_quit"], "после ошибки Atlas слушал дальше и выключился по команде"
+
+
+@test
+def listening_starts_right_away_while_greeting_plays():
+    import threading
+    import time as _t
+    reset()
+    M.shared_state["intro_done"] = False                     # заставка ещё идёт — приветствие ждёт её
+    playing, hushed = threading.Event(), []
+    saved_speak, saved_wake = M.speak, M.wait_for_wake_word
+
+    def slow_greeting(text, *a, **k):
+        if any(text.endswith(t) for t in M.GREETING_TAIL["ru"]):
+            playing.set()
+            for _ in range(40):                                # «говорит» до 2 с, пока не оборвут
+                if hushed:
+                    return
+                _t.sleep(0.05)
+            return
+        return saved_speak(text, *a, **k)
+    sys.modules["voice"].hush = lambda: hushed.append(1)
+    woke = []
+    M.speak = slow_greeting
+    M.wait_for_wake_word = lambda: (woke.append(_t.time()), "voice")[1]
+    LISTEN[:] = ["выключись"]
+    t0 = _t.time()
+    threading.Timer(0.3, lambda: M.shared_state.update(intro_done=True)).start()
+    try:
+        M._voice_loop()
+    finally:
+        M.speak, M.wait_for_wake_word = saved_speak, saved_wake
+        del sys.modules["voice"].hush
+    assert woke and woke[0] - t0 < 0.2, "слушает «Атлас» сразу, не дожидаясь заставки и приветствия"
+    assert M.shared_state["chat_history"][0][1].endswith(tuple(M.GREETING_TAIL["ru"])), "приветствие видно в чате"
+    for _ in range(40):
+        if hushed or not M._greeting["thread"].is_alive():
+            break
+        _t.sleep(0.05)
+    assert not M._greeting["thread"].is_alive() or hushed
 
 
 @test
