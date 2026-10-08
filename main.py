@@ -280,6 +280,11 @@ def main() -> None:
         _phone.start_if_paired()
     except Exception as e:
         print(f"[телефон] не запустился: {e}")
+    try:
+        from core import pc_link                    # телефон через облако управляет компьютером
+        pc_link.start_from_env()
+    except Exception as e:
+        print(f"[руки] связь с облаком не запустилась: {e}")
 
     threading.Thread(target=_voice_loop, daemon=True).start()
     threading.Thread(target=_manual_queue_watcher, daemon=True).start()

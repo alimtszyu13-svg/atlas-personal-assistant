@@ -283,6 +283,20 @@ def cloud_sets_reminders_and_knows_your_time():
 
 
 @test
+def cloud_hands_work_to_the_computer():
+    from brain import tools
+    import tool_router
+    from cloud import atlas_cloud
+    from phone import server
+    names = {t["function"]["name"] for t in tools.TOOLS_SCHEMA}
+    assert "use_computer" in names and "use_computer" in tool_router.CORE and server.PC_HUB is True
+    assert "use_computer" in atlas_cloud.CLOUD_HINT and server.FORWARD is not None
+    assert server.FORWARD("включи музыку") is None, "компьютер не на связи — ответит мозг"
+    res, ok, _ = tools._run_one_tool("use_computer", {"request": "включи музыку"})
+    assert "offline" in str(res), res
+
+
+@test
 def google_token_survives_paste_mistakes():
     from cloud import atlas_cloud
     good = '{"token":"t","refresh_token":"r"}'

@@ -26,8 +26,9 @@ from cloud import stubs  # noqa: E402
 CLOUD_HINT = ("(Said on the phone; Atlas is answering from the cloud: calendar, mail, reminders and timers — they "
               "arrive as phone notifications —, web search, weather, news, translation, website checks, notes, todos, "
               "flashcards and memory all work here — use the tools. "
-              "Only music, apps, files and volume need the computer; for those say briefly it works when the "
-              "computer is on. Reply in 1-2 short spoken sentences, plain text, no brackets or quotes.) ")
+              "Music, apps, sites, volume, files and anything else on the computer — do it with use_computer; "
+              "if it says the computer is offline, tell the user briefly. "
+              "Reply in 1-2 short spoken sentences, plain text, no brackets or quotes.) ")
 # без этого облако бессмысленно — если не загрузились, лучше честно упасть с ошибкой в логе Space
 ESSENTIAL = ("ai_brain", "brain", "brain.state", "brain.prompt", "brain.providers", "brain.tools", "brain.features",
              "brain.planner", "brain.instant", "brain.pipeline", "tool_router", "core", "core.llm_gateway",
@@ -206,6 +207,34 @@ def _start_reminders() -> None:
         print(f"[облако] напоминания не запустились: {e}")
 
 
+def _computer_hands(server) -> None:
+    """Компьютер на связи — облако передаёт ему всё, что умеет только он (core/pc_link)."""
+    from core import pc_link
+    from brain import tools
+    import tool_router
+    server.PC_HUB = True
+    tools.AVAILABLE_FUNCTIONS["use_computer"] = pc_link.use_computer
+    if not any(t["function"]["name"] == "use_computer" for t in tools.TOOLS_SCHEMA):
+        tools.TOOLS_SCHEMA.append(pc_link.SCHEMA)
+    tool_router.CORE.add("use_computer")             # всегда под рукой: «включи музыку», «громче», «открой…»
+    try:
+        from brain import planner
+        planner.SLIM_TOOLS.add("use_computer")       # после ответа компьютера — короткий пересказ, без полного шага
+    except Exception:
+        pass
+
+    def forward(text):
+        if not pc_link.online():
+            return None
+        try:
+            return pc_link.submit(text)
+        except pc_link.PcOffline:
+            return None
+        except pc_link.PcTimeout:
+            return "Компьютер не ответил вовремя — попробуй ещё раз."
+    server.FORWARD = forward
+
+
 def _replace(name: str, module) -> None:
     sys.modules[name] = module
 
@@ -259,6 +288,7 @@ def boot(serve: bool = True, port: int = None):
     key = (os.getenv("PHONE_KEY") or "").strip()
     server.pairing_token = lambda create=False: key
     server.PHONE_HINT = os.getenv("PHONE_HINT") or CLOUD_HINT
+    _computer_hands(server)
     if not key:
         print("[облако] нет PHONE_KEY — телефон не сможет подключиться (секрет в настройках Space)")
     try:

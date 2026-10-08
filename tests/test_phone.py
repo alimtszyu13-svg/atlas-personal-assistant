@@ -394,6 +394,62 @@ def install_opens_a_local_qr_page_with_the_key():
         S._state.update(saved_state)
 
 
+@test
+def computer_link_is_closed_on_the_computer_itself():
+    st, _, _ = call("/api/pc/poll", "POST", b"{}", {"Content-Type": "application/json", "X-Atlas-Key": TOKEN})
+    assert st == 404, "на компьютере облачной «очереди дел» нет"
+
+
+@test
+def phone_controls_the_computer_through_the_cloud():
+    import threading
+    from core import pc_link
+    S.PC_HUB = True
+    stop = threading.Event()
+    done = []
+
+    def handler(text):
+        done.append(text)
+        return "Включил лоу-фай в Spotify."
+    t = threading.Thread(target=pc_link.run_agent, args=(BASE, TOKEN, handler, "test-pc", stop), daemon=True)
+    try:
+        st, _, _ = call("/api/pc/poll", "POST", b"{}", {"Content-Type": "application/json", "X-Atlas-Key": "чужой".encode().hex()})
+        assert st == 401, "чужой компьютер не подключится"
+        assert pc_link.use_computer("включи музыку") == pc_link.OFFLINE, "компьютер не на связи — честно"
+        t.start()
+        for _ in range(50):
+            if pc_link.online():
+                break
+            import time as _t
+            _t.sleep(0.1)
+        assert pc_link.online()
+        st, _, b = call("/api/pc/status", "POST", b"{}", {"Content-Type": "application/json", "X-Atlas-Key": TOKEN})
+        assert json.loads(b)["online"] is True
+        r = pc_link.use_computer("включи лоу-фай")
+        assert done == ["включи лоу-фай"] and "Включил лоу-фай в Spotify." in r, r
+    finally:
+        stop.set()
+        S.PC_HUB = False
+
+
+@test
+def fast_command_the_cloud_cannot_do_goes_to_the_computer():
+    FAST["включи музыку"] = "Это недоступно из облака: компьютер сейчас не на связи."
+    asked = len(LOG["ask"])
+    try:
+        S.FORWARD = lambda text: "Включил музыку на компьютере."
+        st, _, b = ask("Включи музыку")
+        assert st == 200 and json.loads(b)["text"] == "Включил музыку на компьютере.", b
+        S.FORWARD = lambda text: None                  # компьютер не на связи — отвечает мозг, а не служебный текст
+        REPLY[0] = "Компьютер сейчас выключен, сэр."
+        st, _, b = ask("Включи музыку")
+        assert json.loads(b)["text"] == "Компьютер сейчас выключен, сэр." and len(LOG["ask"]) == asked + 1
+    finally:
+        S.FORWARD = None
+        FAST.pop("включи музыку", None)
+        REPLY[0] = "Готово."
+
+
 def main():
     global S, BASE, TOKEN
     install()

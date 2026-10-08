@@ -107,8 +107,19 @@ def _quiet_pc() -> None:
         pass
 
 
-def handle_text(text: str) -> str:
-    """Быстрый путь → мозг. Компьютер при этом молчит: отвечает телефон."""
+# Облако: быстрый путь ответил «недоступно из облака» → передать просьбу компьютеру (core/pc_link).
+# FORWARD(text) → ответ компьютера или None (компьютер не на связи). На самом компьютере — None.
+FORWARD = None
+PC_HUB = False            # облако принимает связь от компьютера (/api/pc/poll, /api/pc/result)
+
+
+def _needs_pc(reply) -> bool:
+    return isinstance(reply, str) and "недоступно из облака" in reply
+
+
+def handle_text(text: str, log: bool = True) -> str:
+    """Быстрый путь → мозг. Компьютер при этом молчит: отвечает телефон.
+    log=False — просьба пришла с телефона через облако: разговор уже записан там."""
     text = (text or "").strip()
     if not text:
         return ""
@@ -127,6 +138,8 @@ def handle_text(text: str) -> str:
                     pass
         except Exception as e:
             print(f"[телефон] быстрый путь: {e}")
+        if _needs_pc(reply):                           # нет компьютера на связи — пусть ответит мозг, по-человечески
+            reply = (FORWARD(text) if FORWARD is not None else None) or None
         if reply is None:
             from ai_brain import ask_ai
             reply = ask_ai(_hint(text) + text)
@@ -140,12 +153,13 @@ def handle_text(text: str) -> str:
         shared_state["chat_history"].append(("Atlas", shown))
     except Exception:
         pass
-    try:
-        from core import memory
-        memory.log_turn("user", text)
-        memory.log_turn("assistant", shown)
-    except Exception:
-        pass
+    if log:
+        try:
+            from core import memory
+            memory.log_turn("user", text)
+            memory.log_turn("assistant", shown)
+        except Exception:
+            pass
     return reply
 
 
@@ -350,6 +364,20 @@ def _route(environ):
         sample = "Добрый вечер, сэр. Так я буду звучать." if lang == "ru" else "Good evening, sir. This is how I'll sound."
         audio, mime = synthesize(sample, _voice_choice(environ))
         return _json({"text": sample, "audio": audio, "mime": mime})
+    if PC_HUB and path in ("/api/pc/poll", "/api/pc/result"):     # облако: связь с компьютером
+        _check_key(environ)
+        try:
+            data = json.loads(_body(environ, 64 * 1024) or b"{}")
+        except ValueError:
+            raise HTTPError(400, "Нужен JSON.")
+        from core import pc_link
+        if path == "/api/pc/poll":
+            return _json(pc_link.poll(name=str(data.get("name") or "")))
+        return _json({"ok": pc_link.result(str(data.get("id") or ""), str(data.get("text") or ""))})
+    if path == "/api/pc/status":
+        _check_key(environ)
+        from core import pc_link
+        return _json({"online": bool(PC_HUB and pc_link.online())})
     from phone import panels
     if path in panels.ROUTES:
         _check_key(environ)
