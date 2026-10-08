@@ -305,6 +305,7 @@ def phone_opens_things_itself_computer_only_when_named():
     from phone import server
     names = {t["function"]["name"] for t in tools.TOOLS_SCHEMA}
     assert "open_on_phone" in names and "open_on_phone" in tool_router.CORE
+    assert "daily_brief" in names and "daily_brief" in tool_router.GROUPS["calendar"], "«что у меня сегодня» — сводка"
     assert "open_on_phone" in atlas_cloud.CLOUD_HINT
     sent = []
     saved = pc_link.submit, pc_link._state["last_poll"]

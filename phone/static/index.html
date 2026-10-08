@@ -283,6 +283,7 @@
       <h2>Настройки</h2>
       <p class="sub">Хранятся на этом телефоне.</p>
       <div class="switch"><label for="speakOn">Озвучивать ответы</label><input type="checkbox" id="speakOn"></div>
+      <div class="switch"><label for="handsOn">Разговор без кнопки<span class="note" style="display:block">После ответа Atlas сам слушает дальше. Скажи «всё» или помолчи — разговор закончится.</span></label><input type="checkbox" id="handsOn"></div>
       <fieldset>
         <legend>Уведомления</legend>
         <p class="note" id="pushNote">Напоминания и таймеры будут приходить, даже когда Atlas закрыт.</p>
@@ -290,6 +291,14 @@
           <button class="btn" type="button" id="pushOn">Включить уведомления</button>
           <button class="btn quiet" type="button" id="pushTest" hidden>Проверить</button>
         </div>
+      </fieldset>
+      <fieldset id="briefBox" hidden>
+        <legend>Утренняя сводка</legend>
+        <p class="note">Каждое утро: погода, календарь, напоминания, карточки к повторению и дела.</p>
+        <div class="switch"><label for="briefOn">Каждый день в</label>
+          <input type="time" id="briefTime" value="07:30" aria-label="Время сводки" style="flex:none;width:9em">
+          <input type="checkbox" id="briefOn"></div>
+        <div class="push-row"><button class="btn quiet" type="button" id="briefNow">Прислать сейчас</button></div>
       </fieldset>
       <div id="voiceBlock"></div>
     </div>
@@ -355,7 +364,7 @@
   // ---------- вкладки ----------
   function show(view) {
     $("gear").setAttribute("aria-pressed", view === "settings");
-    if (view === "settings") { loadVoices(); pushState(); }
+    if (view === "settings") { loadVoices(); pushState(); loadBrief(); }
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("on", v.id === "v-" + view));
     document.querySelectorAll("nav button").forEach((b) => {
       if (b.dataset.view === view) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
@@ -418,20 +427,47 @@
       }
     });
   }
-  async function handle(promise, typed) {
+  // ---------- разговор без кнопки ----------
+  const END = /^(вс[её]|хватит|спасибо|пока|стоп|отбой|that'?s all|stop|thanks|thank you|bye)[\s.!,]*(атлас|atlas)?[\s.!]*$/i;
+  let convo = false;                                // идёт разговор без кнопки
+  const handsFree = () => localStorage.getItem("atlasHands") === "1";
+  function endConvo(msg) { if (!convo) return; convo = false; if (msg) hint(msg); }
+  async function listenTurn() {
+    if (!paired || rec) return;
+    unlockAudio(); setState("listening"); if (!convo) say("Слушаю…"); else $("stateText").textContent = "Слушаю — говори";
+    archive();
+    rec = await record(level, (blob, why) => {
+      rec = null;
+      if (!blob) {
+        setState("idle");
+        if (convo) endConvo("Разговор закончен. Нажми на сферу, чтобы продолжить.");
+        else hint(why + " Нажми на сферу и говори.");
+        return;
+      }
+      handle(api("/api/talk", undefined, blob), null, true);
+    });
+  }
+  async function handle(promise, typed, voiceTurn) {
     $("acts").replaceChildren();
     busy = true; setState("thinking"); archive(); if (typed) { say("", typed); shown.push(["you", typed]); }
     try {
       const res = await promise;
-      if (res.heard === "") { hint("Не расслышал. Нажми на сферу и повтори."); return; }
+      if (res.heard === "") {
+        if (convo) return;                          // шум — слушаем дальше (снова начнёт finally)
+        hint("Не расслышал. Нажми на сферу и повтори."); return; }
+      if (voiceTurn && handsFree()) convo = !END.test((res.heard || "").trim());
       if (res.heard) shown.push(["you", res.heard]);
       say(res.text, res.heard || typed); shown.push(["atlas", res.text]);
       showActions(res.actions);
       await speak(res);
       refresh();                                   // «добавь в дела…» голосом — списки уже свежие
+      if (convo && (res.actions || []).length) convo = false;   // ушли в другое приложение — не слушаем фоном
     } catch (e) {
       if (e.message !== "401") hint("Не получилось связаться с Atlas. Попробуй ещё раз.");
-    } finally { busy = false; if (paired) setState("idle"); }
+    } finally {
+      busy = false; if (paired) setState("idle");
+      if (convo && paired && !document.hidden) setTimeout(listenTurn, 250);
+    }
   }
   const ask = (t) => { unlockAudio(); handle(api("/api/ask", { text: t }), t); };
 
@@ -444,6 +480,7 @@
     catch (e) { onDone(null, "Нет доступа к микрофону. Разреши его в настройках браузера для этого сайта."); return null; }
     const chunks = []; const mr = new MediaRecorder(stream, MIME ? { mimeType: MIME } : undefined);
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
     const an = ctx.createAnalyser(); an.fftSize = 1024; ctx.createMediaStreamSource(stream).connect(an);
     const buf = new Float32Array(an.fftSize);
     let spoke = false, quietSince = 0, live = true; const t0 = performance.now();
@@ -470,15 +507,13 @@
 
   star.addEventListener("click", async () => {
     if (rec) return rec.stop();                     // второе нажатие — отправить сразу
-    if (busy) { player.pause(); if (window.speechSynthesis) speechSynthesis.cancel(); return; }
-    unlockAudio(); setState("listening"); say("Слушаю…");
-    archive();
-    rec = await record(level, (blob, why) => {
-      rec = null;
-      if (!blob) { setState("idle"); hint(why + " Нажми на сферу и говори."); return; }
-      handle(api("/api/talk", undefined, blob));
-    });
+    if (busy) {                                     // нажал, пока говорит, — замолчать и закончить разговор
+      player.pause(); if (window.speechSynthesis) speechSynthesis.cancel();
+      convo = false; return;
+    }
+    listenTurn();
   });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) { convo = false; if (rec) rec.stop(); } });
   $("askForm").addEventListener("submit", (e) => {
     e.preventDefault(); const t = $("askText").value.trim(); if (!t || busy) return;
     $("askText").value = ""; ask(t);
@@ -611,6 +646,26 @@
   });
   $("speakOn").checked = localStorage.getItem("atlasMute") !== "1";
   $("speakOn").addEventListener("change", (e) => localStorage.setItem("atlasMute", e.target.checked ? "0" : "1"));
+  $("handsOn").checked = handsFree();
+  $("handsOn").addEventListener("change", (e) => { localStorage.setItem("atlasHands", e.target.checked ? "1" : "0"); if (!e.target.checked) convo = false; });
+
+  // ---------- утренняя сводка ----------
+  async function loadBrief() {
+    if (!paired) return;
+    try {
+      const b = await api("/api/brief");
+      $("briefOn").checked = !!b.on; $("briefTime").value = b.time || "07:30"; $("briefBox").hidden = false;
+    } catch (e) { $("briefBox").hidden = true; }
+  }
+  const saveBrief = () => api("/api/brief/set", { on: $("briefOn").checked, time: $("briefTime").value }).catch(() => {});
+  $("briefOn").addEventListener("change", saveBrief);
+  $("briefTime").addEventListener("change", saveBrief);
+  $("briefNow").addEventListener("click", async () => {
+    $("briefNow").disabled = true;
+    try { const r = await api("/api/brief/now");
+      pushNote(r.sent ? "Сводка отправлена — смотри уведомление." : "Сводка готова, но уведомления не включены: " + r.text);
+    } catch (e) {} finally { $("briefNow").disabled = false; }
+  });
   async function loadVoices() {
     const box = $("voiceBlock");
     if (!paired) { box.replaceChildren(el("p", "note", "Сначала сопряги телефон с Atlas.")); return; }

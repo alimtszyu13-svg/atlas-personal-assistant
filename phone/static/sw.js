@@ -1,5 +1,5 @@
 // Atlas: оболочка приложения работает и без сети (звезда, подсказка), разговор — только с сетью.
-const SHELL = "atlas-shell-v5";        // v5: голос потоком
+const SHELL = "atlas-shell-v6";        // v6: разговор без кнопки, утренняя сводка
 const FILES = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/icon-180.png"];
 
 self.addEventListener("install", (e) => {

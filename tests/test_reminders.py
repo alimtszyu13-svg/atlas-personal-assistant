@@ -280,6 +280,51 @@ def phone_subscribes_and_gets_notifications_dead_ones_removed():
     assert panels.push_key()["key"] == k1
 
 
+# ---------------------------------------------------------------------------
+# Утренняя сводка
+# ---------------------------------------------------------------------------
+@test
+def morning_brief_says_your_day_in_one_message():
+    reset()
+    from core import briefing as B
+    saved = B.weather, B.events, B.cards_due, B.todos_open
+    B.weather = lambda: "+8°, ясно, днём до 15°, ночью 3°"
+    B.events = lambda: [("09:00", "SAT practice"), ("весь день", "День учителя")]
+    B.cards_due = lambda: 14
+    B.todos_open = lambda: 3
+    reminders.set_reminder("позвонить маме", "23:59") if reminders._now().strftime("%H:%M") < "23:58" else None
+    try:
+        text = B.build()
+    finally:
+        B.weather, B.events, B.cards_due, B.todos_open = saved
+    assert "Погода: +8°, ясно" in text and "09:00 — SAT practice; весь день — День учителя" in text, text
+    assert "К повторению 14 карточек." in text and "Открытых дел: 3." in text, text
+    B.events = lambda: (_ for _ in ()).throw(RuntimeError("нет Google"))
+    try:
+        B.weather = lambda: "+1°, снег, днём до 2°, ночью -4°"
+        text = B.build()
+        assert "Погода: +1°" in text and "календар" not in text.lower(), "часть не получилась — сводка без неё"
+    finally:
+        B.weather, B.events = saved[0], saved[1]
+
+
+@test
+def morning_brief_comes_once_a_day_at_your_time():
+    reset()
+    from core import briefing as B
+    tz = reminders._tz()
+    morning = reminders.datetime(2026, 10, 9, 7, 40, tzinfo=tz)
+    assert B.settings() == {"on": True, "time": "07:30", "sent": ""}
+    assert B.due(morning) and not B.due(morning.replace(hour=7, minute=0)) and not B.due(morning.replace(hour=11))
+    B._save(sent="2026-10-09")
+    assert not B.due(morning), "сегодня уже отправлена"
+    assert B.due(morning + reminders.timedelta(days=1))
+    assert B.set_settings(on=True, at="8:05")["time"] == "08:05"
+    assert B.set_settings(on=False)["on"] is False and not B.due(morning + reminders.timedelta(days=1, hours=1))
+    from phone import panels
+    assert panels.brief_set({"on": True, "time": "06:45"})["time"] == "06:45" and panels.brief_get()["on"] is True
+
+
 def main():
     ok = 0
     for t in TESTS:

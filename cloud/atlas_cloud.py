@@ -203,6 +203,10 @@ def _start_reminders() -> None:
     try:
         import reminders
         reminders.start_reminder_thread(None, push=True)
+        from core import briefing
+        briefing.start()
+        s = briefing.settings()
+        print(f"[облако] утренняя сводка: " + (f"каждый день в {s['time']}" if s["on"] else "выключена"))
         from core import push
         print("[облако] напоминания: " + ("уведомления на телефон включены" if push.available()
                                           else "нет библиотеки cryptography — уведомления не уйдут"))
@@ -225,7 +229,7 @@ def _computer_hands(server) -> None:
     tool_router.CORE.add("use_computer")             # всегда под рукой: «включи музыку», «громче», «открой…»
     try:
         from brain import planner
-        planner.SLIM_TOOLS.update({"use_computer", "open_on_phone"})   # короткий пересказ, без полного шага
+        planner.SLIM_TOOLS.update({"use_computer", "open_on_phone", "daily_brief"})   # короткий пересказ
     except Exception:
         pass
 
@@ -234,6 +238,11 @@ def _computer_hands(server) -> None:
     if not any(t["function"]["name"] == "open_on_phone" for t in tools.TOOLS_SCHEMA):
         tools.TOOLS_SCHEMA.append(phone_actions.SCHEMA)
     tool_router.CORE.add("open_on_phone")            # телефон в руке: сайты, поиск, музыка, видео, карты
+    from core import briefing                        # «что у меня сегодня» — погода, календарь, напоминания…
+    tools.AVAILABLE_FUNCTIONS["daily_brief"] = briefing.daily_brief
+    if not any(t["function"]["name"] == "daily_brief" for t in tools.TOOLS_SCHEMA):
+        tools.TOOLS_SCHEMA.append(briefing.SCHEMA)
+    tool_router.register_tool("daily_brief", "calendar")
 
     def forward(text):
         # быстрый путь компьютера («включи музыку») — на компьютер, только если о нём сказали;

@@ -169,6 +169,25 @@ def push_test(data=None) -> dict:
     return {"sent": n}
 
 
+# ---------------------------------------------------------------------------
+# Утренняя сводка
+# ---------------------------------------------------------------------------
+def brief_get(data=None) -> dict:
+    from core import briefing
+    return briefing.settings()
+
+
+def brief_set(data) -> dict:
+    from core import briefing
+    on = (data or {}).get("on")
+    return briefing.set_settings(on=None if on is None else bool(on), at=_text(data, "time", 5) or None)
+
+
+def brief_now(data=None) -> dict:
+    from core import briefing
+    return briefing.send_now(mark=False)
+
+
 ROUTES = {
     "/api/home": home,
     "/api/todo/add": todo_add, "/api/todo/done": todo_done, "/api/todo/delete": todo_delete,
@@ -176,4 +195,5 @@ ROUTES = {
     "/api/study/start": study_start, "/api/study/answer": study_answer, "/api/study/stop": study_stop,
     "/api/reminder/delete": reminder_delete,
     "/api/push/key": push_key, "/api/push/subscribe": push_subscribe, "/api/push/test": push_test,
+    "/api/brief": brief_get, "/api/brief/set": brief_set, "/api/brief/now": brief_now,
 }
