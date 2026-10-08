@@ -260,14 +260,25 @@ def transcribe(data: bytes, mime: str) -> str:
     return text
 
 
+def _actions() -> list:
+    """Что открыть на телефоне после ответа (core/phone_actions: сайт, поиск, приложение…)."""
+    try:
+        from core import phone_actions
+        return phone_actions.take()
+    except Exception:
+        return []
+
+
 def _answer(text: str, heard: str = None, choice: dict = None) -> dict:
     t0 = time.time()
+    _actions()                                          # остатки прошлого ответа не открываем
     reply = handle_text(text)
+    acts = _actions()
     t1 = time.time()
     audio, mime = synthesize(reply, choice)
     print(f"[время] телефон: ответ {t1 - t0:.1f} с, голос {time.time() - t1:.1f} с")
     em = _emo()
-    out = {"text": em.strip(reply) if em else reply, "audio": audio, "mime": mime}
+    out = {"text": em.strip(reply) if em else reply, "audio": audio, "mime": mime, "actions": acts}
     if heard is not None:
         out["heard"] = heard
     return out

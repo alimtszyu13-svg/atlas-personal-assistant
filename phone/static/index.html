@@ -98,6 +98,12 @@
   .chip { border: 1px solid var(--line); background: color-mix(in srgb, var(--nebula) 70%, transparent);
           border-radius: 999px; padding: 7px 14px; font-size: 15px; cursor: pointer; }
   .chip:disabled { opacity: .4; }
+  .acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; max-width: 34ch; }
+  .acts:empty { display: none; }
+  .act { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 999px;
+         background: var(--starlight); color: var(--night); font-weight: 600; font-size: 15px; text-decoration: none;
+         max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .act svg { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
   .install { margin-top: 12px; border: 1px solid color-mix(in srgb, var(--starlight) 35%, transparent);
              background: transparent; border-radius: 999px; padding: 7px 16px; font-size: 15px; cursor: pointer; }
   .install[hidden] { display: none; }
@@ -208,6 +214,7 @@
       <span class="halo"></span><span class="ring"></span><span class="core"></span>
     </button>
     <p class="caption" id="caption" aria-live="polite"></p>
+    <div class="acts" id="acts"></div>
     <div class="chips" id="chips">
       <button class="chip" data-ask="Какая сейчас погода?" disabled>Погода</button>
       <button class="chip" data-ask="Что у меня на сегодня?" disabled>Что на сегодня</button>
@@ -389,13 +396,29 @@
       } else done();
     });
   }
+  // «открой YouTube», «найди в гугле», «включи на Spotify» — ссылка открывается на телефоне
+  const ARROW = '<svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg>';
+  function showActions(list) {
+    const box = $("acts"); box.replaceChildren();
+    (list || []).forEach((a, i) => {
+      if (!/^(https:|tel:|sms:|mailto:)/i.test(a.url || "")) return;
+      const link = el("a", "act"); link.href = a.url; link.innerHTML = ARROW; link.append(document.createTextNode(a.label));
+      if (/^https:/i.test(a.url)) { link.target = "_blank"; link.rel = "noopener"; }
+      box.append(link);
+      if (i === 0) {                                // браузер разрешает открыть сам только сразу после нажатия
+        try { if (/^https:/i.test(a.url)) window.open(a.url, "_blank", "noopener"); } catch (e) {}
+      }
+    });
+  }
   async function handle(promise, typed) {
+    $("acts").replaceChildren();
     busy = true; setState("thinking"); archive(); if (typed) { say("", typed); shown.push(["you", typed]); }
     try {
       const res = await promise;
       if (res.heard === "") { hint("Не расслышал. Нажми на звезду и повтори."); return; }
       if (res.heard) shown.push(["you", res.heard]);
       say(res.text, res.heard || typed); shown.push(["atlas", res.text]);
+      showActions(res.actions);
       await speak(res);
       refresh();                                   // «добавь в дела…» голосом — списки уже свежие
     } catch (e) {

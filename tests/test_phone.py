@@ -450,6 +450,40 @@ def fast_command_the_cloud_cannot_do_goes_to_the_computer():
         REPLY[0] = "Готово."
 
 
+@test
+def links_for_the_phone_itself():
+    from core import phone_actions as A
+    assert A.build("youtube", "lofi hip hop")["url"] == "https://www.youtube.com/results?search_query=lofi+hip+hop"
+    assert A.build("спотифай", "Imagine Dragons")["url"] == "https://open.spotify.com/search/Imagine%20Dragons"
+    assert A.build("site", url="habr.com/ru")["url"] == "https://habr.com/ru"
+    assert A.build(url="javascript:alert(1)") == {}, "только https, звонок, смс и почта"
+    assert A.build("call", phone="+996 555 12-34-56")["url"] == "tel:+996555123456"
+    assert A.build("неизвестное", "SAT practice test")["url"].startswith("https://www.google.com/search?q=SAT")
+    assert A.build("карты", "Дордой Плаза")["label"] == "Карты: Дордой Плаза"
+
+
+@test
+def answer_brings_a_link_to_open_on_the_phone():
+    from core import phone_actions
+    brain = sys.modules["ai_brain"]
+    saved = brain.ask_ai
+
+    def ask_ai(q, speech=None):
+        phone_actions.open_on_phone("youtube", "lofi")
+        return "Открываю YouTube."
+    brain.ask_ai = ask_ai
+    try:
+        st, _, b = ask("включи lofi на ютубе")
+        r = json.loads(b)
+        assert r["text"] == "Открываю YouTube." and r["actions"] == [
+            {"label": "YouTube: lofi", "url": "https://www.youtube.com/results?search_query=lofi"}], r
+        brain.ask_ai = saved
+        st, _, b = ask("какая погода")
+        assert json.loads(b)["actions"] == [], "ссылка не переходит в следующий ответ"
+    finally:
+        brain.ask_ai = saved
+
+
 def main():
     global S, BASE, TOKEN
     install()

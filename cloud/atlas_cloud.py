@@ -12,6 +12,7 @@ SUPABASE_URL, SUPABASE_SERVICE_KEY, PHONE_KEY, FISH_API_KEY + FISH_VOICE_RU / FI
     python -m cloud.atlas_cloud
 """
 import os
+import re
 import sys
 import threading
 import time
@@ -26,8 +27,10 @@ from cloud import stubs  # noqa: E402
 CLOUD_HINT = ("(Said on the phone; Atlas is answering from the cloud: calendar, mail, reminders and timers — they "
               "arrive as phone notifications —, web search, weather, news, translation, website checks, notes, todos, "
               "flashcards and memory all work here — use the tools. "
-              "Music, apps, sites, volume, files and anything else on the computer — do it with use_computer; "
-              "if it says the computer is offline, tell the user briefly. "
+              "The user is holding the phone: to open a site, a search, a video, music, a map, an app, a call or "
+              "a message, use open_on_phone. Only when the user mentions the computer, or it is about the "
+              "computer itself — its volume, files, programs, screen — use use_computer; if it says the "
+              "computer is offline, tell the user briefly. "
               "Reply in 1-2 short spoken sentences, plain text, no brackets or quotes.) ")
 # без этого облако бессмысленно — если не загрузились, лучше честно упасть с ошибкой в логе Space
 ESSENTIAL = ("ai_brain", "brain", "brain.state", "brain.prompt", "brain.providers", "brain.tools", "brain.features",
@@ -207,6 +210,9 @@ def _start_reminders() -> None:
         print(f"[облако] напоминания не запустились: {e}")
 
 
+_MENTIONS_PC = re.compile(r"компьютер|компе?\b|компа\b|ноутбук|ноуте?\b|\bпк\b|\bpc\b|computer|laptop", re.I)
+
+
 def _computer_hands(server) -> None:
     """Компьютер на связи — облако передаёт ему всё, что умеет только он (core/pc_link)."""
     from core import pc_link
@@ -219,12 +225,20 @@ def _computer_hands(server) -> None:
     tool_router.CORE.add("use_computer")             # всегда под рукой: «включи музыку», «громче», «открой…»
     try:
         from brain import planner
-        planner.SLIM_TOOLS.add("use_computer")       # после ответа компьютера — короткий пересказ, без полного шага
+        planner.SLIM_TOOLS.update({"use_computer", "open_on_phone"})   # короткий пересказ, без полного шага
     except Exception:
         pass
 
+    from core import phone_actions
+    tools.AVAILABLE_FUNCTIONS["open_on_phone"] = phone_actions.open_on_phone
+    if not any(t["function"]["name"] == "open_on_phone" for t in tools.TOOLS_SCHEMA):
+        tools.TOOLS_SCHEMA.append(phone_actions.SCHEMA)
+    tool_router.CORE.add("open_on_phone")            # телефон в руке: сайты, поиск, музыка, видео, карты
+
     def forward(text):
-        if not pc_link.online():
+        # быстрый путь компьютера («включи музыку») — на компьютер, только если о нём сказали;
+        # иначе решает мозг: открыть на телефоне или попросить компьютер
+        if not pc_link.online() or not _MENTIONS_PC.search(text or ""):
             return None
         try:
             return pc_link.submit(text)

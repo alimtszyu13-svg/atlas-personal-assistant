@@ -297,6 +297,27 @@ def cloud_hands_work_to_the_computer():
 
 
 @test
+def phone_opens_things_itself_computer_only_when_named():
+    from brain import tools
+    import tool_router
+    from cloud import atlas_cloud
+    from core import pc_link
+    from phone import server
+    names = {t["function"]["name"] for t in tools.TOOLS_SCHEMA}
+    assert "open_on_phone" in names and "open_on_phone" in tool_router.CORE
+    assert "open_on_phone" in atlas_cloud.CLOUD_HINT
+    sent = []
+    saved = pc_link.submit, pc_link._state["last_poll"]
+    pc_link.submit = lambda text, wait=60: (sent.append(text), "Включил.")[1]
+    pc_link._state["last_poll"] = __import__("time").time()
+    try:
+        assert server.FORWARD("включи музыку") is None, "без слова «компьютер» решает мозг (телефон рядом)"
+        assert server.FORWARD("включи музыку на компе") == "Включил." and sent == ["включи музыку на компе"]
+    finally:
+        pc_link.submit, pc_link._state["last_poll"] = saved
+
+
+@test
 def google_token_survives_paste_mistakes():
     from cloud import atlas_cloud
     good = '{"token":"t","refresh_token":"r"}'
