@@ -204,6 +204,20 @@ def _hush_greeting() -> None:
             pass
 
 
+def _left_off_hint() -> None:
+    """В чате после приветствия: на чём остановился в прошлый раз (голосом не говорим — не мешает)."""
+    try:
+        from core import worklog
+        w = worklog.last_work()
+        if w:
+            ru = get_response_language() == "ru"
+            shared_state["chat_history"].append(("Atlas", (
+                f"В прошлый раз: {w['doc']} ({w['app']}, {w['when']}). Скажи «продолжим» — открою."
+                if ru else f"Last time: {w['doc']} ({w['app']}, {w['when']}). Say “let's continue” to reopen it.")))
+    except Exception as e:
+        print(f"[память ПК] {e}")
+
+
 def _voice_loop() -> None:
     start_reminder_thread(_speak_and_update)
     try:
@@ -212,6 +226,7 @@ def _voice_loop() -> None:
         shared_state["chat_history"].append(("Atlas", text))
         _greeting["thread"] = threading.Thread(target=_greet, args=(text,), daemon=True, name="greeting")
         _greeting["thread"].start()
+        _left_off_hint()
     except Exception as e:
         print(f"[голос] приветствие не прозвучало: {e}")
     print(f"[запуск] слушаю через {time.time() - _T0:.1f} с после запуска")
@@ -308,6 +323,11 @@ def main() -> None:
     routines.start(_announce)                     # ритуалы и привычки
     skill_forge.start(_announce)                  # мастерская навыков
     day_report.start()                            # учёт времени для итогов
+    try:
+        from core import worklog                    # память компьютера: документы, окна, сайты — локально
+        worklog.start()
+    except Exception as e:
+        print(f"[память ПК] не запустилась: {e}")
     gestures.start()                              # хлопки (жесты — в интерфейсе)
     ai_brain.set_announcer(_announce)             # итоги фоновых задач — вслух
     ai_brain.features.start_memory_autoreview()   # раз в 3 дня — проверка памяти, удаление только после «да»

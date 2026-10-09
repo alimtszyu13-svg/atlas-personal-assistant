@@ -149,7 +149,8 @@ def model_never_sees_computer_only_tools():
     from brain import tools
     names = {t["function"]["name"] for t in tools.TOOLS_SCHEMA}
     for pc in ("open_app", "play_on_spotify", "volume_up", "browser_open", "desktop_type", "search_file_content",
-               "holo_weather", "look", "learn_skill", "install_on_device", "run_routine"):
+               "holo_weather", "look", "learn_skill", "install_on_device", "run_routine", "what_did_i_do",
+               "open_workspace"):
         assert pc not in names, pc
     assert {"execute_plan", "update_plan"} <= names, "мозговые инструменты на месте"
 

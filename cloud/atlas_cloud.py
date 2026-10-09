@@ -126,7 +126,10 @@ CLOUD_HIDE = {"holo_show", "holo_weather", "holo_graph", "holo_control", "look",
               "heal_reject", "day_report", "mini_mode", "install_on_device", "create_routine", "list_routines",
               "run_routine", "delete_routine", "get_cpu_usage",   # нагрузка сервера — не твоего компьютера
               "get_my_ip", "get_local_ip", "ping_host", "check_internet_speed",   # это IP и скорость сервера
-              "generate_qr_code"}                                                   # сохраняет на рабочий стол
+              "generate_qr_code",                                                   # сохраняет на рабочий стол
+              "what_did_i_do", "find_past_activity", "reopen_from_history",         # память компьютера живёт
+              "continue_last_work", "forget_activity", "save_workspace", "open_workspace",
+              "list_workspaces"}                              # на нём — через use_computer
 
 
 def _hide_pc_tools() -> list:
