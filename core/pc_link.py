@@ -106,8 +106,9 @@ SCHEMA = {"type": "function", "function": {
     "name": "use_computer",
     "description": "Does something on the user's computer, where Atlas runs with full control: play music "
                    "(Spotify), open apps or sites, volume, media keys, files, screenshots, games, what the user did "
-                   "on the computer and which documents or sites they worked on, reopening them — anything "
-                   "that needs the computer. request: the user's request as a short instruction in their language.",
+                   "on the computer and which documents or sites they worked on, reopening them, file chores "
+                   "(tidy Downloads, collect files into a folder — the computer makes a plan first; pass the "
+                   "user's 'yes' / 'undo' on to it as a new request) — anything that needs the computer. request: the user's request as a short instruction in their language.",
     "parameters": {"type": "object", "properties": {"request": {"type": "string"}}, "required": ["request"]}}}
 
 

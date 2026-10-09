@@ -52,6 +52,8 @@ def _connect(db: str = None):
     c.execute("CREATE TABLE IF NOT EXISTS work_log (id INTEGER PRIMARY KEY, start REAL, end REAL, app TEXT, "
               "title TEXT, doc TEXT)")
     c.execute("CREATE INDEX IF NOT EXISTS work_log_start ON work_log(start)")
+    if "exe" not in {r[1] for r in c.execute("PRAGMA table_info(work_log)")}:
+        c.execute("ALTER TABLE work_log ADD COLUMN exe TEXT")      # путь к программе — для автопилота
     return c
 
 
@@ -75,7 +77,7 @@ def clean(app: str, title: str):
     return app, title, doc_of(title)
 
 
-def record(app: str, title: str, now: float = None, db: str = None) -> None:
+def record(app: str, title: str, now: float = None, db: str = None, exe: str = "") -> None:
     """Одно наблюдение активного окна. То же окно подряд — продлеваем запись, не дублируем."""
     item = clean(app, title)
     if not item:
@@ -89,40 +91,45 @@ def record(app: str, title: str, now: float = None, db: str = None) -> None:
             if last and last[2] == app and last[3] == title and now - last[1] <= MERGE_GAP_S:
                 c.execute("UPDATE work_log SET end=? WHERE id=?", (now, last[0]))
             else:
-                c.execute("INSERT INTO work_log (start, end, app, title, doc) VALUES (?, ?, ?, ?, ?)",
-                          (now, now, app, title, doc))
+                c.execute("INSERT INTO work_log (start, end, app, title, doc, exe) VALUES (?, ?, ?, ?, ?, ?)",
+                          (now, now, app, title, doc, exe or ""))
             c.commit()
         finally:
             c.close()
 
 
 def _foreground():
-    """(программа, заголовок) активного окна Windows."""
+    """(программа, заголовок, путь к exe) активного окна Windows."""
     import ctypes
     import ctypes.wintypes as wt
     import psutil
     u = ctypes.windll.user32
     h = u.GetForegroundWindow()
     if not h:
-        return "", ""
+        return "", "", ""
     n = u.GetWindowTextLengthW(h)
     buf = ctypes.create_unicode_buffer(n + 1)
     u.GetWindowTextW(h, buf, n + 1)
     pid = wt.DWORD()
     u.GetWindowThreadProcessId(h, ctypes.byref(pid))
     try:
-        exe = psutil.Process(pid.value).name()
+        proc = psutil.Process(pid.value)
+        exe = proc.name()
+        try:
+            path = proc.exe()
+        except Exception:
+            path = ""
     except Exception:
-        return "", ""
+        return "", "", ""
     title = buf.value
     if exe.lower() in ("python.exe", "pythonw.exe"):
-        return ("Atlas" if title.strip().upper() == "ATLAS" else "Python"), ""
+        return ("Atlas" if title.strip().upper() == "ATLAS" else "Python"), "", ""
     try:
         from core.day_report import _PRETTY
         app = _PRETTY.get(exe.lower())
     except Exception:
         app = None
-    return app or (exe[:-4] if exe.lower().endswith(".exe") else exe), title
+    return app or (exe[:-4] if exe.lower().endswith(".exe") else exe), title, path
 
 
 def _idle() -> float:
@@ -158,8 +165,8 @@ def start() -> bool:
             try:
                 if _idle() > IDLE_S:
                     continue
-                app, title = _foreground()
-                record(app, title)
+                app, title, path = _foreground()
+                record(app, title, exe=path)
                 if time.time() - last_clean > 86400:
                     cleanup()
                     last_clean = time.time()

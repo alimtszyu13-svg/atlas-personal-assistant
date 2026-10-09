@@ -207,12 +207,80 @@ def workspace_saves_programs_documents_and_pages_and_brings_them_back():
     assert WS.names() == ["учеба"] and "Say what to call" in WS.save("  ", wins)
 
 
+def _mornings(days, extra=None):
+    """Несколько утр подряд: Word с эссе, Spotify, Classroom в браузере (+ что-то своё в отдельные дни)."""
+    rows, hist = [], []
+    for d in days:
+        t = at(d, 9, 5)
+        rows += [(t, t + 600, "Word", "Эссе.docx - Word", "Эссе.docx", "C:/Office/WINWORD.EXE"),
+                 (t + 620, t + 900, "Spotify", "Spotify Premium", "", "C:/Spotify/Spotify.exe"),
+                 (t + 910, t + 1000, "Chrome", "Classroom - Google Chrome", "", "C:/Chrome/chrome.exe")]
+        hist.append((t + 930, "Chrome", "Classroom", "https://classroom.google.com/u/0/h"))
+        if extra and d in extra:
+            rows.append((t + 1010, t + 1100, "Steam", "Steam", "", "C:/Steam/steam.exe"))
+        e = at(d, 21, 0)                                   # вечером — каждый раз разное
+        rows.append((e, e + 300, "Chrome", f"Видео {d} - Google Chrome", "", "C:/Chrome/chrome.exe"))
+    return rows, hist
+
+
+@test
+def autopilot_notices_what_you_open_every_morning():
+    from core import autopilot as A
+    rows, hist = _mornings([1, 2, 3, 4], extra={2})
+    hs = A.find_habits(rows=rows, history=hist)
+    assert len(hs) == 1 and hs[0]["bucket"] == "утро" and hs[0]["days"] == 4, hs
+    labels = [i["label"] for i in hs[0]["items"]]
+    assert set(labels) == {"Эссе.docx", "Spotify", "classroom.google.com"}, labels
+    assert "Steam" not in labels, "один раз — не привычка"
+    assert hs[0]["time"] == "09:05"
+    rows2, hist2 = _mornings([1, 2])
+    assert A.find_habits(rows=rows2, history=hist2) == [], "два дня — ещё не привычка"
+
+
+@test
+def autopilot_offers_once_and_makes_a_workspace_on_yes():
+    from core import autopilot as A, workspaces as WS
+    db = fresh()
+    rows, hist = _mornings([1, 2, 3])
+    hs = A.find_habits(rows=rows, history=hist)
+    A._state["last"] = None
+    saved_lang, A._lang = A._lang, lambda: "ru"              # язык ответов на компьютере может быть английским
+    try:
+        text = A.next_offer(db=db, habits=hs)
+    finally:
+        A._lang = saved_lang
+    assert text.startswith("Заметил: утром около 09:05 ты обычно открываешь") and "«режим утро»" in text, text
+    en = A.offer_text(hs[0], "en")
+    assert en.startswith("I noticed that around 09:05 you usually open") and "'утро'" in en, en
+    assert A.next_offer(db=db, habits=hs) == "", "одну привычку предлагаем один раз"
+    A._state["last"] = None                                # как после перезапуска — берём из базы
+    r = A.accept(db=db)
+    assert r.startswith("Made workspace 'утро'") and "Spotify" in r, r
+    opened = []
+    WS.open_("утро", db=db, launcher=lambda it: (opened.append(it["kind"]), True)[1], running=set())
+    assert sorted(opened) == ["app", "doc", "url"], opened
+    assert "no habit suggestion" in A.accept(db=db), "второй раз то же предложение не принимается"
+
+
+@test
+def declined_habit_is_not_offered_again():
+    from core import autopilot as A
+    db = fresh()
+    rows, hist = _mornings([1, 2, 3])
+    hs = A.find_habits(rows=rows, history=hist)
+    A._state["last"] = None
+    assert A.next_offer(db=db, habits=hs)
+    assert A.decline(db=db).startswith("Okay")
+    assert A.next_offer(db=db, habits=hs) == ""
+
+
 @test
 def tools_are_registered_for_the_brain():
     from core.skills import REGISTRY
     import skills.worklog  # noqa: F401
     for name in ("what_did_i_do", "find_past_activity", "reopen_from_history", "continue_last_work", "forget_activity",
-                 "save_workspace", "open_workspace", "list_workspaces"):
+                 "save_workspace", "open_workspace", "list_workspaces", "accept_habit_suggestion",
+                 "decline_habit_suggestion", "list_habits"):
         assert name in REGISTRY and REGISTRY[name]["group"] == "worklog", name
     import tool_router
     assert "worklog" in tool_router._detect("что я делал вчера вечером"), "вопрос находит память компьютера"

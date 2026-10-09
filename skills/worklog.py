@@ -4,7 +4,7 @@
 «Что я делал вчера?», «где тот сайт про линейные уравнения?», «открой эссе, которое я писал
 во вторник», «на чём я остановился?», «забудь, что я делал сегодня».
 """
-from core import workspaces, worklog
+from core import autopilot, workspaces, worklog
 from core.skills import skill
 
 try:
@@ -15,6 +15,7 @@ try:
         "открывал", "смотрел", "работал над", "читал", "верни", "забудь, что я делал",
         "what did i do", "what was i doing", "where was i", "that site", "that file", "i was working on",
         "рабочее место", "рабочие места", "сохрани это как", "сохрани как", "режим", "workspace",
+        "да, сделай", "да сделай", "привычк", "не предлагай", "yes, do it", "habit",
     )
 except Exception:
     pass
@@ -88,3 +89,28 @@ def open_workspace(name: str) -> str:
 def list_workspaces() -> str:
     n = workspaces.names()
     return ("Saved workspaces: " + ", ".join(n) + ".") if n else "No saved workspaces yet."
+
+
+@skill("worklog",
+       description="Accepts Atlas's last habit suggestion ('around 9:00 you usually open …, make it a workspace?'): "
+                   "creates that workspace. Use when the user agrees: 'yes, do it', 'да, сделай'. "
+                   "name: only if the user gave a different name.",
+       params={"name": "optional workspace name"})
+def accept_habit_suggestion(name: str = "") -> str:
+    return autopilot.accept(name)
+
+
+@skill("worklog", description="Declines Atlas's last habit suggestion so it is not offered again: 'no', 'не надо'.")
+def decline_habit_suggestion() -> str:
+    return autopilot.decline()
+
+
+@skill("worklog", read_only=True,
+       description="Habits Atlas noticed on this computer: what the user usually opens at the start of the morning, "
+                   "day or evening. Use for 'what are my habits', 'что я обычно открываю'.")
+def list_habits() -> str:
+    hs = autopilot.find_habits()
+    if not hs:
+        return "No repeating habits yet — Atlas needs a few days of the computer's memory."
+    return "Habits: " + "; ".join(f"{h['bucket']} ~{h['time']} ({h['days']} days): " +
+                                  ", ".join(i["label"] for i in h["items"]) for h in hs[:4])

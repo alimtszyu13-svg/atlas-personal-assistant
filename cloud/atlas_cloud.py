@@ -129,7 +129,8 @@ CLOUD_HIDE = {"holo_show", "holo_weather", "holo_graph", "holo_control", "look",
               "generate_qr_code",                                                   # сохраняет на рабочий стол
               "what_did_i_do", "find_past_activity", "reopen_from_history",         # память компьютера живёт
               "continue_last_work", "forget_activity", "save_workspace", "open_workspace",
-              "list_workspaces"}                              # на нём — через use_computer
+              "list_workspaces", "accept_habit_suggestion", "decline_habit_suggestion", "list_habits",
+              "plan_tidy_folder", "plan_collect_files", "confirm_file_plan", "cancel_file_plan", "undo_file_plan"}                              # на нём — через use_computer
 
 
 def _hide_pc_tools() -> list:

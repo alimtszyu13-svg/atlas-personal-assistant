@@ -321,6 +321,11 @@ def main() -> None:
     missions.init(_announce)
     healer.start(_announce)                       # самолечение
     routines.start(_announce)                     # ритуалы и привычки
+    try:
+        from core import autopilot                  # «утром ты обычно открываешь… — сделать рабочим местом?»
+        autopilot.start(_announce)
+    except Exception as e:
+        print(f"[автопилот] не запустился: {e}")
     skill_forge.start(_announce)                  # мастерская навыков
     day_report.start()                            # учёт времени для итогов
     try:
