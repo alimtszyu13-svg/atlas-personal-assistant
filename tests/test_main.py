@@ -55,7 +55,7 @@ def install():
     _mod("reminders", start_reminder_thread=lambda f: None)
     _mod("selection_hotkey", start_selection_hotkeys=lambda: None)
     _mod("ui_state", shared_state={"chat_history": [], "manual_queue": [], "intro_done": True})
-    _mod("voice", speak=lambda t, interruptible=True: LOG.append(("speak", t)), listen=lambda: LISTEN.pop(0),
+    _mod("voice", speak=lambda t, interruptible=True: LOG.append(("speak", t)), listen=lambda **kw: LISTEN.pop(0),
          wait_for_wake_word=lambda: "voice", _push_to_talk_event=types.SimpleNamespace(clear=lambda: None),
          get_response_language=lambda: "ru", SpeechStream=Speech)
     _mod("web_gui", WebGUI=object)
@@ -240,6 +240,25 @@ def unclear_phrase_is_asked_again_not_searched():
 
 
 LISTEN_LAST = [""]
+
+
+@test
+def dictation_types_without_the_name_until_enough():
+    reset()
+    from core import dictation
+    typed = []
+    io = types.SimpleNamespace(foreground=lambda: 42, is_atlas=lambda h: False, title_of=lambda h: "Telegram",
+                               focus=lambda h: True, paste=typed.append, keys=lambda c, n=1: typed.append(c))
+    dictation._s["io"] = io
+    LISTEN[:] = ["Пиши за мной", "Привет, как дела?", "Хватит", "выключись"]
+    try:
+        M._voice_loop()
+    finally:
+        dictation._s["io"] = None
+    assert typed == ["Привет, как дела?"], typed
+    assert not any(isinstance(e, tuple) and e[0] == "ask_ai" for e in LOG), "диктовка не уходит в мозг"
+    said = [e[1] for e in LOG if isinstance(e, tuple) and e[0] == "speak"]
+    assert any("Пишу в «Telegram»" in t for t in said) and any("Диктовка закончена" in t for t in said), said
 
 
 @test

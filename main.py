@@ -103,6 +103,18 @@ def _announce(text: str) -> None:
     _speak_and_update(text, interruptible=False)
 
 
+def _quiet_announce(text: str) -> None:
+    """Подсказки и предложения: во время фокуса и диктовки молчим (напоминания идут через _announce)."""
+    try:
+        from core import dictation, focus
+        if focus.active() or dictation.active():
+            print(f"[тихо] не мешаю: {text}")
+            return
+    except Exception:
+        pass
+    _announce(text)
+
+
 # =============================================================================
 # Команды
 # =============================================================================
@@ -116,6 +128,11 @@ def _process_command(command: str) -> None:
     if speaker_id.handle_command(command, _announce):
         shared_state["state"] = "idle"
         shared_state["text"] = ""
+        return
+
+    from core import dictation                   # «пиши за мной» — дальше речь печатается в окно
+    if dictation.is_start(command):
+        _speak_and_update(dictation.start(), interruptible=False)
         return
 
     # Быстрый путь: простая команда выполняется сразу, без модели и без голоса
@@ -275,7 +292,11 @@ def _voice_turn():
 
         print(f"[DEBUG] always_listening={shared_state.get('always_listening')}")
         follow_up = shared_state.pop("follow_up", False)
-        if shared_state.get("always_listening"):
+        from core import dictation
+        if dictation.active():
+            trigger = "dictation"                 # диктовка — слушаем без имени, пока не скажут «хватит»
+            print("(диктовка — слушаю без имени)")
+        elif shared_state.get("always_listening"):
             trigger = "always"
         elif follow_up:
             trigger = "followup"                  # Atlas задал вопрос / идёт игра — слушаем без имени
@@ -289,7 +310,7 @@ def _voice_turn():
 
         _hush_greeting()
         shared_state["state"] = "listening"
-        command = listen()
+        command = listen(max_duration=30, silence_limit=1.4) if trigger == "dictation" else listen()
         if len(command.strip()) < MIN_COMMAND_LENGTH and not re.search(r"\d", command):
             return                              # пустое распознавание — не тратим запрос к модели
 
@@ -303,6 +324,11 @@ def _voice_turn():
                 shared_state["text"] = ""
                 return
 
+        if trigger == "dictation" and dictation.active():
+            reply = dictation.handle(command)
+            if reply:
+                _speak_and_update(reply, interruptible=False)
+            return
         if is_stop(command):
             from core import study                # «хватит» во время тренировки — закончить её
             if study.active():
@@ -342,7 +368,7 @@ def main() -> None:
     print(f"[audio] вывод: {output_device_name()} → {'наушники' if output_is_headphones() else 'колонки'}")
 
     memory.start_sleep_cycle()
-    proactive.start(_announce)
+    proactive.start(_quiet_announce)
     missions.init(_announce)
     healer.start(_announce)                       # самолечение
     routines.start(_announce)                     # ритуалы и привычки
@@ -353,10 +379,10 @@ def main() -> None:
         print(f"[уведомления ПК] не запустились: {e}")
     try:
         from core import autopilot                  # «утром ты обычно открываешь… — сделать рабочим местом?»
-        autopilot.start(_announce)
+        autopilot.start(_quiet_announce)
     except Exception as e:
         print(f"[автопилот] не запустился: {e}")
-    skill_forge.start(_announce)                  # мастерская навыков
+    skill_forge.start(_quiet_announce)            # мастерская навыков
     day_report.start()                            # учёт времени для итогов
     try:
         from core import worklog                    # память компьютера: документы, окна, сайты — локально
@@ -364,6 +390,12 @@ def main() -> None:
     except Exception as e:
         print(f"[память ПК] не запустилась: {e}")
     gestures.start()                              # хлопки (жесты — в интерфейсе)
+    try:
+        from core import clipboard_history, context_reminders
+        clipboard_history.start()                 # «что я копировал час назад?» — только здесь, без паролей
+        context_reminders.start(_announce)        # «напомни, когда открою Word…»
+    except Exception as e:
+        print(f"[буфер / напоминания по ситуации] не запустились: {e}")
     ai_brain.set_announcer(_announce)             # итоги фоновых задач — вслух
     ai_brain.features.start_memory_autoreview()   # раз в 3 дня — проверка памяти, удаление только после «да»
     try:

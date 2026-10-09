@@ -22,3 +22,5 @@ atlas_push.json
 *.json.tmp
 apply_*.py
 fix_*.py
+atlas_context_reminders.json
+clipboard.db
