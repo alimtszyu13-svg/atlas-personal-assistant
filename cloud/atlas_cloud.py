@@ -135,7 +135,7 @@ CLOUD_HIDE = {"holo_show", "holo_weather", "holo_graph", "holo_control", "look",
               "start_dictation", "clipboard_history_search", "paste_from_clipboard_history",
               "forget_clipboard_history", "start_focus", "stop_focus", "focus_status", "start_recording",
               "stop_recording", "ask_about_recording", "recordings_status", "send_notes_to_phone",
-              "remind_when", "list_context_reminders", "cancel_context_reminder"}                              # на нём — через use_computer
+              "remind_when", "list_context_reminders", "cancel_context_reminder", "open_recordings_window"}                              # на нём — через use_computer
 
 
 def _hide_pc_tools() -> list:

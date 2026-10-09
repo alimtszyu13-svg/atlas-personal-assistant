@@ -92,11 +92,15 @@ def focus_status() -> str:
 
 # --- конспекты --------------------------------------------------------------
 @skill("pc_plus",
-       description="Starts recording the computer's sound (a call in Zoom/Meet/Discord, a lecture, a YouTube video) "
-                   "to make notes later. with_mic: true for calls (the user's own voice too), false for videos/lectures.",
-       params={"title": "short name, e.g. 'Созвон с командой', 'Лекция по физике'", "with_mic": "true for calls"})
-def start_recording(title: str = "", with_mic: bool = True) -> str:
-    return meeting_notes.start_recording(title, bool(with_mic), announce=_announce)
+       description="Starts recording a call in Zoom/Meet/Discord, a lecture or a YouTube video to keep it and make "
+                   "notes later. with_mic: true for calls (the user's own voice too), false for videos/lectures. "
+                   "with_screen: also record the screen as video — true for videos/lectures or when the user asks "
+                   "('с экраном'), false for plain calls.",
+       params={"title": "short name, e.g. 'Созвон с командой', 'Лекция по физике'", "with_mic": "true for calls",
+               "with_screen": "true to record the screen too"})
+def start_recording(title: str = "", with_mic: bool = True, with_screen: bool = None) -> str:
+    return meeting_notes.start_recording(title, bool(with_mic), announce=_announce,
+                                         with_screen=None if with_screen is None else bool(with_screen))
 
 
 @skill("pc_plus",
@@ -148,3 +152,11 @@ def list_context_reminders() -> str:
        params={"query": "words from the reminder"})
 def cancel_context_reminder(query: str) -> str:
     return context_reminders.cancel(query)
+
+
+@skill("pc_plus", description="Opens the Records window on the computer: all recorded calls, lectures and videos with "
+                              "their notes and full text; recording can be started and stopped there too.")
+def open_recordings_window() -> str:
+    from web_gui import open_records_window
+    r = open_records_window()
+    return "The Records window is open." if r in ("opened", "shown") else f"Couldn't open the Records window ({r})."

@@ -226,6 +226,10 @@
   .clock .time { font-family: Unbounded, sans-serif; font-size: 18px; font-weight: 500; letter-spacing: .08em; }
   .clock .date { font-size: 11.5px; color: var(--muted); letter-spacing: .1em; }
   .icon-btn[hidden] { display: none; }
+  #recBadge.rec-live { min-width: 10px; width: 10px; height: 10px; padding: 0; border-radius: 50%; background: #22E06B;
+    box-shadow: 0 0 8px 2px rgba(34,224,107,.6); animation: recPulse 1.2s ease-in-out infinite; }
+  #recBadge.rec-busy { background: #F5C542; box-shadow: 0 0 8px 2px rgba(245,197,66,.55); }
+  @keyframes recPulse { 50% { opacity: .45; } }
   #stopBtn { color: var(--amber); border-color: rgba(255,179,90,.4); }
 
   /* --- переключатель --- */
@@ -687,6 +691,10 @@
     </button>
     <button class="icon-btn" id="stopBtn" hidden data-i18n-aria="stop" data-i18n-title="stop">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5"/></svg>
+    </button>
+    <button class="icon-btn" id="recordsBtn" aria-label="Записи" title="Записи: созвоны, лекции, видео">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="9" r="6.5"/><circle cx="9" cy="9" r="2.6" fill="currentColor" stroke="none"/></svg>
+      <span class="badge rec-live" id="recBadge" hidden></span>
     </button>
     <button class="icon-btn" data-panel="missions" aria-expanded="false" data-i18n-aria="missions" data-i18n-title="missions">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><circle cx="9" cy="9" r="2.4"/><path d="M9 1v2.5M9 14.5V17M1 9h2.5M14.5 9H17"/></svg>
@@ -2740,6 +2748,7 @@
     }).catch(function () {});
   }
   document.querySelector('[data-panel="settings"]').addEventListener('click', function () { setTimeout(refreshSpeaker, 50); });
+  document.getElementById('recordsBtn').addEventListener('click', function () { call('open_records_ui').catch(function () {}); });
   document.getElementById('spkToggle').addEventListener('change', function (e) {
     if (!e.isTrusted) return;
     call('set_speaker_check_ui', this.checked).then(refreshSpeaker).catch(console.log);
@@ -4612,6 +4621,9 @@
       live.mic = s.mic_level || 0;
       lastSys = s;
       if (openPanel === 'system') renderGauges();
+      { const rb = document.getElementById('recBadge');
+        rb.hidden = !(s.recording === 'recording' || s.recording === 'processing');
+        rb.classList.toggle('rec-busy', s.recording === 'processing'); }
       document.getElementById('missionBadge').hidden = !(s.missions_running > 0);
       document.getElementById('missionBadge').textContent = String(s.missions_running || '');
       onChatHistory(s.chat_history || []);

@@ -963,3 +963,140 @@ def _api_mini_mode_ui(self, on: bool) -> None:
 Api.mini_open_main = _api_mini_open_main
 Api.mini_hide = _api_mini_hide
 Api.mini_mode_ui = _api_mini_mode_ui
+
+
+# =============================================================================
+# === Окно «Записи»: созвоны, лекции, видео — текст и конспект (core/meeting_notes) ===
+# =============================================================================
+class RecordsApi:
+    """То, что вызывает atlas_records.html."""
+
+    def rec_list(self) -> list:
+        from core import meeting_notes as M
+        return [{k: i.get(k) for k in ("id", "title", "started", "minutes", "mic")} |
+                {"audio": bool(i.get("audio")), "video": bool(i.get("video"))} for i in reversed(M.recordings())]
+
+    def rec_get(self, rid: str) -> dict:
+        from core import meeting_notes as M
+        r = M.get(rid)
+        if not r:
+            return {}
+        from core import media_server
+        out = {k: r.get(k) for k in ("id", "title", "started", "minutes", "mic", "notes", "transcript")}
+        out["audio"] = media_server.url(rid, "audio") if r.get("audio") and os.path.exists(r["audio"]) else ""
+        out["video"] = media_server.url(rid, "video") if r.get("video") and os.path.exists(r["video"]) else ""
+        size = sum(os.path.getsize(r[k]) for k in ("audio", "video", "txt", "md") if r.get(k) and os.path.exists(r[k]))
+        out["size_mb"] = round(size / 1024 / 1024, 1)
+        return out
+
+    def rec_live(self) -> dict:
+        from core import meeting_notes as M
+        return M.live()
+
+    def rec_start(self, title: str = "", mic: bool = True, screen: bool = None) -> dict:
+        from core import meeting_notes as M
+        r = M.start_recording(title, bool(mic), with_screen=None if screen is None else bool(screen))
+        return {"ok": r.startswith("Recording started"), "error": "" if r.startswith("Recording started") else
+                ("Уже идёт запись." if r.startswith("Already") else "Подожди — ещё делаю конспект прошлой записи.")}
+
+    def rec_stop(self) -> bool:
+        from core import meeting_notes as M
+        if not M.active():
+            return False
+        M.stop_async()
+        return True
+
+    def rec_delete(self, rid: str) -> bool:
+        from core import meeting_notes as M
+        return M.delete(rid)
+
+    def rec_rename(self, rid: str, title: str) -> bool:
+        from core import meeting_notes as M
+        return M.rename(rid, title)
+
+    def _path(self, rid: str, kind: str) -> str:
+        from core import meeting_notes as M
+        it = M.get(rid)
+        return it.get(kind) or "" if it else ""
+
+    def rec_open_audio(self, rid: str) -> bool:
+        p = self._path(rid, "video") or self._path(rid, "audio")
+        if p and os.path.exists(p):
+            os.startfile(p)                                  # плеер Windows по умолчанию
+            return True
+        return False
+
+    def rec_open_folder(self, rid: str) -> bool:
+        import subprocess
+        p = self._path(rid, "video") or self._path(rid, "md") or self._path(rid, "txt") or self._path(rid, "audio")
+        if p and os.path.exists(p):
+            subprocess.Popen(["explorer", "/select,", os.path.normpath(p)])
+            return True
+        from core import meeting_notes as M
+        os.startfile(M.folder())
+        return True
+
+    def rec_to_phone(self, rid: str) -> str:
+        p = self._path(rid, "md") or self._path(rid, "txt")
+        if not p:
+            return "У этой записи нет текста."
+        from core import file_drop
+        r = file_drop.send(p)
+        return "Отправил на телефон." if r.startswith(("Sent", "Started")) else r
+
+    def rec_ask(self, rid: str, question: str) -> str:
+        from core import meeting_notes as M
+        try:
+            return M.ask_recording(question, rid)
+        except Exception as e:
+            return f"Не получилось ответить: {e}"
+
+
+def open_records_window() -> str:
+    """Открыть (или показать) окно «Записи». Можно звать из любого потока, когда Atlas уже запущен."""
+    w = _GUI.get("records")
+    if w is not None:
+        try:
+            w.show()
+            w.restore()
+            return "shown"
+        except Exception:
+            _GUI["records"] = None
+    try:
+        w = webview.create_window("Atlas · Записи", "atlas_records.html", js_api=RecordsApi(), width=1120, height=740,
+                                  min_size=(720, 520), background_color="#02040A")
+        _GUI["records"] = w
+        try:
+            w.events.closed += lambda: _GUI.update(records=None)
+        except Exception:
+            pass
+        return "opened"
+    except Exception as e:
+        print(f"[записи] окно не открылось: {e}")
+        return f"failed: {e}"
+
+
+def _api_open_records(self) -> str:
+    return open_records_window()
+
+
+def _api_recording(self) -> str:
+    try:
+        from core import meeting_notes as M
+        return M.phase()
+    except Exception:
+        return "idle"
+
+
+Api.open_records_ui = _api_open_records
+Api.recording_phase_ui = _api_recording
+_get_state_prev = Api.get_state
+
+
+def _get_state_with_rec(self) -> dict:
+    s = _get_state_prev(self)
+    s["recording"] = _api_recording(self)
+    return s
+
+
+Api.get_state = _get_state_with_rec

@@ -103,6 +103,49 @@ def _announce(text: str) -> None:
     _speak_and_update(text, interruptible=False)
 
 
+def _record_command(rec: tuple) -> None:
+    """Запись созвона / видео голосом — без модели, чтобы срабатывало сразу и всегда."""
+    from core import meeting_notes as M
+    ru = get_response_language() == "ru"
+    if rec[0] == "open":
+        from web_gui import open_records_window
+        open_records_window()
+        _speak_and_update("Открыл записи." if ru else "Here are your recordings.", interruptible=False)
+    elif rec[0] == "start":
+        _, title, mic, screen = rec
+        if M.active():
+            _speak_and_update("Уже записываю." if ru else "Already recording.", interruptible=False)
+            return
+        what = title[:1].lower() + title[1:]
+        _speak_and_update((f"Записываю {'с экраном' if screen else 'звук'}: {what}." if ru else
+                           f"Recording {'with the screen' if screen else 'audio'}: {title}."), interruptible=False)
+        r = M.start_recording(title, mic, announce=_announce, with_screen=screen)   # после фразы — свой голос не попадёт
+        if not r.startswith("Recording started"):
+            _speak_and_update(r, interruptible=False)
+    else:
+        if not M.active():
+            _speak_and_update("Сейчас ничего не записывается." if ru else "Nothing is being recorded.", interruptible=False)
+            return
+        _speak_and_update("Останавливаю. Делаю конспект — это займёт немного времени." if ru
+                          else "Stopping. Making the notes — this takes a moment.", interruptible=False)
+        r = M.stop_recording()
+        short = M.last_summary()
+        if short:
+            try:
+                from web_gui import open_records_window
+                open_records_window()
+            except Exception:
+                pass
+            _speak_and_update((f"Конспект готов. Коротко: {short}" if ru else f"Notes are ready. In short: {short}"),
+                              interruptible=True)
+        else:
+            _speak_and_update(r.split(". The audio")[0] if not ru else
+                              "Запись сохранена, но речи в ней не нашлось — проверь, что звук не был выключен.",
+                              interruptible=False)
+    shared_state["state"] = "idle"
+    shared_state["text"] = ""
+
+
 def _quiet_announce(text: str) -> None:
     """Подсказки и предложения: во время фокуса и диктовки молчим (напоминания идут через _announce)."""
     try:
@@ -128,6 +171,12 @@ def _process_command(command: str) -> None:
     if speaker_id.handle_command(command, _announce):
         shared_state["state"] = "idle"
         shared_state["text"] = ""
+        return
+
+    from core import meeting_notes               # «запиши созвон», «прекрати запись», «открой записи» — сразу
+    rec = meeting_notes.intent(command)
+    if rec:
+        _record_command(rec)
         return
 
     from core import dictation                   # «пиши за мной» — дальше речь печатается в окно
@@ -390,6 +439,13 @@ def main() -> None:
     except Exception as e:
         print(f"[память ПК] не запустилась: {e}")
     gestures.start()                              # хлопки (жесты — в интерфейсе)
+    try:
+        from core import meeting_notes, rec_indicator         # зелёный огонёк справа сверху, пока идёт запись
+        from web_gui import open_records_window
+        rec_indicator.start(on_click=open_records_window, info=meeting_notes.live)
+        meeting_notes.on_change(rec_indicator.show)
+    except Exception as e:
+        print(f"[записи] огонёк не запустился: {e}")
     try:
         from core import clipboard_history, context_reminders
         clipboard_history.start()                 # «что я копировал час назад?» — только здесь, без паролей

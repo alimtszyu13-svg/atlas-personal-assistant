@@ -262,6 +262,32 @@ def dictation_types_without_the_name_until_enough():
 
 
 @test
+def recording_by_voice_starts_and_stops_without_the_brain():
+    reset()
+    from core import meeting_notes as Mn
+    calls, state = [], {"on": False}
+    saved = Mn.start_recording, Mn.stop_recording, Mn.active, Mn.last_summary
+    Mn.start_recording = lambda title, mic, announce=None, with_screen=None: (
+        calls.append(("start", title, mic, with_screen)), state.update(on=True), "Recording started")[2]
+    Mn.stop_recording = lambda: (calls.append(("stop",)), state.update(on=False), "saved")[2]
+    Mn.active = lambda: state["on"]
+    Mn.last_summary = lambda: "обсудили сроки"
+    opened = []
+    sys.modules["web_gui"].open_records_window = lambda: opened.append(1)
+    LISTEN[:] = ["Атлас, запиши созвон с Машей", "Прекрати запись", "выключись"]
+    try:
+        M._voice_loop()
+    finally:
+        Mn.start_recording, Mn.stop_recording, Mn.active, Mn.last_summary = saved
+        del sys.modules["web_gui"].open_records_window
+    assert calls == [("start", "Созвон с Машей", True, False), ("stop",)], calls
+    assert not any(isinstance(e, tuple) and e[0] == "ask_ai" for e in LOG), "мозг не нужен"
+    said = [e[1] for e in LOG if isinstance(e, tuple) and e[0] == "speak"]
+    assert any(t.startswith("Записываю") for t in said) and any("обсудили сроки" in t for t in said), said
+    assert opened, "после конспекта открывается окно записей"
+
+
+@test
 def chat_shutdown_works_like_voice():
     reset()
     M.shared_state["manual_queue"].append("Выключись.")
