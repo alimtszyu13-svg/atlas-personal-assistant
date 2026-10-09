@@ -20,3 +20,5 @@ atlas_data.json
 atlas_reminders.json
 atlas_push.json
 *.json.tmp
+apply_*.py
+fix_*.py

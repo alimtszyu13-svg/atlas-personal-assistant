@@ -131,7 +131,7 @@ CLOUD_HIDE = {"holo_show", "holo_weather", "holo_graph", "holo_control", "look",
               "continue_last_work", "forget_activity", "save_workspace", "open_workspace",
               "list_workspaces", "accept_habit_suggestion", "decline_habit_suggestion", "list_habits",
               "plan_tidy_folder", "plan_collect_files", "confirm_file_plan", "cancel_file_plan", "undo_file_plan",
-              "send_file_to_phone"}                              # на нём — через use_computer
+              "send_file_to_phone", "show_screen_on_phone", "continue_on_phone"}                              # на нём — через use_computer
 
 
 def _hide_pc_tools() -> list:

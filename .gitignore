@@ -36,19 +36,11 @@ memory.db-wal
 memory.db-shm
 missions.db
 backup_*/
-# резервные копии установщиков
-backup_*/
-# локальные настройки интерфейса
 ui_layout.json
-# временные файлы озвучки
 temp_*.wav
 temp_*.mp3
 fish_test.mp3
-# базы и секреты
 *.db
-.env
-token.json
-credentials.json
 .heal_backup/
 
 # voice fingerprint (private)
@@ -70,3 +62,7 @@ cloud_sync_state.json
 atlas_reminders.json
 atlas_push.json
 *.json.tmp
+
+# РѕРґРЅРѕСЂР°Р·РѕРІС‹Рµ СѓСЃС‚Р°РЅРѕРІС‰РёРєРё Рё РёС… СЂРµР·РµСЂРІРЅС‹Рµ РєРѕРїРёРё вЂ” РїРѕСЃР»Рµ СѓСЃС‚Р°РЅРѕРІРєРё РЅРµ РЅСѓР¶РЅС‹
+apply_*.py
+fix_*.py

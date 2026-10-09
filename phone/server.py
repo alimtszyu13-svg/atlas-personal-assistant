@@ -276,10 +276,13 @@ _say_lock = threading.Lock()
 SAY_TTL = 120
 
 
-# Файлы для телефона: «пришли мне эссе» — ссылка /api/file/<id> (случайный ключ сам пропуск), живёт час
+# Файлы для телефона: «пришли мне эссе» — ссылка /api/file/<id> (случайный ключ сам пропуск), живёт 3 часа.
+# Файлы не держим в памяти: компьютер присылает их частями прямо на диск, телефон забирает потоком (с докачкой).
 _FILES = {}
-FILE_TTL = 3600
-FILE_MAX = 25 * 1024 * 1024
+FILE_TTL = 3 * 3600
+FILE_MAX = int(float(os.getenv("FILE_MAX_MB") or 4096) * 1024 * 1024)   # потолок — свободное место на диске
+FILE_PART_MAX = 16 * 1024 * 1024        # одна часть загрузки
+DISK_RESERVE = 200 * 1024 * 1024        # столько места оставляем свободным
 _UPLOADS = os.path.join(tempfile.gettempdir(), "atlas_files")
 
 
@@ -299,33 +302,185 @@ def share_file(path: str, name: str = None, temp: bool = False) -> str:
     with _say_lock:
         _clean_files()
         fid = secrets.token_urlsafe(18)
-        _FILES[fid] = {"path": path, "name": name or os.path.basename(path), "t": time.time(), "temp": temp}
+        _FILES[fid] = {"path": path, "name": name or os.path.basename(path), "t": time.time(), "temp": temp,
+                       "done": True}
     return fid
 
 
-def store_upload(data: bytes, name: str) -> str:
-    """Файл, присланный компьютером в облако, → временный файл + ссылка."""
+def _safe_name(name: str) -> str:
+    return re.sub(r"[\\/:*?\"<>|]", "_", os.path.basename(name or "file"))[:120] or "file"
+
+
+def _room_for(size: int) -> None:
+    """Хватит ли места на диске облака под файл такого размера."""
+    if size > FILE_MAX:
+        raise HTTPError(413, f"Файл больше {FILE_MAX // (1024 * 1024)} МБ.")
     os.makedirs(_UPLOADS, exist_ok=True)
-    safe = re.sub(r"[\\/:*?\"<>|]", "_", os.path.basename(name or "file"))[:120] or "file"
+    import shutil
+    free = shutil.disk_usage(_UPLOADS).free
+    if size + DISK_RESERVE > free:
+        raise HTTPError(507, f"В облаке сейчас мало места: свободно {max(0, free - DISK_RESERVE) // (1024 * 1024)} МБ.")
+
+
+def _new_upload(name: str, size: int) -> str:
+    _room_for(size)
+    safe = _safe_name(name)
     path = os.path.join(_UPLOADS, secrets.token_hex(8) + "_" + safe)
-    with open(path, "wb") as f:
+    open(path, "wb").close()
+    fid = share_file(path, safe, temp=True)
+    with _say_lock:
+        _FILES[fid].update(size=size, have=0, done=False)
+    return fid
+
+
+def _copy_body(environ, f, n: int) -> int:
+    """Тело запроса → файл, по мегабайту (в памяти не копится)."""
+    src, left = environ["wsgi.input"], n
+    while left > 0:
+        piece = src.read(min(left, 1024 * 1024))
+        if not piece:
+            break
+        f.write(piece)
+        left -= len(piece)
+    return n - left
+
+
+def store_upload(data: bytes, name: str) -> str:
+    """Файл, присланный компьютером в облако одним куском, → временный файл + ссылка."""
+    fid = _new_upload(name, len(data))
+    with _say_lock:
+        item = _FILES[fid]
+    with open(item["path"], "wb") as f:
         f.write(data)
-    return share_file(path, safe, temp=True)
+    item.update(have=len(data), done=True)
+    return fid
 
 
-def _file_response(fid: str):
+def _upload_item(fid: str) -> dict:
+    with _say_lock:
+        item = _FILES.get(fid)
+    if not item or "size" not in item:
+        raise HTTPError(404, "Такой загрузки нет — начни заново.")
+    return item
+
+
+def _length(environ) -> int:
+    try:
+        return int(environ.get("CONTENT_LENGTH") or 0)
+    except ValueError:
+        return 0
+
+
+def _pc_file_route(environ, path: str):
+    """Компьютер присылает файл: /start (имя, размер) → /part/<id> (части по порядку) → /done/<id>."""
+    from urllib.parse import unquote
+    _check_key(environ)
+    name = unquote(environ.get("HTTP_X_FILE_NAME") or "file")
+    if path == "/api/pc/file":                                  # старый способ: весь файл одним запросом
+        n = _length(environ)
+        if not n:
+            raise HTTPError(400, "Пустой файл.")
+        fid = _new_upload(name, n)
+        item = _upload_item(fid)
+        with open(item["path"], "wb") as f:
+            got = _copy_body(environ, f, n)
+        item.update(have=got, done=got == n)
+        if got != n:
+            raise HTTPError(400, "Файл пришёл не целиком.")
+        _file_ready(environ, fid, name)
+        return _json({"id": fid})
+    if path == "/api/pc/file/start":
+        try:
+            size = int(environ.get("HTTP_X_FILE_SIZE") or -1)
+        except ValueError:
+            size = -1
+        if size <= 0:
+            raise HTTPError(400, "Нужен размер файла (X-File-Size).")
+        return _json({"id": _new_upload(name, size), "part": FILE_PART_MAX})
+    if path.startswith("/api/pc/file/part/"):
+        item = _upload_item(path[len("/api/pc/file/part/"):])
+        try:
+            offset = int(environ.get("HTTP_X_OFFSET") or 0)
+        except ValueError:
+            offset = -1
+        n = _length(environ)
+        if n > FILE_PART_MAX:
+            raise HTTPError(413, "Слишком большая часть.")
+        if offset != item["have"] or item["have"] + n > item["size"]:
+            return _json({"have": item["have"]}, "409 Conflict")   # компьютер продолжит с нужного места
+        with open(item["path"], "r+b") as f:
+            f.seek(offset)
+            got = _copy_body(environ, f, n)
+        item["have"] = offset + got
+        item["t"] = time.time()
+        return _json({"have": item["have"]})
+    if path.startswith("/api/pc/file/done/"):
+        fid = path[len("/api/pc/file/done/"):]
+        item = _upload_item(fid)
+        if item["have"] != item["size"]:
+            return _json({"have": item["have"]}, "409 Conflict")
+        item.update(done=True, t=time.time())
+        _file_ready(environ, fid, item["name"])
+        return _json({"id": fid})
+    raise HTTPError(404, "Нет такой страницы.")
+
+
+def _file_ready(environ, fid: str, name: str) -> None:
+    if environ.get("HTTP_X_NOTIFY") == "1":
+        try:
+            from core import push
+            push.notify("Atlas · файл с компьютера", name, tag="atlas-file", url=f"/api/file/{fid}")
+        except Exception as e:
+            print(f"[телефон] уведомление о файле: {e}")
+
+
+def _range(environ, size: int):
+    """Range: bytes=a-b → (a, b) или None. Телефон докачивает и перематывает видео."""
+    m = re.match(r"bytes=(\d*)-(\d*)$", (environ.get("HTTP_RANGE") or "").strip())
+    if not m or (not m.group(1) and not m.group(2)):
+        return None
+    if m.group(1):
+        a = int(m.group(1))
+        b = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+    else:
+        a, b = max(0, size - int(m.group(2))), size - 1
+    if a > b or a >= size:
+        raise HTTPError(416, "Неверный диапазон.")
+    return a, b
+
+
+def _stream(path: str, a: int, n: int):
+    with open(path, "rb") as f:
+        f.seek(a)
+        while n > 0:
+            piece = f.read(min(n, 256 * 1024))
+            if not piece:
+                break
+            n -= len(piece)
+            yield piece
+
+
+def _file_response(fid: str, environ=None):
     with _say_lock:
         _clean_files()
         item = _FILES.get(fid)
     if not item or not os.path.isfile(item["path"]):
         raise HTTPError(404, "Ссылка на файл устарела — попроси Atlas прислать его ещё раз.")
+    if not item.get("done", True):
+        pct = int(100 * item.get("have", 0) / max(1, item.get("size", 1)))
+        raise HTTPError(409, f"Файл ещё загружается с компьютера ({pct}%) — открой чуть позже.")
     import mimetypes
     from urllib.parse import quote
-    with open(item["path"], "rb") as f:
-        data = f.read()
+    size = os.path.getsize(item["path"])
     mime = mimetypes.guess_type(item["name"])[0] or "application/octet-stream"
-    return "200 OK", [("Content-Type", mime), ("Cache-Control", "no-store"),
-                      ("Content-Disposition", f"inline; filename*=UTF-8''{quote(item['name'])}")], data
+    headers = [("Content-Type", mime), ("Cache-Control", "no-store"), ("Accept-Ranges", "bytes"),
+               ("Content-Disposition", f"inline; filename*=UTF-8''{quote(item['name'])}")]
+    r = _range(environ or {}, size) if size else None
+    if r:
+        a, b = r
+        return "206 Partial Content", headers + [("Content-Range", f"bytes {a}-{b}/{size}"),
+                                                 ("Content-Length", str(b - a + 1))], _stream(item["path"], a, b - a + 1)
+    return "200 OK", headers + [("Content-Length", str(size))], _stream(item["path"], 0, size)
 
 
 def _audio_mode(environ) -> str:
@@ -432,7 +587,7 @@ def _route(environ):
     method, path = environ.get("REQUEST_METHOD", "GET"), environ.get("PATH_INFO", "/")
     if method == "GET":
         if path.startswith("/api/file/"):
-            return _file_response(path[len("/api/file/"):])
+            return _file_response(path[len("/api/file/"):], environ)
         if path.startswith("/api/say/"):                # одноразовая ссылка на звук ответа — сама и есть пропуск
             with _say_lock:
                 item = _SAY.pop(path[len("/api/say/"):], None)
@@ -484,21 +639,20 @@ def _route(environ):
         sample = "Добрый вечер, сэр. Так я буду звучать." if lang == "ru" else "Good evening, sir. This is how I'll sound."
         audio, mime = synthesize(sample, _voice_choice(environ))
         return _json({"text": sample, "audio": audio, "mime": mime})
-    if PC_HUB and path == "/api/pc/file":                       # облако: компьютер прислал файл для телефона
+    if PC_HUB and path == "/api/pc/notify":                     # облако: компьютер просит уведомить телефон
         _check_key(environ)
-        data = _body(environ, FILE_MAX)
-        if not data:
-            raise HTTPError(400, "Пустой файл.")
-        from urllib.parse import unquote
-        name = unquote(environ.get("HTTP_X_FILE_NAME") or "file")
-        fid = store_upload(data, name)
-        if environ.get("HTTP_X_NOTIFY") == "1":
-            try:
-                from core import push
-                push.notify("Atlas · файл с компьютера", name, tag="atlas-file", url=f"/api/file/{fid}")
-            except Exception as e:
-                print(f"[телефон] уведомление о файле: {e}")
-        return _json({"id": fid})
+        try:
+            data = json.loads(_body(environ, 8192) or b"{}")
+        except ValueError:
+            raise HTTPError(400, "Нужен JSON.")
+        url = str(data.get("url") or "/")
+        if not (url == "/" or url.startswith(("https://", "/api/file/"))):
+            url = "/"
+        from core import push
+        n = push.notify(str(data.get("title") or "Atlas")[:80], str(data.get("body") or "")[:300], tag="atlas-pc", url=url)
+        return _json({"sent": n})
+    if PC_HUB and (path == "/api/pc/file" or path.startswith("/api/pc/file/")):   # облако: файл с компьютера
+        return _pc_file_route(environ, path)
     if PC_HUB and path in ("/api/pc/poll", "/api/pc/result"):     # облако: связь с компьютером
         _check_key(environ)
         try:
@@ -534,8 +688,8 @@ def _route(environ):
     raise HTTPError(404, "Нет такой страницы.")
 
 
-_REASON = {400: "Bad Request", 401: "Unauthorized", 404: "Not Found", 405: "Method Not Allowed", 413: "Payload Too Large",
-           500: "Internal Server Error"}
+_REASON = {400: "Bad Request", 401: "Unauthorized", 404: "Not Found", 405: "Method Not Allowed", 409: "Conflict",
+           413: "Payload Too Large", 416: "Range Not Satisfiable", 500: "Internal Server Error", 507: "Insufficient Storage"}
 
 
 def app(environ, start_response):
@@ -547,7 +701,7 @@ def app(environ, start_response):
         print(f"[телефон] ошибка: {e}")
         status, headers, data = _json({"error": "Внутренняя ошибка Atlas."}, "500 Internal Server Error")
     if isinstance(data, (bytes, bytearray)):
-        start_response(status, headers + [("Content-Length", str(len(data)))])
+        start_response(status, [h for h in headers if h[0] != "Content-Length"] + [("Content-Length", str(len(data)))])
         return [data]
     start_response(status, headers)                     # поток (звук): без длины, куски уходят сразу
     return _chunks(data)

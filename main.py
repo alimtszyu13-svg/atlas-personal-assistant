@@ -16,6 +16,12 @@ _T0 = _time.time()
 from core import logbook  # noqa: E402
 
 print(f"[журнал] {logbook.start()}")
+if __name__ == "__main__":                       # только настоящий запуск (тесты импортируют main.py)
+    try:
+        from core import early_ears  # noqa: E402  — «Атлас» слышно через секунду, пока грузится остальное
+        early_ears.start()
+    except Exception as _e:
+        print(f"[запуск] ранние уши: {_e}")
 import random
 import re
 import threading
@@ -242,6 +248,23 @@ def _voice_loop() -> None:
             time.sleep(1)
 
 
+def _unclear(command: str) -> bool:
+    """Короткая фраза, в которой распознавание не уверено («Официанты.» вместо «выключись»), —
+    переспросить, а не искать официантов в интернете. Следующую фразу слушаем без имени."""
+    try:
+        import voice as _v
+        from core import stt_guard
+        if not _v.last_was_unclear():
+            return False
+    except Exception:
+        return False
+    print(f"[голос] не уверен, что расслышал «{command}» — переспрашиваю")
+    shared_state["chat_history"].append(("You", command))
+    _speak_and_update(random.choice(stt_guard.REPEAT[get_response_language()]))
+    shared_state["follow_up"] = True
+    return True
+
+
 def _voice_turn():
     """Один разговор: ждём имя → слушаем → выполняем. → "quit", если Atlas выключают."""
     if True:
@@ -288,6 +311,8 @@ def _voice_turn():
         if is_shutdown(command):
             _shutdown()
             return "quit"
+        if _unclear(command):
+            return
         _process_command(command)
 
         # Режим продолжения: вопрос в конце ответа или активная игра
@@ -321,6 +346,11 @@ def main() -> None:
     missions.init(_announce)
     healer.start(_announce)                       # самолечение
     routines.start(_announce)                     # ритуалы и привычки
+    try:
+        from core import handoff                    # загрузка готова, батарея садится — на телефон, пока тебя нет
+        handoff.start_alerts()
+    except Exception as e:
+        print(f"[уведомления ПК] не запустились: {e}")
     try:
         from core import autopilot                  # «утром ты обычно открываешь… — сделать рабочим местом?»
         autopilot.start(_announce)

@@ -69,6 +69,9 @@ def _with_files(reply: str) -> str:
         text, marks = file_drop.take_marks(reply)
         for fid, name in marks:
             phone_actions._pending.append({"label": f"Открыть {name}", "url": f"/api/file/{fid}"})
+        text, links = file_drop.take_links(text)
+        for url, label in links:
+            phone_actions._pending.append({"label": label, "url": url})
         return text
     except Exception:
         return reply
@@ -119,7 +122,8 @@ SCHEMA = {"type": "function", "function": {
     "description": "Does something on the user's computer, where Atlas runs with full control: play music "
                    "(Spotify), open apps or sites, volume, media keys, files, screenshots, games, what the user did "
                    "on the computer and which documents or sites they worked on, reopening them, sending a file from "
-                   "the computer to the phone ('пришли мне эссе'), file chores "
+                   "the computer to the phone ('пришли мне эссе'), showing its screen on the phone ('что на экране "
+                   "компа?'), continuing an open page or document on the phone, file chores "
                    "(tidy Downloads, collect files into a folder — the computer makes a plan first; pass the "
                    "user's 'yes' / 'undo' on to it as a new request) — anything that needs the computer. request: the user's request as a short instruction in their language.",
     "parameters": {"type": "object", "properties": {"request": {"type": "string"}}, "required": ["request"]}}}

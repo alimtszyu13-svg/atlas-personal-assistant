@@ -66,6 +66,7 @@ class Device:
         d = tempfile.mkdtemp(prefix=f"atlas_{name}_")
         self.db, self.state, self.notes = (os.path.join(d, "memory.db"), os.path.join(d, "state.json"),
                                            os.path.join(d, "atlas_data.json"))
+        self.reminders, self.push = os.path.join(d, "atlas_reminders.json"), os.path.join(d, "atlas_push.json")
         c = sqlite3.connect(self.db)
         for sql in CS._SCHEMA.values():
             c.execute(sql)
@@ -74,6 +75,7 @@ class Device:
 
     def sync(self, cloud):
         CS.STATE, CS.NOTES = self.state, self.notes
+        CS.REMINDERS, CS.PUSH = self.reminders, self.push    # настоящие файлы компьютера в тест не попадают
         return CS.sync_once(cloud, self.db)
 
     def sql(self, q, args=()):

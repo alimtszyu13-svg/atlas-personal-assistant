@@ -383,6 +383,74 @@ def file_from_the_computer_comes_through_the_cloud():
 
 
 @test
+def big_file_goes_in_parts_and_downloads_with_resume():
+    from core import file_drop
+    import urllib.error
+    blob = os.urandom(300_000)
+    d = tempfile.mkdtemp()
+    path = os.path.join(d, "Фильм.mp4")
+    open(path, "wb").write(blob)
+
+    def fake_call(url, key, data=b"", headers=None, timeout=0):       # urllib → прямо в app облака
+        st, r = call(url.split("atlas.example", 1)[1], "POST", data, {"X-Atlas-Key": key, **(headers or {})})
+        if st not in (200, 409):
+            raise urllib.error.HTTPError(url, st, str(r), {}, None)
+        return r
+    saved = file_drop._call, file_drop.PART
+    file_drop._call, file_drop.PART = fake_call, 64 * 1024
+    seen = []
+    try:
+        fid = file_drop.upload(path, "https://atlas.example", "k123", progress=seen.append)
+    finally:
+        file_drop._call, file_drop.PART = saved
+    assert seen and seen[-1] == 100, seen
+    st, data = call("/api/file/" + fid)
+    assert st == 200 and data == blob, "файл собрался из частей без потерь"
+    env_range = {"Range": "bytes=1000-1999"}
+    st, part = call("/api/file/" + fid, headers=env_range)
+    assert st == 206 and part == blob[1000:2000], (st, len(part))
+    st, r = call("/api/pc/file/start", "POST", b"", {"X-Atlas-Key": "k123", "X-File-Name": "a.bin", "X-File-Size": "10"})
+    st2, r2 = call("/api/pc/file/part/" + r["id"], "POST", b"12345", {"X-Atlas-Key": "k123", "X-Offset": "3"})
+    assert st2 == 409 and r2 == {"have": 0}, "часть не по порядку — облако говорит, откуда продолжить"
+    assert call("/api/file/" + r["id"])[0] == 409, "недогруженный файл не отдаём"
+    st, r = call("/api/pc/file/start", "POST", b"", {"X-Atlas-Key": "k123", "X-File-Name": "huge.bin",
+                                                     "X-File-Size": str(S.FILE_MAX + 1)})
+    assert st == 413, st
+
+
+@test
+def big_file_is_sent_in_the_background_with_a_notification():
+    from core import file_drop
+    import threading as th
+    got, done = [], th.Event()
+    saved = file_drop.resolve, file_drop.BACKGROUND_MB
+    file_drop.resolve, file_drop.BACKGROUND_MB = (lambda q: __file__), 0
+    try:
+        r = file_drop.send("видео", cloud_url="https://atlas.example", key="k",
+                           uploader=lambda p, u, k, notify: (got.append(notify), done.set(), "id")[2])
+    finally:
+        file_drop.resolve, file_drop.BACKGROUND_MB = saved
+    assert r.startswith("Started sending test_cloud_brain.py") and done.wait(5) and got == [True], (r, got)
+
+
+@test
+def computer_can_notify_the_phone_through_the_cloud():
+    from core import push
+    got = []
+    saved = push.notify
+    push.notify = lambda title, body, tag=None, url="/": (got.append((title, body, url)), 1)[1]
+    try:
+        st, r = call("/api/pc/notify", "POST", json.dumps({"title": "Atlas · загрузка готова", "body": "a.pdf",
+                                                           "url": "javascript:alert(1)"}).encode(),
+                     {"Content-Type": "application/json", "X-Atlas-Key": "k123"})
+        assert st == 200 and r == {"sent": 1} and got == [("Atlas · загрузка готова", "a.pdf", "/")], (st, r, got)
+        st, _ = call("/api/pc/notify", "POST", b"{}", {"Content-Type": "application/json", "X-Atlas-Key": "bad"})
+        assert st == 401
+    finally:
+        push.notify = saved
+
+
+@test
 def google_token_survives_paste_mistakes():
     from cloud import atlas_cloud
     good = '{"token":"t","refresh_token":"r"}'

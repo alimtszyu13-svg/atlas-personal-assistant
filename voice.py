@@ -177,6 +177,12 @@ def _vosk_recognizer(words):
     from vosk import Model, KaldiRecognizer, SetLogLevel
     with _vosk_lock:                                       # заранее грузит фоновый поток — не дважды
         if _vosk_model is None:
+            try:
+                from core import early_ears                  # ранние уши main.py уже загрузили модель
+                _vosk_model = early_ears.model()
+            except Exception:
+                pass
+        if _vosk_model is None:
             SetLogLevel(-1)
             _vosk_model = Model(VOSK_MODEL_PATH)
     finder = getattr(_vosk_model, "find_word", None)      # есть не во всех версиях Vosk
@@ -338,43 +344,60 @@ def _get_vad():
     return _vad_model
 
 
-def _has_speech(recording, min_speech_s: float = 0.3) -> bool:
-    """Silero VAD: есть ли в записи человеческая речь, а не шум.
-    Без этой проверки Whisper на тишине «слышит» фразы вроде 'Thank you.'"""
+def _speech_spans(recording):
+    """Silero VAD: отрезки речи [{"start", "end"}] в сэмплах; None — VAD недоступен."""
     try:
         import torch
         from silero_vad import get_speech_timestamps
         audio = torch.from_numpy(recording.flatten().astype("float32") / 32768.0)
-        ts = get_speech_timestamps(audio, _get_vad(), sampling_rate=SAMPLE_RATE)
-        speech = sum(t["end"] - t["start"] for t in ts) / SAMPLE_RATE
-        return speech >= min_speech_s
+        return get_speech_timestamps(audio, _get_vad(), sampling_rate=SAMPLE_RATE)
     except Exception as e:
         print(f"[VAD] недоступен ({e}) — пропускаю проверку")
-        return True
+        return None
+
+
+def _has_speech(recording, min_speech_s: float = 0.3) -> bool:
+    """Есть ли в записи человеческая речь, а не шум.
+    Без этой проверки Whisper на тишине «слышит» фразы вроде 'Thank you.'"""
+    ts = _speech_spans(recording)
+    return True if ts is None else sum(t["end"] - t["start"] for t in ts) / SAMPLE_RATE >= min_speech_s
 
 
 STT_WHISPER = os.getenv("STT_MODEL") or "whisper-large-v3"     # полная модель: точнее turbo на русском
 _STT_BASE_PROMPT = ("Это обычный разговор с голосовым ассистентом Атлас: вопросы и просьбы на русском языке, "
                     "иногда с английскими словами. Бишкек.")      # без слов-команд: Whisper не подгоняет под них речь
+_STT_BASE_PROMPT_EN = "A casual conversation with the voice assistant Atlas: questions and requests in English. Bishkek."
 
 
 def _stt_prompt() -> str:
     """Подсказка-словарь для Whisper: типичные слова Atlas + твои слова из .env (STT_VOCAB)."""
     extra = (os.getenv("STT_VOCAB") or "").strip()
-    return (_STT_BASE_PROMPT + (" " + extra if extra else ""))[:600]
+    base = _STT_BASE_PROMPT_EN if _stt_language() == "en" else _STT_BASE_PROMPT
+    return (base + (" " + extra if extra else ""))[:600]
 
 
 def _stt_language():
-    """STT_LANGUAGE=ru|en — язык речи зафиксирован; иначе в русском режиме — ru, в английском — угадывает сам."""
+    """Язык речи для Whisper = язык Atlas: русский режим — слушает русский, английский — английский.
+    Язык задан заранее, а не угадывается по одной короткой фразе (так и получались «официанты»).
+    STT_LANGUAGE=ru|en в .env — всегда этот язык; auto — пусть Whisper угадывает сам."""
     fixed = (os.getenv("STT_LANGUAGE") or "").strip().lower()
     if fixed in ("ru", "en"):
         return fixed
-    return "ru" if _response_language["lang"] == "ru" else None
+    if fixed in ("auto", "detect"):
+        return None
+    return "en" if _response_language["lang"] == "en" else "ru"
 
+
+def _seg_stats(r):
+    segs = getattr(r, "segments", None) or (getattr(r, "model_extra", None) or {}).get("segments") or []
+    get = lambda sg, k: sg.get(k) if isinstance(sg, dict) else getattr(sg, k, None)
+    lps = [x for x in (get(sg, "avg_logprob") for sg in segs) if x is not None]
+    nsp = [x for x in (get(sg, "no_speech_prob") for sg in segs) if x is not None]
+    return (sum(lps) / len(lps) if lps else -1.0), (max(nsp) if nsp else 0.0)
 
 
 def _stt_best(temp_path, data):
-    """Два распознавания параллельно (с подсказкой и без) → берём то, в котором Whisper увереннее."""
+    """Два распознавания параллельно (с подсказкой и без). → [(ответ, средний logprob, вероятность тишины)]."""
     from concurrent.futures import ThreadPoolExecutor
     lang = _stt_language()
 
@@ -385,10 +408,13 @@ def _stt_best(temp_path, data):
         if lang:
             kw["language"] = lang
         r = groq_client.audio.transcriptions.create(**kw)
-        segs = getattr(r, "segments", None) or (getattr(r, "model_extra", None) or {}).get("segments") or []
-        lps = [(sg.get("avg_logprob") if isinstance(sg, dict) else getattr(sg, "avg_logprob", None)) for sg in segs]
-        lps = [x for x in lps if x is not None]
-        return r, (sum(lps) / len(lps) if lps else -1.0)
+        if not lang:
+            lg = (getattr(r, "language", "") or "").lower()
+            if lg and lg not in ("en", "english", "ru", "russian"):
+                print(f"[Whisper] язык «{lg}» — перераспознаю как русский")
+                kw["language"] = "ru"
+                r = groq_client.audio.transcriptions.create(**kw)
+        return (r,) + _seg_stats(r)
 
     results = []
     with ThreadPoolExecutor(max_workers=2) as ex:
@@ -400,21 +426,34 @@ def _stt_best(temp_path, data):
                 print(f"[Whisper] один из вариантов не получился: {e}")
     if not results:
         raise RuntimeError("распознавание не удалось")
-    best = max(results, key=lambda x: x[1])
-    if len(results) == 2:
-        (r1, s1), (r2, s2) = results
-        t1, t2 = (r1.text or "").strip(), (r2.text or "").strip()
-        if t1.lower().strip(".!? ") != t2.lower().strip(".!? "):
-            print(f"[Whisper] варианты: «{t1}» ({s1:.2f}) / «{t2}» ({s2:.2f}) → «{(best[0].text or '').strip()}»")
-    r = best[0]
-    if not lang:
-        lg = (getattr(r, "language", "") or "").lower()
-        if lg and lg not in ("en", "english", "ru", "russian"):
-            # Whisper иногда принимает русскую речь за польскую — переслушиваем как русскую
-            print(f"[Whisper] язык «{lg}» — перераспознаю как русский")
-            r = groq_client.audio.transcriptions.create(file=(temp_path, data), model=STT_WHISPER,
-                                                        temperature=0.0, language="ru")
-    return r
+    return results
+
+
+def _vosk_command(audio) -> str:
+    """Короткая команда локально (Vosk со списком команд) — вторая пара ушей для «выключись», «стоп»."""
+    try:
+        import json
+        from core import stt_guard
+        from vosk import KaldiRecognizer
+        _vosk_recognizer(WAKE_WORDS_LOCAL[:1])                # модель загружена (обычно уже)
+        finder = getattr(_vosk_model, "find_word", None)
+        phrases = stt_guard.grammar((lambda w: finder(w) >= 0) if finder else None)
+        rec = KaldiRecognizer(_vosk_model, SAMPLE_RATE, json.dumps(phrases, ensure_ascii=False))
+        rec.SetWords(True)
+        rec.AcceptWaveform(audio.astype(np.int16).tobytes())
+        res = json.loads(rec.FinalResult())
+        return stt_guard.local_command(res.get("result") or [], res.get("text", ""))
+    except Exception as e:
+        print(f"[vosk] команды не проверил: {e}")
+        return ""
+
+
+_last_stt = {"doubt": False}
+
+
+def last_was_unclear() -> bool:
+    """Последняя фраза распознана неуверенно и коротко — лучше переспросить, чем выполнять."""
+    return bool(_last_stt.get("doubt"))
 
 
 _WHISPER_JUNK = {
@@ -424,32 +463,49 @@ _WHISPER_JUNK = {
 
 def _transcribe_audio(recording: np.ndarray) -> str:
     """
-    Распознаёт фразу через Groq Whisper. В русском режиме — с подсказкой языка,
-    в английском Whisper определяет язык сам. Тишину и фразы, которые Whisper
-    выдумывает на шуме («Продолжение следует», «Thanks for watching»), отбрасываем.
+    Распознаёт фразу: звук подготовлен (без тишины по краям, ровная громкость), Whisper — два варианта,
+    короткую команду параллельно слушает локальный Vosk. Тишину и выдуманные фразы отбрасываем;
+    неуверенную короткую фразу помечаем — Atlas переспросит, а не полезет искать «официантов».
     """
-    if not _has_speech(recording):
+    from concurrent.futures import ThreadPoolExecutor
+    from core import stt_guard
+    _last_stt["doubt"] = False
+    spans = _speech_spans(recording)
+    if spans is not None and stt_guard.speech_seconds(spans) < 0.3:
         print("[VAD] речи нет — Whisper не вызываю")
         return ""
+    audio = stt_guard.prepare(recording, spans)
+    seconds = stt_guard.speech_seconds(spans) if spans else len(recording) / SAMPLE_RATE
 
     temp_path = "temp_stt.wav"
     with wave.open(temp_path, 'wb') as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(SAMPLE_RATE)
-        wf.writeframes(recording.tobytes())
+        wf.writeframes(audio.tobytes())
 
     try:
         with open(temp_path, "rb") as f:
             data = f.read()
-        result = _stt_best(temp_path, data)        # два варианта параллельно → самый уверенный
-        text = (result.text or "").strip()
-        if not re.search(r"[^\W_]", text):         # ни буквы, ни цифры: «...», «?!»
-            print(f"[Whisper] пустая фраза отброшена: {text!r}")
+        with ThreadPoolExecutor(max_workers=1) as ex:          # Vosk работает, пока Whisper в сети
+            local = ex.submit(_vosk_command, audio) if seconds <= stt_guard.SHORT_S \
+                and _stt_language() != "en" else None                # Vosk знает только русские команды
+            results = _stt_best(temp_path, data)
+            vosk = local.result() if local else ""
+        cands = [((r.text or "").strip(), s, ns) for r, s, ns in results]
+        cands = [c for c in cands if re.search(r"[^\W_]", c[0])
+                 and re.sub(r"[^\w\s]", "", c[0].lower()).strip() not in _WHISPER_JUNK]
+        choice = stt_guard.pick(cands, vosk, seconds)
+        text = choice["text"]
+        shown = " / ".join(f"«{t}» ({s:.2f})" for t, s, _ in cands)
+        if choice["source"] == "vosk":
+            print(f"[распознавание] {shown} → команда «{text}» (Vosk): {choice['why']}")
+        elif len(cands) > 1 and len({stt_guard.norm(c[0]) for c in cands}) > 1 or choice["doubt"]:
+            print(f"[Whisper] варианты: {shown} → «{text}»{' — не уверен, переспрошу' if choice['doubt'] else ''}")
+        if not text:
+            print("[Whisper] пустая или выдуманная фраза отброшена")
             return ""
-        if re.sub(r"[^\w\s]", "", text.lower()).strip() in _WHISPER_JUNK:
-            print(f"[Whisper] выдуманная фраза отброшена: {text!r}")
-            return ""
+        _last_stt["doubt"] = choice["doubt"]
         return text
     except Exception as e:
         print(f"[STT error]: {e}")
@@ -478,6 +534,14 @@ def wait_for_wake_word() -> str:
     её звук сохраняется и уходит в распознавание как команда."""
     import json
     from collections import deque
+    try:
+        from core import early_ears                       # «Атлас» прозвучал, пока Atlas запускался
+        woke, after = early_ears.take()
+        if woke:
+            _wake_leftover["audio"] = after
+            return "voice"
+    except Exception as e:
+        print(f"[запуск] ранние уши: {e}")
     print("(waiting for wake word 'Атлас' — локально)")
     rec = _vosk_recognizer(WAKE_WORDS_LOCAL)
     rec.SetWords(True)

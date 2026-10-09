@@ -217,6 +217,32 @@ def short_noise_is_ignored():
 
 
 @test
+def unclear_phrase_is_asked_again_not_searched():
+    reset()
+    v = sys.modules["voice"]
+    unclear = ["Официанты."]
+    v.last_was_unclear = lambda: LISTEN_LAST[0] in unclear
+    saved_listen = v.listen
+
+    def listen():
+        LISTEN_LAST[0] = LISTEN.pop(0)
+        return LISTEN_LAST[0]
+    M.listen = listen
+    LISTEN[:] = ["Официанты.", "выключись"]
+    try:
+        M._voice_loop()
+    finally:
+        M.listen = saved_listen
+        del v.last_was_unclear
+    assert not any(isinstance(e, tuple) and e[0] == "ask_ai" for e in LOG), "мозг не искал официантов"
+    asked = [e[1] for e in LOG if isinstance(e, tuple) and e[0] == "speak"]
+    assert any("повторите" in t.lower() or "ещё раз" in t.lower() for t in asked), asked
+
+
+LISTEN_LAST = [""]
+
+
+@test
 def chat_shutdown_works_like_voice():
     reset()
     M.shared_state["manual_queue"].append("Выключись.")
