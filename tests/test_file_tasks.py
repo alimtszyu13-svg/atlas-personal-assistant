@@ -129,7 +129,8 @@ def cancel_and_expiry():
 def tools_are_registered():
     from core.skills import REGISTRY
     import skills.file_tasks  # noqa: F401
-    for n in ("plan_tidy_folder", "plan_collect_files", "confirm_file_plan", "cancel_file_plan", "undo_file_plan"):
+    for n in ("plan_tidy_folder", "plan_collect_files", "confirm_file_plan", "cancel_file_plan", "undo_file_plan",
+              "send_file_to_phone"):
         assert n in REGISTRY and REGISTRY[n]["group"] == "file_tasks", n
     import tool_router
     assert "file_tasks" in tool_router._detect("разбери загрузки")

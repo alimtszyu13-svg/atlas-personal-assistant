@@ -276,6 +276,58 @@ _say_lock = threading.Lock()
 SAY_TTL = 120
 
 
+# Файлы для телефона: «пришли мне эссе» — ссылка /api/file/<id> (случайный ключ сам пропуск), живёт час
+_FILES = {}
+FILE_TTL = 3600
+FILE_MAX = 25 * 1024 * 1024
+_UPLOADS = os.path.join(tempfile.gettempdir(), "atlas_files")
+
+
+def _clean_files() -> None:
+    now = time.time()
+    for k in [k for k, v in _FILES.items() if now - v["t"] > FILE_TTL]:
+        v = _FILES.pop(k)
+        if v.get("temp"):
+            try:
+                os.remove(v["path"])
+            except OSError:
+                pass
+
+
+def share_file(path: str, name: str = None, temp: bool = False) -> str:
+    """Отдать файл телефону по ссылке /api/file/<id>. → id."""
+    with _say_lock:
+        _clean_files()
+        fid = secrets.token_urlsafe(18)
+        _FILES[fid] = {"path": path, "name": name or os.path.basename(path), "t": time.time(), "temp": temp}
+    return fid
+
+
+def store_upload(data: bytes, name: str) -> str:
+    """Файл, присланный компьютером в облако, → временный файл + ссылка."""
+    os.makedirs(_UPLOADS, exist_ok=True)
+    safe = re.sub(r"[\\/:*?\"<>|]", "_", os.path.basename(name or "file"))[:120] or "file"
+    path = os.path.join(_UPLOADS, secrets.token_hex(8) + "_" + safe)
+    with open(path, "wb") as f:
+        f.write(data)
+    return share_file(path, safe, temp=True)
+
+
+def _file_response(fid: str):
+    with _say_lock:
+        _clean_files()
+        item = _FILES.get(fid)
+    if not item or not os.path.isfile(item["path"]):
+        raise HTTPError(404, "Ссылка на файл устарела — попроси Atlas прислать его ещё раз.")
+    import mimetypes
+    from urllib.parse import quote
+    with open(item["path"], "rb") as f:
+        data = f.read()
+    mime = mimetypes.guess_type(item["name"])[0] or "application/octet-stream"
+    return "200 OK", [("Content-Type", mime), ("Cache-Control", "no-store"),
+                      ("Content-Disposition", f"inline; filename*=UTF-8''{quote(item['name'])}")], data
+
+
 def _audio_mode(environ) -> str:
     """X-Atlas-Audio: stream — звук потоком; none — без звука (озвучка выключена); иначе — файлом в ответе."""
     m = (environ.get("HTTP_X_ATLAS_AUDIO") or "").strip().lower()
@@ -379,6 +431,8 @@ def _body(environ, limit: int) -> bytes:
 def _route(environ):
     method, path = environ.get("REQUEST_METHOD", "GET"), environ.get("PATH_INFO", "/")
     if method == "GET":
+        if path.startswith("/api/file/"):
+            return _file_response(path[len("/api/file/"):])
         if path.startswith("/api/say/"):                # одноразовая ссылка на звук ответа — сама и есть пропуск
             with _say_lock:
                 item = _SAY.pop(path[len("/api/say/"):], None)
@@ -430,6 +484,21 @@ def _route(environ):
         sample = "Добрый вечер, сэр. Так я буду звучать." if lang == "ru" else "Good evening, sir. This is how I'll sound."
         audio, mime = synthesize(sample, _voice_choice(environ))
         return _json({"text": sample, "audio": audio, "mime": mime})
+    if PC_HUB and path == "/api/pc/file":                       # облако: компьютер прислал файл для телефона
+        _check_key(environ)
+        data = _body(environ, FILE_MAX)
+        if not data:
+            raise HTTPError(400, "Пустой файл.")
+        from urllib.parse import unquote
+        name = unquote(environ.get("HTTP_X_FILE_NAME") or "file")
+        fid = store_upload(data, name)
+        if environ.get("HTTP_X_NOTIFY") == "1":
+            try:
+                from core import push
+                push.notify("Atlas · файл с компьютера", name, tag="atlas-file", url=f"/api/file/{fid}")
+            except Exception as e:
+                print(f"[телефон] уведомление о файле: {e}")
+        return _json({"id": fid})
     if PC_HUB and path in ("/api/pc/poll", "/api/pc/result"):     # облако: связь с компьютером
         _check_key(environ)
         try:

@@ -29,7 +29,7 @@ CLOUD_HINT = ("(Said on the phone; Atlas is answering from the cloud: calendar, 
               "flashcards and memory all work here — use the tools. "
               "The user is holding the phone: to open a site, a search, a video, music, a map, an app, a call or "
               "a message, use open_on_phone. Only when the user mentions the computer, or it is about the "
-              "computer itself — its volume, files, programs, screen — use use_computer; if it says the "
+              "computer itself — its volume, files, programs, screen, sending a file from it — use use_computer; if it says the "
               "computer is offline, tell the user briefly. "
               "Reply in 1-2 short spoken sentences, plain text, no brackets or quotes.) ")
 # без этого облако бессмысленно — если не загрузились, лучше честно упасть с ошибкой в логе Space
@@ -130,7 +130,8 @@ CLOUD_HIDE = {"holo_show", "holo_weather", "holo_graph", "holo_control", "look",
               "what_did_i_do", "find_past_activity", "reopen_from_history",         # память компьютера живёт
               "continue_last_work", "forget_activity", "save_workspace", "open_workspace",
               "list_workspaces", "accept_habit_suggestion", "decline_habit_suggestion", "list_habits",
-              "plan_tidy_folder", "plan_collect_files", "confirm_file_plan", "cancel_file_plan", "undo_file_plan"}                              # на нём — через use_computer
+              "plan_tidy_folder", "plan_collect_files", "confirm_file_plan", "cancel_file_plan", "undo_file_plan",
+              "send_file_to_phone"}                              # на нём — через use_computer
 
 
 def _hide_pc_tools() -> list:

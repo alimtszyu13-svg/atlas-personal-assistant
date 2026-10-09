@@ -418,12 +418,12 @@
   function showActions(list) {
     const box = $("acts"); box.replaceChildren();
     (list || []).forEach((a, i) => {
-      if (!/^(https:|tel:|sms:|mailto:)/i.test(a.url || "")) return;
+      if (!/^(https:|tel:|sms:|mailto:|\/api\/file\/)/i.test(a.url || "")) return;
       const link = el("a", "act"); link.href = a.url; link.innerHTML = ARROW; link.append(document.createTextNode(a.label));
-      if (/^https:/i.test(a.url)) { link.target = "_blank"; link.rel = "noopener"; }
+      if (/^(https:|\/api\/file\/)/i.test(a.url)) { link.target = "_blank"; link.rel = "noopener"; }
       box.append(link);
       if (i === 0) {                                // браузер разрешает открыть сам только сразу после нажатия
-        try { if (/^https:/i.test(a.url)) window.open(a.url, "_blank", "noopener"); } catch (e) {}
+        try { if (/^(https:|\/api\/file\/)/i.test(a.url)) window.open(a.url, "_blank", "noopener"); } catch (e) {}
       }
     });
   }

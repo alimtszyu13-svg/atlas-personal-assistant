@@ -358,6 +358,31 @@ def phone_gets_text_first_then_streamed_voice_from_the_cloud():
 
 
 @test
+def file_from_the_computer_comes_through_the_cloud():
+    from core import file_drop, pc_link, phone_actions
+    st, r = call("/api/pc/file", "POST", b"PDFDATA", {"X-Atlas-Key": "k123", "Content-Type": "application/pdf",
+                                                   "X-File-Name": "SAT_practice%204.pdf", "X-Notify": "0"})
+    assert st == 200 and r["id"], r
+    st, data = call("/api/file/" + r["id"])
+    assert st == 200 and data == b"PDFDATA"
+    st, _ = call("/api/pc/file", "POST", b"x", {"X-Atlas-Key": "wrong"})
+    assert st == 401
+    phone_actions.take()
+    text = pc_link._with_files("Отправил файл, сэр. [[file:" + r["id"] + "|SAT_practice 4.pdf]]")
+    assert text == "Отправил файл, сэр." and phone_actions.take() == [
+        {"label": "Открыть SAT_practice 4.pdf", "url": "/api/file/" + r["id"]}]
+    sent = []
+    file_drop.resolve, saved = (lambda q: __file__), file_drop.resolve
+    try:
+        reply = file_drop.run_phone_job(lambda t: file_drop.send(t, cloud_url="https://atlas.example", key="k",
+                                        uploader=lambda p, u, k, notify: (sent.append(notify), "abcDEF123456")[1]),
+                                        "пришли тест")
+    finally:
+        file_drop.resolve = saved
+    assert sent == [False] and reply.endswith("[[file:abcDEF123456|test_cloud_brain.py]]"), (sent, reply)
+
+
+@test
 def google_token_survives_paste_mistakes():
     from cloud import atlas_cloud
     good = '{"token":"t","refresh_token":"r"}'

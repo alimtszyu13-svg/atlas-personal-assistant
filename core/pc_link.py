@@ -59,7 +59,19 @@ def submit(text: str, wait: float = SUBMIT_WAIT) -> str:
                     _queue.remove(job)
                 raise PcTimeout()
             _cv.wait(min(left, 1.0))
-        return _results.pop(job["id"])
+        return _with_files(_results.pop(job["id"]))
+
+
+def _with_files(reply: str) -> str:
+    """Метки [[file:id|имя]] от компьютера → кнопки «Открыть» на телефоне."""
+    try:
+        from core import file_drop, phone_actions
+        text, marks = file_drop.take_marks(reply)
+        for fid, name in marks:
+            phone_actions._pending.append({"label": f"Открыть {name}", "url": f"/api/file/{fid}"})
+        return text
+    except Exception:
+        return reply
 
 
 def poll(wait: float = POLL_WAIT, name: str = "") -> dict:
@@ -106,7 +118,8 @@ SCHEMA = {"type": "function", "function": {
     "name": "use_computer",
     "description": "Does something on the user's computer, where Atlas runs with full control: play music "
                    "(Spotify), open apps or sites, volume, media keys, files, screenshots, games, what the user did "
-                   "on the computer and which documents or sites they worked on, reopening them, file chores "
+                   "on the computer and which documents or sites they worked on, reopening them, sending a file from "
+                   "the computer to the phone ('пришли мне эссе'), file chores "
                    "(tidy Downloads, collect files into a folder — the computer makes a plan first; pass the "
                    "user's 'yes' / 'undo' on to it as a new request) — anything that needs the computer. request: the user's request as a short instruction in their language.",
     "parameters": {"type": "object", "properties": {"request": {"type": "string"}}, "required": ["request"]}}}
@@ -177,4 +190,6 @@ def start_from_env():
     if not key:
         print("[руки] телефон ещё не сопряжён — скажи «установи себя на телефон», потом перезапусти Atlas")
         return None
-    return start_agent(url, key, lambda text: server.handle_text(text, log=False), name=socket.gethostname())
+    from core import file_drop
+    return start_agent(url, key, lambda text: file_drop.run_phone_job(lambda t: server.handle_text(t, log=False), text),
+                       name=socket.gethostname())

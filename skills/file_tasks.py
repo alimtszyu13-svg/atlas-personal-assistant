@@ -2,7 +2,7 @@
 Дела с файлами по плану: «разбери загрузки», «собери все эссе в одну папку» → план → «да» → отчёт.
 Подтверждение проверяет код, а не модель: нужна НОВАЯ реплика пользователя со словом согласия.
 """
-from core import file_plans
+from core import file_drop, file_plans
 from core.skills import skill
 
 try:
@@ -11,6 +11,7 @@ try:
         "разбери", "разобрать", "наведи порядок", "порядок в", "рассортируй", "отсортируй", "собери", "сложи",
         "загрузк", "downloads", "верни как было", "отмени план", "выполни план", "подтверждаю", "да, выполни",
         "tidy", "sort my", "organize", "collect all", "undo",
+        "пришли", "скинь", "отправь на телефон", "на телефон", "send me", "send to my phone",
     )
 except Exception:
     pass
@@ -57,3 +58,12 @@ def cancel_file_plan() -> str:
                                  "made ('undo', 'верни как было').")
 def undo_file_plan() -> str:
     return file_plans.undo()
+
+
+@skill("file_tasks",
+       description="Sends a file from this computer to the user's phone: 'пришли мне на телефон эссе про климат', "
+                   "'скинь SAT_practice.pdf'. Finds it by name, by what the user worked on, or by its content. "
+                   "query: the file name or words about it; a number picks a result of the last file search.",
+       params={"query": "file name, words about the file, or a number from the last search"})
+def send_file_to_phone(query: str) -> str:
+    return file_drop.send(query)

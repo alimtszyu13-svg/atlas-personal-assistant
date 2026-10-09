@@ -509,6 +509,30 @@ def muted_phone_gets_no_voice_at_all():
     assert r["audio"] is None and "say" not in r and len(LOG["tts"]) == n, "озвучка выключена — голос не делаем"
 
 
+@test
+def file_from_the_computer_opens_on_the_phone():
+    from core import file_drop, phone_actions
+    d = tempfile.mkdtemp()
+    path = os.path.join(d, "Эссе про климат.docx")
+    open(path, "wb").write(b"ESSAY")
+    saved = file_drop.resolve
+    file_drop.resolve = lambda q: path if "эссе" in q.lower() else ""
+    phone_actions.take()
+    try:
+        r = file_drop.send("эссе про климат", cloud_url="")
+        assert r.startswith("Sent Эссе про климат.docx to the phone"), r
+        act = phone_actions.take()[0]
+        assert act["label"] == "Открыть Эссе про климат.docx" and act["url"].startswith("/api/file/"), act
+        st, h, data = call(act["url"])
+        assert st == 200 and data == b"ESSAY" and "filename*=UTF-8''" in h.get("Content-Disposition", ""), (st, h)
+        assert call(act["url"])[0] == 200, "ссылка работает, пока не устарела"
+        S._FILES[act["url"].rsplit("/", 1)[1]]["t"] -= S.FILE_TTL + 1
+        assert call(act["url"])[0] == 404, "через час ссылка не работает"
+        assert "Couldn't find" in file_drop.send("квантовая гравитация", cloud_url="")
+    finally:
+        file_drop.resolve = saved
+
+
 def main():
     global S, BASE, TOKEN
     install()

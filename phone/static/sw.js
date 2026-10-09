@@ -1,5 +1,5 @@
 // Atlas: оболочка приложения работает и без сети (звезда, подсказка), разговор — только с сетью.
-const SHELL = "atlas-shell-v6";        // v6: разговор без кнопки, утренняя сводка
+const SHELL = "atlas-shell-v7";        // v7: файлы с компьютера
 const FILES = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/icon-180.png"];
 
 self.addEventListener("install", (e) => {
@@ -32,6 +32,7 @@ self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const url = (e.notification.data && e.notification.data.url) || "/";
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+    if (url !== "/") return self.clients.openWindow(url);          // файл с компьютера — открыть его
     for (const c of list) if ("focus" in c) return c.focus();
     return self.clients.openWindow(url);
   }));
