@@ -189,6 +189,30 @@ def _process_command(command: str) -> None:
         _record_command(rec)
         return
 
+    from core import link_notes, doc_compare, doc_translate, squeeze
+    link = link_notes.intent(command)            # «конспект этого ролика / этой статьи / по ссылке»
+    if link:
+        _speak_and_update(link_notes.summarize(link[1], announce=_announce), interruptible=False)
+        return
+    cmp_ = doc_compare.intent(command)           # «сравни эссе и эссе v2», «сравни две версии реферата»
+    if cmp_:
+        _speak_and_update(doc_compare.ask(cmp_, announce=_announce), interruptible=False)
+        return
+    tr = doc_translate.intent(command)           # «переведи документ про проект на английский»
+    if tr:
+        _speak_and_update(doc_translate.ask(tr[0], tr[1], announce=_announce), interruptible=False)
+        return
+    style = squeeze.intent(command)              # «сожми это», «объясни проще», Ctrl+Alt+S
+    if style:
+        shared_state["state"] = "thinking"
+        result = squeeze.squeeze(style)
+        shared_state["chat_history"].append(("Atlas", result))   # в чате — целиком, вслух — начало
+        shared_state["state"] = "speaking"
+        speak(squeeze.spoken(result))
+        shared_state["state"] = "idle"
+        shared_state["text"] = ""
+        return
+
     from core import media_import                # «сделай конспект видео про …», «второй»
     imp = media_import.intent(command)
     if imp:

@@ -29,7 +29,13 @@ def _on_translate_hotkey():
         shared_state["manual_queue"].append("Say: I couldn't detect any selected text, sir.")
 
 
+def _on_squeeze_hotkey():
+    """Ctrl+Alt+S — сжать выделенный текст (Atlas сам скопирует выделение из окна, где курсор)."""
+    shared_state["manual_queue"].append("сожми выделенное")
+
+
 def start_selection_hotkeys() -> None:
     keyboard.add_hotkey("ctrl+alt+a", _on_ask_hotkey)
     keyboard.add_hotkey("ctrl+alt+t", _on_translate_hotkey)
-    print("(selection hotkeys active: Ctrl+Alt+A = ask, Ctrl+Alt+T = translate)")
+    keyboard.add_hotkey("ctrl+alt+s", _on_squeeze_hotkey)
+    print("(selection hotkeys active: Ctrl+Alt+A = ask, Ctrl+Alt+T = translate, Ctrl+Alt+S = сжать выделенное)")

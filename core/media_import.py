@@ -42,6 +42,16 @@ def is_media(path: str) -> bool:
     return os.path.splitext(path or "")[1].lower() in VIDEO + AUDIO
 
 
+def is_supported(path: str) -> bool:
+    """Видео, аудио или документ (PDF, Word, PowerPoint, EPUB…)."""
+    from core import doc_text
+    return is_media(path) or doc_text.is_doc(path)
+
+
+_DOC_WORD = re.compile(r"документ|pdf|пдф|книг|стать|учебник|презентац|глав[уаы]|договор|реферат|эссе|ворд|word|docx|"
+                       r"конспект лекц|методичк|parag|параграф|document|book|article|paper|slides", re.I)
+
+
 # ---------------------------------------------------------------------------
 # Голосом: «сделай конспект видео …», «второй»
 # ---------------------------------------------------------------------------
@@ -49,7 +59,8 @@ _ASK = re.compile(r"^(?:сделай|сделать|напиши|составь|
                   r"краткое содержание|пересказ)\s+(?P<q>.+)$|^(?:законспектируй|расшифруй|транскрибируй|перескажи)\s+"
                   r"(?P<q2>.+)$|^(?:summarize|transcribe)\s+(?:the\s+)?(?P<q3>.+)$", re.I)
 _MEDIA_WORD = re.compile(r"видео|ролик|аудио|запис|лекци|урок|вебинар|подкаст|файл|фильм|клип|mp4|mp3|video|audio|"
-                         r"recording|lecture|file", re.I)
+                         r"recording|lecture|file|документ|pdf|пдф|книг|стать|учебник|презентац|глав[уаы]|договор|"
+                         r"реферат|эссе|ворд|word|docx|методичк|параграф|document|book|article|paper|slides", re.I)
 _PICK = {"первый": 1, "первое": 1, "первую": 1, "1": 1, "второй": 2, "второе": 2, "вторую": 2, "2": 2,
          "третий": 3, "третье": 3, "третью": 3, "3": 3, "first": 1, "second": 2, "third": 3}
 
@@ -101,7 +112,7 @@ def _scan(dirs, depth: int = 3, limit: int = 4000) -> list:
                 subdirs[:] = []
             subdirs[:] = [d for d in subdirs if not d.startswith((".", "$")) and d.lower() not in ("node_modules", "venv")]
             for f in files:
-                if is_media(f):
+                if is_supported(f):
                     found.append(os.path.join(cur, f))
                     if len(found) >= limit:
                         return found
@@ -112,7 +123,10 @@ _STOPW = set("сделай конспект расшифровку расшиф�
              "файла про о об с со из в на мне мой моё мое мою мои этот эта это то тот та который которое которую "
              "лекцию лекции урок урока вебинар подкаст фильм клип последнее последний последнюю вчерашнее вчерашний "
              "сегодняшнее сегодняшний загрузок загрузках рабочего стола стол папки папке документов видеозапись "
-             "the a an of from about video audio recording file last latest yesterday today downloads desktop".split())
+             "документ документа документы pdf пдф книгу книги книга статью статьи статья учебник учебника презентацию "
+             "презентации главу главы договор договора реферат эссе ворд word docx методичку параграф "
+             "the a an of from about video audio recording file last latest yesterday today downloads desktop "
+             "document book article paper slides".split())
 
 
 def _words(q: str) -> list:
@@ -143,12 +157,12 @@ def find(query: str, now: datetime = None, files: list = None) -> list:
     """Запрос → [путь] лучшие сначала (до 5)."""
     now = now or datetime.now()
     q = (query or "").strip().strip('"«»')
-    if os.path.isfile(q) and is_media(q):
+    if os.path.isfile(q) and is_supported(q):
         return [q]
     low = q.lower().replace("ё", "е")
     folders = _folders()
     want = [k for k, rx in (("downloads", r"загруз|скачан|download"), ("desktop", r"рабоч\w* стол|desktop"),
-                            ("videos", r"папк\w* видео|videos"), ("documents", r"документ|documents"))
+                            ("videos", r"папк\w* видео|videos"), ("documents", r"из документов|в документах|папк\w* документ|documents folder"))
             if re.search(rx, low)]
     if files is None:
         dirs = [d for k in (want or ["downloads", "videos", "desktop", "documents", "music"]) for d in folders.get(k, [])]
@@ -157,11 +171,14 @@ def find(query: str, now: datetime = None, files: list = None) -> list:
             from core import worklog
             for it in worklog.search(q, limit=10) if _words(q) else []:
                 p = it.get("path") or it.get("doc") or ""
-                if p and os.path.isfile(p) and is_media(p) and p not in files:
+                if p and os.path.isfile(p) and is_supported(p) and p not in files:
                     files.append(p)
         except Exception:
             pass
-    kind = VIDEO if re.search(r"видео|ролик|фильм|клип|video", low) else AUDIO if re.search(r"аудио|подкаст|mp3|audio|голосов", low) else None
+    from core import doc_text
+    kind = VIDEO if re.search(r"видео|ролик|фильм|клип|video", low) else \
+        AUDIO if re.search(r"аудио|подкаст|mp3|audio|голосов", low) else \
+        doc_text.DOCS + doc_text.IMAGES if _DOC_WORD.search(low) else None
     if kind:
         files = [f for f in files if os.path.splitext(f)[1].lower() in kind] or files
     day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -309,8 +326,12 @@ def _player_audio(src: str, out_base: str, exe: str = None) -> str:
     return ""
 
 
-def import_file(path: str, title: str = None, announce=None, transcribe=None, ask=None, wait: bool = False) -> str:
-    """Начать конспект файла (в фоне). → id задачи."""
+def import_file(path: str, title: str = None, announce=None, transcribe=None, ask=None, wait: bool = False,
+                url: str = "") -> str:
+    """Начать конспект файла (в фоне). → id задачи. Документ — через doc_notes, видео/аудио — здесь."""
+    if not is_media(path):
+        from core import doc_notes
+        return doc_notes.import_doc(path, title, announce=announce, ask=ask, wait=wait)
     from core import meeting_notes as M
     jid = uuid.uuid4().hex[:8]
     title = (title or re.sub(r"[_\-]+", " ", os.path.splitext(os.path.basename(path))[0]).strip())[:80] or "Видео"
@@ -351,7 +372,8 @@ def import_file(path: str, title: str = None, announce=None, transcribe=None, as
             rid = M._new_id(started, title)
             base = os.path.join(M.folder(), rid)
             entry = {"id": rid, "title": title, "started": started, "minutes": max(1, round(dur / 60)) if dur else 1,
-                     "mic": False, "imported": True, "source": path, "txt": "", "md": "", "audio": "", "video": ""}
+                     "mic": False, "imported": True, "source": path, "txt": "", "md": "", "audio": "", "video": "",
+                     "url": url}
             if ext in PLAYS_VIDEO:
                 entry["video"] = path
             elif ext in PLAYS_AUDIO:

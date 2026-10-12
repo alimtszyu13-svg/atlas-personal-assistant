@@ -18,6 +18,8 @@ try:
         "напомни, когда", "напомни когда",
         "команду", "когда я говорю", "когда я скажу", "мои команды", "when i say",
         "расшифр", "законспект", "транскрип", "summarize", "transcribe",
+        "ссылк", "этого ролика", "эту статью", "этой страниц", "сожми", "объясни проще", "по пунктам",
+        "сравни", "чем отличается", "переведи документ", "переведи файл", "переведи эссе", "compare", "translate the",
     )
 except Exception:
     pass
@@ -196,3 +198,43 @@ def remove_command_alias(phrase: str) -> str:
 def summarize_media_file(query: str) -> str:
     from core import media_import
     return media_import.ask(query, announce=_announce)
+
+
+# --- тексты: конспект по ссылке, сжать, сравнить, перевести -----------------
+@skill("pc_plus",
+       description="Notes of a web page or YouTube video by link, without recording: 'сделай конспект этого ролика' "
+                   "(the browser tab open now — pass url empty), or a given URL. YouTube uses subtitles when there are "
+                   "any, otherwise downloads the audio.",
+       params={"url": "the link, or empty for the page open in the browser now"})
+def summarize_link(url: str = "") -> str:
+    from core import link_notes
+    return link_notes.summarize(url, announce=_announce)
+
+
+@skill("pc_plus",
+       description="Compresses or explains the text selected in any window (or copied): style 'short' — the gist in "
+                   "a few bullets, 'simple' — explain in simple words, 'points' — numbered theses. The result is also "
+                   "copied to the clipboard.",
+       params={"style": "short | simple | points"})
+def squeeze_selection(style: str = "short") -> str:
+    from core import squeeze
+    return squeeze.squeeze(style if style in ("short", "simple", "points") else "short")
+
+
+@skill("pc_plus",
+       description="Compares two documents on this computer (versions of an essay, contract, report): exact changes "
+                   "and what they mean. old/new: words about each file (name, topic, folder) or full paths.",
+       params={"old": "the older / first document", "new": "the newer / second document"})
+def compare_documents(old: str, new: str) -> str:
+    from core import doc_compare
+    return doc_compare.ask(("compare", old, new), announce=_announce)
+
+
+@skill("pc_plus",
+       description="Translates a whole document (Word, PowerPoint, PDF, TXT…) into another language; the result is a "
+                   "new file next to the original ('Эссе (EN).docx'), formatting kept for Word/PowerPoint.",
+       params={"query": "words about the file or a full path", "language": "target language code: en, ru, ky, kk, de, fr, es, zh, tr…"})
+def translate_document(query: str, language: str = "en") -> str:
+    from core import doc_translate
+    code = doc_translate.lang_code(language) or (language if language in doc_translate.LANGS else "en")
+    return doc_translate.ask(query, code, announce=_announce)

@@ -758,7 +758,8 @@ def import_phrases_and_choices():
     assert I.intent("Атлас, сделай конспект видео про электричество") == ("import", "видео про электричество")
     assert I.intent("расшифруй вчерашнее видео из загрузок") == ("import", "вчерашнее видео из загрузок")
     assert I.intent("законспектируй это видео") is None, "то, что играет сейчас, — это запись, а не файл"
-    assert I.intent("сделай конспект книги") is None and I.intent("какая погода") is None
+    assert I.intent("сделай конспект книги") == ("import", "книги"), "книги теперь тоже файлы"
+    assert I.intent("сделай конспект разговора с мамой") is None and I.intent("какая погода") is None
     from core import meeting_notes as M
     assert M.intent("сделай конспект видео про ток") is None, "«конспект» больше не включает запись"
     d = tempfile.mkdtemp(dir=TMP)

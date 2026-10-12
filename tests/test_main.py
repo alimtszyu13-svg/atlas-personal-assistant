@@ -302,6 +302,28 @@ def own_command_word_runs_the_real_command():
 
 
 @test
+def text_commands_run_without_the_brain():
+    reset()
+    from core import squeeze, link_notes, doc_compare, doc_translate
+    saved = squeeze.squeeze, link_notes.summarize, doc_compare.ask, doc_translate.ask
+    calls = []
+    squeeze.squeeze = lambda style: (calls.append(("squeeze", style)), "Суть: закон Ома связывает ток и напряжение.")[1]
+    link_notes.summarize = lambda url, announce=None: (calls.append(("link", url)), "Делаю конспект ролика.")[1]
+    doc_compare.ask = lambda v, announce=None: (calls.append(v), "Сравниваю.")[1]
+    doc_translate.ask = lambda q, l, announce=None: (calls.append(("tr", q, l)), "Перевожу.")[1]
+    LISTEN[:] = ["Атлас, сожми это", "Объясни это проще", "Сделай конспект этого ролика", "Сравни эссе и эссе v2",
+                 "Переведи документ про проект на английский", "выключись"]
+    try:
+        M._voice_loop()
+    finally:
+        squeeze.squeeze, link_notes.summarize, doc_compare.ask, doc_translate.ask = saved
+    assert calls == [("squeeze", "short"), ("squeeze", "simple"), ("link", ""), ("compare", "эссе", "эссе v2"),
+                     ("tr", "документ про проект", "en")], calls
+    assert not any(isinstance(e, tuple) and e[0] == "ask_ai" for e in LOG), "без мозга — сразу"
+    assert ("Atlas", "Суть: закон Ома связывает ток и напряжение.") in M.shared_state["chat_history"]
+
+
+@test
 def chat_shutdown_works_like_voice():
     reset()
     M.shared_state["manual_queue"].append("Выключись.")

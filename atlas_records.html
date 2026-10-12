@@ -76,6 +76,11 @@
   .add { width: 100%; margin-top: 8px; padding: 9px 12px; border-radius: 10px; border: 1px dashed var(--line-2);
     background: rgba(134,214,255,.05); color: var(--text); }
   .add:hover { background: rgba(134,214,255,.12); }
+  .urlrow { display: flex; gap: 6px; margin-top: 8px; }
+  .add.sub { border-style: solid; border-color: var(--line); background: none; color: var(--muted); padding: 7px 12px; font-size: 13px; }
+  .trsel { background: rgba(2,6,16,.6); color: var(--text); border: 1px solid var(--line); border-radius: 9px; padding: 6px 8px; font: inherit; font-size: 13px; }
+  .urlrow input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(2,6,16,.5); outline: none; font-size: 13px; }
+  .urlrow button { border: 1px solid var(--line-2); background: rgba(134,214,255,.1); border-radius: 10px; padding: 0 10px; font-size: 13px; }
   .item .bar { display: block; height: 4px; border-radius: 2px; background: rgba(255,255,255,.07); margin-top: 6px; overflow: hidden; }
   .item .bar i { display: block; height: 100%; background: linear-gradient(90deg, #2C6BFF, var(--ion)); transition: width .4s; }
   .item .err { color: var(--bad); }
@@ -108,6 +113,14 @@
   .notes h3 { margin: 18px 0 8px; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--ion); font-weight: 600; }
   .notes h3:first-child { margin-top: 0; }
   .notes p { margin: 0 0 8px; }
+  .notes.doc h3 { font-size: 11px; color: var(--muted); letter-spacing: .1em; margin: 22px 0 8px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .notes.doc p { line-height: 1.6; }
+  .notes del { color: #FF9A9A; text-decoration-color: rgba(255,122,122,.7); background: rgba(255,122,122,.08); }
+  .notes ins { color: #9CF5BF; text-decoration: none; background: rgba(34,224,107,.1); border-radius: 3px; }
+  .notes .d-add { box-shadow: inset 3px 0 0 rgba(34,224,107,.7); }
+  .notes .d-del { box-shadow: inset 3px 0 0 rgba(255,122,122,.7); }
+  .notes .d-chg { box-shadow: inset 3px 0 0 rgba(245,197,66,.7); }
+  .notes.cmp p { padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,.025); }
   .notes ul { margin: 0 0 8px; padding-left: 20px; }
   .notes li { margin: 3px 0; }
   .notes li.task { list-style: none; margin-left: -20px; display: flex; gap: 8px; }
@@ -149,7 +162,7 @@
 <body>
 <div class="app">
   <div class="top">
-    <div class="brand"><h1>ЗАПИСИ</h1><p>Созвоны, лекции и видео — текст и конспект</p></div>
+    <div class="brand"><h1>ЗАПИСИ</h1><p>Созвоны, видео, документы и ссылки — текст и конспект</p></div>
     <section class="rec" id="rec" aria-live="polite">
       <span class="dot" aria-hidden="true"></span>
       <form class="idle-form" id="startForm">
@@ -179,7 +192,9 @@
   <div class="main">
     <aside class="list">
       <div class="search"><input id="filter" placeholder="Найти запись" aria-label="Найти запись">
-        <button class="add" id="addFile" type="button" title="Видео или аудио с компьютера — сделаю текст и конспект">+ Добавить видео или аудио</button></div>
+        <button class="add" id="addFile" type="button" title="Видео, аудио или документ с компьютера — сделаю текст и конспект">+ Видео, аудио или документ</button>
+        <button class="add sub" id="cmpFiles" type="button" title="Выбери два документа — старую и новую версию">⇄ Сравнить два файла</button>
+        <form class="urlrow" id="urlForm"><input id="urlIn" placeholder="Ссылка: YouTube или статья" aria-label="Ссылка на ролик или статью"><button type="submit">Конспект</button></form></div>
       <div class="items" id="items"></div>
     </aside>
     <section class="view" id="view">
@@ -210,15 +225,17 @@
   // ---------- markdown конспекта (только то, что пишет Atlas) ----------
   function inline(s) {
     return esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g,
-      (_, t) => '<span class="t" data-t="' + secs(t) + '" title="Перейти к этому месту записи">' + t + "</span>");
+      (_, t) => '<span class="t" data-t="' + secs(t) + '" title="Перейти к этому месту записи">' + t + "</span>")
+      .replace(/\[−(.+?)\]/g, "<del>$1</del>").replace(/\{\+(.+?)\}/g, "<ins>$1</ins>");
   }
   function md(text) {
     const out = []; let list = false;
     const close = () => { if (list) { out.push("</ul>"); list = false; } };
     for (const raw of String(text || "").split("\n")) {
       const l = raw.trimEnd();
-      if (/^#\s/.test(l) || /^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2} · \d+ мин$/.test(l)) { close(); continue; }   // уже сверху
+      if ((/^#\s/.test(l) && !md.keepH1) || /^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}( ·|$)/.test(l)) { close(); continue; }   // уже сверху
       if (/^#{2,3}\s/.test(l)) { close(); out.push("<h3>" + inline(l.replace(/^#+\s*/, "")) + "</h3>"); continue; }
+      if (/^#\s/.test(l) && md.keepH1) { close(); out.push("<h3>" + inline(l.replace(/^#+\s*/, "")) + "</h3>"); continue; }
       const task = l.match(/^\s*[-*]\s+\[[ xX]\]\s+(.*)/), li = l.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)/);
       if (task || li) { if (!list) { out.push("<ul>"); list = true; }
         out.push(task ? '<li class="task"><span>' + inline(task[1]) + "</span></li>" : "<li>" + inline(li[1]) + "</li>"); continue; }
@@ -227,6 +244,14 @@
     }
     close();
     return out.join("");
+  }
+
+  function docHtml(t) {                               // полный текст документа: заголовки и страницы
+    md.keepH1 = true;
+    try {
+      return md(String(t).replace(/^\[стр\. (\d+)\]$/gm, "### стр. $1"))
+        .replace(/<p>\+ /g, '<p class="d-add">+ ').replace(/<p>− /g, '<p class="d-del">− ').replace(/<p>~ /g, '<p class="d-chg">~ ');
+    } finally { md.keepH1 = false; }
   }
 
   // ---------- состояние ----------
@@ -243,6 +268,11 @@
   $("camTog").onclick = async () => { await call("rec_set_camera", $("camTog").getAttribute("aria-pressed") !== "true"); poll(); };
   $("stopBtn").onclick = async () => { await call("rec_stop"); toast("Останавливаю — делаю конспект…"); poll(); };
   $("filter").oninput = renderList;
+  $("cmpFiles").onclick = async () => { const r = await call("rec_compare_dialog"); if (r) toast(r); setTimeout(poll, 500); };
+  $("urlForm").onsubmit = async (e) => {
+    e.preventDefault(); const u = $("urlIn").value.trim(); if (!u) return;
+    toast((await call("rec_import_url", u)) || "Не получилось"); $("urlIn").value = ""; setTimeout(poll, 500);
+  };
   $("addFile").onclick = async () => {
     const n = await call("rec_import_dialog");
     if (n) toast(n === 1 ? "Делаю текст и конспект — это займёт немного времени" : "Взял файлов: " + n + " — делаю конспекты");
@@ -278,7 +308,8 @@
     for (const j of (lastLive && lastLive.imports) || []) {
       const b = document.createElement("div"); b.className = "item";
       b.innerHTML = "<b>" + esc(j.title) + "</b>" + (j.stage === "ошибка" ? '<span class="err">не получилось: ' + esc(j.error) + "</span>"
-        : "<span>" + ({ "звук": "достаю звук…", "текст": "распознаю текст…", "конспект": "пишу конспект…", "готово": "готово" }[j.stage] || j.stage) +
+        : "<span>" + ({ "звук": "достаю звук…", "текст": "распознаю текст…", "конспект": "пишу конспект…", "читаю": "читаю документ…",
+          "загружаю": "загружаю по ссылке…", "перевод": "перевожу…", "сравнение": "сравниваю…", "готово": "готово" }[j.stage] || j.stage) +
           " " + j.pct + '%</span><span class="bar"><i style="width:' + j.pct + '%"></i></span>');
       box.appendChild(b);
     }
@@ -287,7 +318,8 @@
       const b = document.createElement("button"); b.className = "item";
       b.setAttribute("aria-current", String(it.id === current));
       b.innerHTML = "<b>" + esc(it.title) + "</b><span>" + when(it.started) + " · " + it.minutes + " мин" +
-        '<i class="kind">' + (it.imported ? "файл" : it.video ? "видео" : it.audio ? "звук" : "текст") + "</i></span>";
+        '<i class="kind">' + (it.kind === "doc" ? "документ" : it.kind === "web" ? "ссылка" : it.kind === "compare" ? "сравнение"
+          : it.imported ? "файл" : it.video ? "видео" : it.audio ? "звук" : "текст") + "</i></span>";
       b.onclick = () => open(it.id);
       box.appendChild(b);
     }
@@ -319,22 +351,41 @@
     if (!r || !r.id) { v.innerHTML = '<div class="placeholder"><div>Запись не найдена</div></div>'; return; }
     v.innerHTML =
       '<div class="head"><div style="min-width:0"><h2 id="rTitle" contenteditable="true" spellcheck="false" title="Нажми, чтобы переименовать">' + esc(r.title) + "</h2>" +
-      '<div class="meta">' + when(r.started) + " · " + r.minutes + " мин · " + (r.imported ? "файл: " + esc(r.source) : r.video ? "видео экрана + звук" : r.mic ? "звук компьютера + микрофон" : "звук компьютера") +
+      '<div class="meta">' + when(r.started) + " · " + (r.kind === "compare" ? "сравнение документов" :
+        r.kind === "doc" || r.kind === "web" ? "≈" + r.minutes + " мин чтения · " +
+        (r.kind === "web" ? "страница" : "документ") : r.minutes + " мин · " + (r.kind === "yt" ? "ролик YouTube (субтитры)"
+        : r.url ? "ролик по ссылке" : r.imported ? "файл: " + esc(r.source) : r.video ? "видео экрана + звук"
+        : r.mic ? "звук компьютера + микрофон" : "звук компьютера")) +
       (r.size_mb ? " · " + r.size_mb + " МБ" : "") + "</div></div>" +
-      '<div class="acts">' + (r.audio || r.video ? '<button id="aPlay" title="Открыть в плеере Windows">В плеере</button>' : "") +
+      '<div class="acts">' + (r.kind === "doc" ? '<button id="aPlay" title="Открыть сам документ">Открыть документ</button>'
+        : r.kind === "web" ? '<button id="aPlay" title="Открыть страницу в браузере">Открыть страницу</button>'
+        : r.kind === "yt" || r.url ? '<button id="aPlay" title="Открыть ролик в браузере">На YouTube</button>'
+        : r.audio || r.video ? '<button id="aPlay" title="Открыть в плеере Windows">В плеере</button>' : "") +
+      (r.kind === "doc" && r.source ? '<select class="trsel" id="trLang" title="Перевести документ целиком — новый файл рядом с оригиналом">' +
+        '<option value="">Перевести…</option><option value="en">на английский</option><option value="ru">на русский</option>' +
+        '<option value="ky">на кыргызский</option><option value="kk">на казахский</option><option value="de">на немецкий</option>' +
+        '<option value="fr">на французский</option><option value="es">на испанский</option><option value="zh">на китайский</option>' +
+        '<option value="tr">на турецкий</option></select>' : "") +
       '<button id="aFolder">Папка</button><button id="aPhone">На телефон</button><button class="del" id="aDel">Удалить</button></div></div>' +
-      '<div class="player" id="player">' + (r.video ? '<video id="media" controls preload="metadata" src="' + esc(r.video) + '"></video>'
+      '<div class="player" id="player">' + (r.kind === "compare" ? '<div class="nomedia">Сравнение двух документов: «Конспект» — что поменялось по смыслу, «Полный текст» — все правки.</div>'
+        : r.kind === "yt" ? '<div class="nomedia">Ролик: ' + esc(r.url) + "</div>"
+        : r.kind === "doc" || r.kind === "web" ? '<div class="nomedia">' +
+          (r.kind === "web" ? "Страница: " + esc(r.url) : "Документ: " + esc(r.source) + (r.pages ? " · " + r.pages + " стр." : "")) + "</div>"
+        : r.video ? '<video id="media" controls preload="metadata" src="' + esc(r.video) + '"></video>'
         : r.audio ? '<audio id="media" controls preload="metadata" src="' + esc(r.audio) + '"></audio>'
         : '<div class="nomedia">Звук этой записи не сохранился — есть только текст.</div>') + "</div>" +
       '<div class="tabs" role="tablist"><button role="tab" data-tab="notes">Конспект</button><button role="tab" data-tab="text">Полный текст</button></div>' +
       '<div class="body" id="rBody"></div>' +
-      (r.audio || r.video ? '<div class="hint">Нажми на фразу или на время — запись перемотается туда. Так можно проверить слово, которое Atlas мог расслышать неправильно.</div>' : "") +
+      (r.kind === "yt" ? '<div class="hint">Нажми на фразу или на время — ролик откроется в браузере с этого места.</div>' : "") +
+      ((r.audio || r.video) && !r.kind ? '<div class="hint">Нажми на фразу или на время — запись перемотается туда. Так можно проверить слово, которое Atlas мог расслышать неправильно.</div>' : "") +
       '<div class="ask"><form id="askForm"><input id="askQ" placeholder="Спросить по записи — например, «что сказали про сроки?»" aria-label="Вопрос по записи"><button type="submit">Спросить</button></form><div class="answer" id="answer" hidden></div></div>';
     const paint = () => {
       v.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
       $("rBody").innerHTML = tab === "notes"
         ? (r.notes ? '<div class="notes">' + md(r.notes) + "</div>" : '<div class="placeholder"><div>Конспекта нет — в записи не нашлось речи.</div></div>')
-        : (r.transcript ? '<div class="lines">' + r.transcript.split("\n").map(lineHtml).join("") + "</div>" : '<div class="placeholder"><div>Текста нет.</div></div>');
+        : !r.transcript ? '<div class="placeholder"><div>Текста нет.</div></div>'
+        : r.kind === "doc" || r.kind === "web" || r.kind === "compare" ? '<div class="notes doc' + (r.kind === "compare" ? " cmp" : "") + '">' + docHtml(r.transcript) + "</div>"
+        : '<div class="lines">' + r.transcript.split("\n").map(lineHtml).join("") + "</div>";
     };
     v.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => { tab = b.dataset.tab; paint(); follow(); });
     paint();
@@ -342,6 +393,7 @@
     const media = $("media");
     $("rBody").onclick = (e) => {
       const el = e.target.closest("[data-t]");
+      if (el && r.kind === "yt") { call("rec_open_at", id, Number(el.dataset.t)); return; }   // ролик — с этого места
       if (!el || !media) return;
       media.currentTime = Math.max(0, Number(el.dataset.t) - 1); media.play().catch(() => {});
     };
@@ -361,6 +413,10 @@
     t.onblur = async () => { const n = t.textContent.trim(); if (n && n !== r.title) { await call("rec_rename", id, n); r.title = n; loadList(id); } };
     if ($("aPlay")) $("aPlay").onclick = () => call("rec_open_audio", id);
     $("aFolder").onclick = () => call("rec_open_folder", id);
+    if ($("trLang")) $("trLang").onchange = async () => {
+      const l = $("trLang").value; if (!l) return;
+      toast((await call("rec_translate", id, l)) || "Не получилось"); $("trLang").value = ""; setTimeout(poll, 500);
+    };
     $("aPhone").onclick = async () => toast((await call("rec_to_phone", id)) || "Не получилось");
     $("aDel").onclick = async () => {
       if (!confirm("Удалить запись «" + r.title + "» вместе со звуком и текстом?")) return;

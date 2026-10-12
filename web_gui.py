@@ -974,7 +974,8 @@ class RecordsApi:
     def rec_list(self) -> list:
         from core import meeting_notes as M
         return [{k: i.get(k) for k in ("id", "title", "started", "minutes", "mic")} |
-                {"audio": bool(i.get("audio")), "video": bool(i.get("video")), "imported": bool(i.get("imported"))}
+                {"audio": bool(i.get("audio")), "video": bool(i.get("video")), "imported": bool(i.get("imported")),
+                 "kind": i.get("kind") or ""}
                 for i in reversed(M.recordings())]
 
     def rec_get(self, rid: str) -> dict:
@@ -983,7 +984,8 @@ class RecordsApi:
         if not r:
             return {}
         from core import media_server
-        out = {k: r.get(k) for k in ("id", "title", "started", "minutes", "mic", "notes", "transcript", "imported")}
+        out = {k: r.get(k) for k in ("id", "title", "started", "minutes", "mic", "notes", "transcript", "imported",
+                                     "kind", "url", "pages")}
         out["source"] = os.path.basename(r.get("source") or "")
         out["audio"] = media_server.url(rid, "audio") if r.get("audio") and os.path.exists(r["audio"]) else ""
         out["video"] = media_server.url(rid, "video") if r.get("video") and os.path.exists(r["video"]) else ""
@@ -1044,26 +1046,76 @@ class RecordsApi:
         if w is None:
             return 0
         from core import media_import
-        kinds = " ".join("*" + e for e in media_import.VIDEO + media_import.AUDIO)
+        from core import doc_text
+        kinds = ";".join("*" + e for e in media_import.VIDEO + media_import.AUDIO + doc_text.DOCS)
         try:
             mode = webview.FileDialog.OPEN if hasattr(webview, "FileDialog") else webview.OPEN_DIALOG
             paths = w.create_file_dialog(mode, allow_multiple=True,
-                                         file_types=(f"Видео и аудио ({kinds})", "Все файлы (*.*)")) or []
+                                         file_types=(f"Видео, аудио и документы ({kinds})", "Все файлы (*.*)")) or []
         except Exception as e:
             print(f"[записи] выбор файла: {e}")
             return 0
         return self.rec_import_paths(list(paths))
 
+    def rec_compare_dialog(self) -> str:
+        """«Сравнить два файла»: выбрать два документа (сначала старый, потом новый)."""
+        w = _GUI.get("records")
+        if w is None:
+            return ""
+        from core import doc_text, doc_compare
+        kinds = ";".join("*" + e for e in doc_text.DOCS)
+        mode = webview.FileDialog.OPEN if hasattr(webview, "FileDialog") else webview.OPEN_DIALOG
+        try:
+            paths = list(w.create_file_dialog(mode, allow_multiple=True, file_types=(f"Документы ({kinds})",)) or [])
+        except Exception as e:
+            return f"Выбор файлов: {e}"
+        if len(paths) != 2:
+            return "Выбери ровно два файла (с Ctrl)."
+        paths.sort(key=lambda p: os.path.getmtime(p))              # старый → новый
+        doc_compare.compare(paths[0], paths[1], announce=_records_announce())
+        return f"Сравниваю «{os.path.basename(paths[0])}» → «{os.path.basename(paths[1])}»…"
+
+    def rec_translate(self, rid: str, lang: str = "en") -> str:
+        from core import doc_translate
+        src = self._path(rid, "source")
+        if not src or not os.path.exists(src):
+            return "Исходный документ не найден — его переместили или удалили?"
+        doc_translate.start(src, lang if lang in doc_translate.LANGS else "en", announce=_records_announce())
+        return f"Перевожу на {doc_translate.LANGS.get(lang, ('английский',))[0]} — файл появится рядом с оригиналом."
+
     def rec_import_paths(self, paths: list) -> int:
         from core import media_import
         n = 0
         for p in paths or []:
-            if p and os.path.isfile(p) and media_import.is_media(p):
+            if p and os.path.isfile(p) and media_import.is_supported(p):
                 media_import.import_file(p, announce=_records_announce())
                 n += 1
         return n
 
+    def rec_open_at(self, rid: str, seconds: float = 0) -> bool:
+        """Ролик YouTube — открыть в браузере с нужной секунды."""
+        url = self._path(rid, "url")
+        if not url.startswith(("http://", "https://")):
+            return False
+        import webbrowser
+        base = re.sub(r"[?&]t=\d+s?", "", url)
+        sep = "&" if "?" in base else "?"
+        webbrowser.open(f"{base}{sep}t={max(0, int(seconds))}s")
+        return True
+
+    def rec_import_url(self, url: str) -> str:
+        from core import link_notes
+        url = (url or "").strip()
+        if not url.startswith(("http://", "https://")):
+            return "Нужна ссылка, которая начинается с http:// или https://"
+        return link_notes.summarize(url, announce=_records_announce())
+
     def rec_open_audio(self, rid: str) -> bool:
+        url = self._path(rid, "url")
+        if url.startswith(("http://", "https://")):
+            import webbrowser
+            webbrowser.open(url)
+            return True
         p = self._path(rid, "source") or self._path(rid, "video") or self._path(rid, "audio")
         if p and os.path.exists(p):
             os.startfile(p)                                  # плеер Windows по умолчанию
