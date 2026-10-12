@@ -34,8 +34,29 @@ def _on_squeeze_hotkey():
     shared_state["manual_queue"].append("сожми выделенное")
 
 
+def _on_snip_hotkey():
+    """Ctrl+Alt+X — выделить область экрана мышкой, текст из неё — в буфер обмена."""
+    shared_state["manual_queue"].append("распознай текст с экрана")
+
+
+def _on_what_is_hotkey():
+    """Ctrl+Alt+W — «что это?» про то, что под курсором мыши."""
+    shared_state["manual_queue"].append("что это под курсором")
+
+
+def _on_prompter_hotkey():
+    """Ctrl+Alt+H — суфлёр: ответ на последний вопрос в созвоне (молча, карточкой)."""
+    import threading
+    from core import prompter
+    threading.Thread(target=prompter.hint_now, daemon=True).start()
+
+
 def start_selection_hotkeys() -> None:
     keyboard.add_hotkey("ctrl+alt+a", _on_ask_hotkey)
     keyboard.add_hotkey("ctrl+alt+t", _on_translate_hotkey)
     keyboard.add_hotkey("ctrl+alt+s", _on_squeeze_hotkey)
-    print("(selection hotkeys active: Ctrl+Alt+A = ask, Ctrl+Alt+T = translate, Ctrl+Alt+S = сжать выделенное)")
+    keyboard.add_hotkey("ctrl+alt+x", _on_snip_hotkey)
+    keyboard.add_hotkey("ctrl+alt+w", _on_what_is_hotkey)
+    keyboard.add_hotkey("ctrl+alt+h", _on_prompter_hotkey)
+    print("(selection hotkeys active: Ctrl+Alt+A = ask, Ctrl+Alt+T = translate, Ctrl+Alt+S = сжать выделенное, "
+          "Ctrl+Alt+X = текст с экрана, Ctrl+Alt+W = что это?, Ctrl+Alt+H = подсказка суфлёра)")

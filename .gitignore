@@ -71,3 +71,14 @@ atlas_context_reminders.json
 clipboard.db
 atlas_aliases.json
 rec_indicator.json
+atlas_watchers.json
+atlas_watchers.json.tmp
+atlas_messengers.json
+atlas_scenarios.json
+atlas_scenarios.json.tmp
+atlas_prompter.json
+atlas_screen_history.json
+atlas_voice_notes.json
+atlas_voice_notes.json.tmp
+atlas_wellbeing.json
+atlas_form_profile.json

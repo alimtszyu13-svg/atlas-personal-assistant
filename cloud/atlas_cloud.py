@@ -138,7 +138,11 @@ CLOUD_HIDE = {"holo_show", "holo_weather", "holo_graph", "holo_control", "look",
               "remind_when", "list_context_reminders", "cancel_context_reminder", "open_recordings_window",
               "add_command_alias", "list_command_aliases", "remove_command_alias",
               "summarize_media_file", "summarize_link", "squeeze_selection", "compare_documents",
-              "translate_document"}                              # на нём — через use_computer
+              "translate_document", "arrange_windows", "watch_for", "list_watches", "cancel_watch",
+              "disk_usage_report", "plan_disk_cleanup", "confirm_disk_cleanup", "snip_screen_text",
+              "send_message", "confirm_message_send", "read_messages",
+              "batch_files", "find_saved_file", "explain_under_cursor", "save_scenario", "run_scenario", "call_prompter", "screen_history_find",
+              "game_mode_control", "proofread_selection", "fill_form", "remember_for_forms"}   # на нём — через use_computer
 
 
 def _hide_pc_tools() -> list:

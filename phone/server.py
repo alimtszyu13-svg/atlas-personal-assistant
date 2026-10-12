@@ -113,6 +113,15 @@ FORWARD = None
 PC_HUB = False            # облако принимает связь от компьютера (/api/pc/poll, /api/pc/result)
 
 
+def _pc_announce(text: str) -> None:
+    """Итог долгой работы (сжатие видео, уборка), начатой с телефона, — уведомлением на телефон."""
+    try:
+        from core import handoff
+        handoff.notify_phone("Atlas", text)
+    except Exception as e:
+        print(f"[телефон] уведомление: {e}")
+
+
 def _needs_pc(reply) -> bool:
     return isinstance(reply, str) and "недоступно из облака" in reply
 
@@ -135,18 +144,25 @@ def handle_text(text: str, log: bool = True) -> str:
     _quiet_pc()
     with _brain_lock:
         reply = None
-        try:
-            from fast_commands import try_fast_command
-            fast = try_fast_command(text)
-            if fast is not None:
-                reply = fast[1] if isinstance(fast, tuple) else str(fast)
-                try:
-                    from ai_brain import remember_exchange
-                    remember_exchange(text, reply)
-                except Exception:
-                    pass
-        except Exception as e:
-            print(f"[телефон] быстрый путь: {e}")
+        if not PC_HUB:                                       # окна, файлы, «скажи, когда…», мессенджеры — без модели
+            try:
+                from core import pc_fast
+                reply = pc_fast.handle(text, local=False, announce=_pc_announce)
+            except Exception as e:
+                print(f"[телефон] команды ПК: {e}")
+        if reply is None:
+            try:
+                from fast_commands import try_fast_command
+                fast = try_fast_command(text)
+                if fast is not None:
+                    reply = fast[1] if isinstance(fast, tuple) else str(fast)
+                    try:
+                        from ai_brain import remember_exchange
+                        remember_exchange(text, reply)
+                    except Exception:
+                        pass
+            except Exception as e:
+                print(f"[телефон] быстрый путь: {e}")
         if _needs_pc(reply):                           # нет компьютера на связи — пусть ответит мозг, по-человечески
             reply = (FORWARD(text) if FORWARD is not None else None) or None
         if reply is None:

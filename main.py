@@ -149,13 +149,36 @@ def _record_command(rec: tuple) -> None:
 def _quiet_announce(text: str) -> None:
     """Подсказки и предложения: во время фокуса и диктовки молчим (напоминания идут через _announce)."""
     try:
-        from core import dictation, focus
-        if focus.active() or dictation.active():
+        from core import dictation, focus, game_mode, prompter
+        if focus.active() or dictation.active() or prompter.active() or game_mode.active():
             print(f"[тихо] не мешаю: {text}")
             return
     except Exception:
         pass
     _announce(text)
+
+
+def _last_reply() -> str:
+    for who, text in reversed(shared_state.get("chat_history") or []):
+        if who == "Atlas":
+            return text
+    return ""
+
+
+def _pc_power(command: str):
+    """Быстрые команды компьютера без модели (core/pc_fast). None — не наше."""
+    from core import pc_fast
+    ru = None
+    try:
+        ru = get_response_language() == "ru"
+    except Exception:
+        pass
+    shared_state["state"] = "thinking"
+    said = pc_fast.handle(command, last=_last_reply(), announce=_announce, ru_default=ru,
+                          on_full=lambda t: shared_state["chat_history"].append(("Atlas", t)))
+    if not said:
+        shared_state["state"] = "idle"
+    return said
 
 
 # =============================================================================
@@ -187,6 +210,14 @@ def _process_command(command: str) -> None:
     rec = meeting_notes.intent(command)
     if rec:
         _record_command(rec)
+        return
+
+    said = _pc_power(command)                    # мессенджеры, окна, «скажи, когда…», уборка, текст с экрана
+    if said:
+        _speak_and_update(said, interruptible=False)
+        from core import pc_fast
+        if pc_fast.is_question(said):
+            shared_state["follow_up"] = True          # «Отправить?» / «Чистить?» / «Открыть?» — ответ без имени
         return
 
     from core import link_notes, doc_compare, doc_translate, squeeze
@@ -497,6 +528,23 @@ def main() -> None:
         context_reminders.start(_announce)        # «напомни, когда открою Word…»
     except Exception as e:
         print(f"[буфер / напоминания по ситуации] не запустились: {e}")
+    try:
+        from core import watchers                 # «скажи, когда скачается / закончится рендер / вернётся интернет»
+        watchers.start(_announce)
+    except Exception as e:
+        print(f"[слежу] не запустилось: {e}")
+    try:
+        from core import call_secretary           # «Сэр, вам звонит мама в Telegram» → «возьми трубку» / «скажи, что занят»
+        call_secretary.start(_announce)
+    except Exception as e:
+        print(f"[звонки] секретарь не запустился: {e}")
+    try:
+        from core import screen_history, voice_notes, wellbeing
+        screen_history.start()                    # машина времени экрана — если её включали
+        voice_notes.start(_quiet_announce)        # по воскресеньям — итоги недели по заметкам
+        wellbeing.start(_announce)                # мягко: перерывы и (если попросишь) осанка
+    except Exception as e:
+        print(f"[забота / заметки / история экрана] не запустились: {e}")
     ai_brain.set_announcer(_announce)             # итоги фоновых задач — вслух
     ai_brain.features.start_memory_autoreview()   # раз в 3 дня — проверка памяти, удаление только после «да»
     try:
