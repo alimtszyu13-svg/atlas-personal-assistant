@@ -1293,6 +1293,11 @@ class SpeechStream:
     def _push(self, text: str) -> None:
         text = re.sub(r"^\s*(?:[-*•]|#+|\d+\.)\s+", "", text, flags=re.M)
         text = text.replace("**", "").strip()
+        try:
+            from core import filler                       # «Happy reading, sir» вслух не говорим
+            text = filler.piece(text).strip()
+        except Exception:
+            pass
         if text and not _stop_speaking.is_set():
             self.spoken_any = True
             self.texts.put(text)

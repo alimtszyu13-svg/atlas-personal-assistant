@@ -167,32 +167,77 @@ def graph_facts(query: str, limit: int = 6) -> list:
     L = _graph["labels"]
     return [f"{L.get(s, '?')} — {r} → {L.get(d, '?')}" for s, r, d in rows]
 
-def _summarize(turns: list):
-    """→ (статус, пересказ, факты). Статус: ok | nothing | busy | error."""
+def parse_json(raw: str) -> dict:
+    """Ответ модели → dict, даже если вокруг JSON есть текст, ```-обёртка или он обрезан в конце."""
+    raw = (raw or "").strip()
+    raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw)
+    m = re.search(r"\{.*\}", raw, re.S)
+    if not m:
+        return {}
     try:
-        from ai_brain import client, MODEL_FAST
-        from core import llm_gateway
-        if llm_gateway.busy(MODEL_FAST):
-            return "busy", None, []               # лимит нужен голосовым командам
-        dialog = "\n".join(f"{'User' if r == 'user' else 'Atlas'}: {t}" for r, t in turns)[-6000:]
-        llm_gateway.reserve(MODEL_FAST, len(dialog) // 3 + 700)
-        r = client.chat.completions.create(
-            model=MODEL_FAST, reasoning_effort="low", max_tokens=800,
-            response_format={"type": "json_object"},
-            messages=[{"role": "system", "content": _EXTRACT_PROMPT},
-                      {"role": "user", "content": dialog}])
-        raw = r.choices[0].message.content or ""
-        m = re.search(r"\{.*\}", raw, re.S)
-        data = json.loads(m.group(0)) if m else {}
+        return json.loads(m.group(0))
+    except ValueError:
+        txt = m.group(0)
+        for cut in range(len(txt), 1, -1):                 # обрезанный ответ — ищем последнюю целую часть
+            if txt[cut - 1] in "]}\"":
+                frag = txt[:cut]
+                frag += "]" * max(0, frag.count("[") - frag.count("]")) + "}" * max(0, frag.count("{") - frag.count("}"))
+                try:
+                    return json.loads(frag)
+                except ValueError:
+                    continue
+        return {}
+
+
+def _summary_calls():
+    """Кем пересказывать: быстрая модель в JSON-режиме, потом без него (строгий JSON-режим Groq иногда
+    отвечает «json_validate_failed»), потом Cerebras."""
+    from brain import providers as P
+    out = [(P.client, P.MODEL_FAST, True), (P.client, P.MODEL_FAST, False)]
+    if getattr(P, "cerebras_client", None) is not None:
+        out.append((P.cerebras_client, P.CEREBRAS_MODEL.split(":", 1)[1], False))
+    out.append((P.client, P.MODEL_SMART, False))
+    return out
+
+
+def _summarize(turns: list, calls=None):
+    """→ (статус, пересказ, факты). Статус: ok | nothing | busy | error."""
+    dialog = "\n".join(f"{'User' if r == 'user' else 'Atlas'}: {t}" for r, t in turns)[-6000:]
+    try:
+        if calls is None:
+            from ai_brain import MODEL_FAST
+            from core import llm_gateway
+            if llm_gateway.busy(MODEL_FAST):
+                return "busy", None, []           # лимит нужен голосовым командам
+            llm_gateway.reserve(MODEL_FAST, len(dialog) // 3 + 700)
+    except Exception as e:
+        print(f"[память] пересказ не удался: {e}")
+        return "error", None, []
+    last = None
+    for cl, model, json_mode in (calls if calls is not None else _summary_calls()):
+        kw = dict(model=model, reasoning_effort="low", max_tokens=900,
+                  messages=[{"role": "system", "content": _EXTRACT_PROMPT + ("" if json_mode else
+                            " Reply with the JSON object only.")},
+                            {"role": "user", "content": dialog}])
+        if json_mode:
+            kw["response_format"] = {"type": "json_object"}
+        try:
+            raw = cl.chat.completions.create(**kw).choices[0].message.content or ""
+        except Exception as e:
+            last = e
+            continue
+        data = parse_json(raw)
+        if not data:
+            last = "пустой ответ"
+            continue
         summary = (data.get("summary") or "").strip() or None
         facts = [f for f in data.get("facts") or []
                  if isinstance(f, dict) and f.get("s") and f.get("r") and f.get("o")]
         if not summary and not facts:
             return "nothing", None, []
         return "ok", summary, facts
-    except Exception as e:
-        print(f"[память] пересказ не удался: {e}")
-        return "error", None, []
+    print(f"[память] пересказ не удался: {str(last)[:160]}")
+    return "error", None, []
 
 
 def consolidate(force: bool = False) -> None:

@@ -253,7 +253,8 @@ def _process_command(command: str) -> None:
     from voice import SpeechStream
     speech = SpeechStream()
     response = ask_ai(lang_hint + command, speech=speech)
-    shown = _emo.strip(response)                  # метки эмоций нужны голосу, а не чату
+    from core import filler
+    shown = filler.clean(_emo.strip(response))    # метки эмоций нужны голосу, а не чату; дежурные фразы — никому
     memory.log_turn("assistant", shown)
     shared_state["chat_history"].append(("Atlas", shown))      # текст — сразу, речь догоняет
     speech.finish()

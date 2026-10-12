@@ -265,10 +265,17 @@ def _json_call(system: str, user: str, max_tokens: int = 900) -> dict:
               messages=[{"role": "system", "content": system}, {"role": "user", "content": user}])
     if "gpt-oss" in model:
         kw["reasoning_effort"] = "low"
+    from core.memory import parse_json
     cl, kw2 = providers._client_for(kw)
-    raw = cl.chat.completions.create(**kw2).choices[0].message.content or ""
-    m = re.search(r"\{.*\}", raw, re.S)
-    return json.loads(m.group(0)) if m else {}
+    try:
+        raw = cl.chat.completions.create(**kw2).choices[0].message.content or ""
+    except Exception as e:
+        if "json" not in str(e).lower():
+            raise
+        kw2.pop("response_format", None)                   # строгий JSON-режим не справился — просим словами
+        kw2["messages"][0]["content"] += " Reply with the JSON object only."
+        raw = cl.chat.completions.create(**kw2).choices[0].message.content or ""
+    return parse_json(raw)
 
 
 def memory_review(apply: bool = False) -> str:

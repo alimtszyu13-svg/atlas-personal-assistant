@@ -153,6 +153,11 @@ def handle_text(text: str, log: bool = True) -> str:
             from ai_brain import ask_ai
             reply = ask_ai(_hint(text) + text)
     em = _emo()
+    try:
+        from core import filler                              # дежурные фразы — ни в чат, ни в голос
+        reply = filler.clean(reply)
+    except Exception:
+        pass
     shown = em.strip(reply) if em else reply
     print(f"[телефон] ← {shown}")
     _quiet_pc()                                         # отсчёт тишины — с конца ответа
@@ -532,6 +537,11 @@ def _answer(text: str, heard: str = None, choice: dict = None, mode: str = "inli
     acts = _actions()
     t1 = time.time()
     em = _emo()
+    try:
+        from core import filler                              # дежурные фразы — ни в чат, ни в голос
+        reply = filler.clean(reply)
+    except Exception:
+        pass
     shown = em.strip(reply) if em else reply
     audio = mime = say = None
     if reply and mode == "stream":

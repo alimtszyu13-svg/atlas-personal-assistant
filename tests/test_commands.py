@@ -188,6 +188,10 @@ def background_mission_joke_fact_and_game():
 @test
 def files():
     assert fast("найди файл где я писал про стажировку")[2][0][:2] == ("search_file_content", ("стажировку",))
+    assert fast("найди эссе про путешествия")[2][0][:2] == ("search_file_content", ("путешествия",)), \
+        "эссе ищем на компьютере, а не в интернете"
+    assert fast("найди мой реферат по физике на компьютере")[2][0][:2] == ("search_file_content", ("физике",))
+    assert fast("где презентация про экологию")[2][0][:2] == ("search_file_content", ("экологию",))
     assert fast("where is the file about the trip budget")[2][0][:2] == ("search_file_content", ("the trip budget",))
     assert fast("открой второй")[2][0][:2] == ("open_search_result", ("второй",))
     assert fast("покажи второй в папке")[1] == ["show_search_result_in_folder"]
