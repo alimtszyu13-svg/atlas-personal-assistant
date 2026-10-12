@@ -568,7 +568,12 @@ def wait_for_wake_word() -> str:
                 if w["conf"] < WAKE_CONF:
                     print(f"[wake] отклонено: {w['word']} ({w['conf']:.2f})")
                     continue
-                print(f"[wake] {w['word']} ({w['conf']:.2f})")
+                from core import wake_check               # вторая проверка — весь словарь, не только имя
+                ok, heard = wake_check.verify(_vosk_model, ring, w, SAMPLE_RATE)
+                if not ok:
+                    print(f"[wake] отклонено проверкой: слышу «{heard or '…'}»")
+                    continue
+                print(f"[wake] {w['word']} ({w['conf']:.2f})" + (f" — проверка: «{heard}»" if heard else ""))
                 if i < len(words) - 1:            # после имени звучала речь — это команда
                     start = int(w["end"] * SAMPLE_RATE)
                     parts = [c[max(0, start - s):] for s, c in ring if s + len(c) > start]

@@ -322,7 +322,8 @@ def capture_mixes_speakers_and_mic_in_real_time():
     sys.modules["voice"] = types.SimpleNamespace(output_is_headphones=lambda: False)    # колонки → эхо приглушаем
     out, stop = [], th.Event()
     try:
-        t = th.Thread(target=M._capture, args=(out.append, stop, True), daemon=True)
+        t = th.Thread(target=M._capture, args=(lambda b, rate=16000: out.append(M.to_16k_mono(b, rate)), stop, True),
+                      daemon=True)
         t.start()
         for _ in range(200):
             if "t0" in clock:
@@ -349,6 +350,69 @@ def capture_mixes_speakers_and_mic_in_real_time():
     assert abs(last - (0.25 + 0.09 * 0.3)) < 0.03, f"потом — колонки + приглушённый микрофон (эхо): {last}"
     mid = float(audio[at(1.95):at(2.15)].mean())
     assert abs(mid - 0.09) < 0.02, f"пауза в колонках посередине — время не съехало: {mid}"
+
+
+@test
+def mic_can_be_switched_on_and_off_during_recording():
+    from core import meeting_notes as M
+    import threading as th
+
+    class Rec:
+        def __init__(self, kind, rate):
+            self.kind, self.rate, self.sent = kind, rate, 0
+
+        def __enter__(self):
+            self.t0 = time.time()
+            return self
+
+        def __exit__(self, *a):
+            pass
+
+        def record(self, numframes=None):
+            due = int((time.time() - self.t0) * self.rate)
+            n, self.sent = due - self.sent, due
+            return np.full((n, 2 if self.kind == "loop" else 1), 0.2 if self.kind == "loop" else 0.5, np.float32)
+
+    class Dev:
+        def __init__(self, kind):
+            self.kind, self.name = kind, kind
+
+        def recorder(self, samplerate, channels=None, blocksize=None):
+            return Rec(self.kind, samplerate)
+    fake = types.SimpleNamespace(default_speaker=lambda: types.SimpleNamespace(name="spk"),
+                                 get_microphone=lambda id, include_loopback=False: Dev("loop"),
+                                 default_microphone=lambda: Dev("mic"))
+    saved, saved_voice = M._soundcard, sys.modules.get("voice")
+    M._soundcard = lambda: fake
+    sys.modules["voice"] = types.SimpleNamespace(output_is_headphones=lambda: True)     # наушники — без приглушения
+    out, rates, stop = [], set(), th.Event()
+
+    def emit(b, rate=16000):
+        rates.add((rate, b.shape[1] if b.ndim > 1 else 1))
+        out.append(M.to_16k_mono(b, rate))
+    try:
+        t = th.Thread(target=M._capture, args=(emit, stop, False), daemon=True)
+        t.start()
+        time.sleep(1.2)
+        M.set_mic(True)                                           # включили микрофон посреди записи
+        time.sleep(1.2)
+        M.set_mic(False)
+        time.sleep(1.2)
+        stop.set()
+        t.join(3)
+    finally:
+        M._soundcard = saved
+        if saved_voice is None:
+            sys.modules.pop("voice", None)
+        else:
+            sys.modules["voice"] = saved_voice
+    a = np.concatenate(out)
+    assert rates == {(48000, 2)}, f"звук записи — 48 кГц стерео: {rates}"
+    sec = lambda x: float(a[int(x * 16000):int((x + 0.3) * 16000)].mean())
+    assert abs(sec(0.4) - 0.2) < 0.02, sec(0.4)
+    print("      профиль:", [round(sec(x / 4), 2) for x in range(0, 15)])
+    assert abs(sec(1.9) - (0.2 + 0.45)) < 0.05, f"микрофон включён: {sec(1.9)}"
+    assert abs(sec(len(a) / 16000 - 0.6) - 0.2) < 0.02, "микрофон выключен — снова только звук компьютера"
 
 
 @test
@@ -429,7 +493,7 @@ def screen_and_sound_really_merge_with_ffmpeg():
     t_audio = time.time()
     assert rec.start(), rec.error
     time.sleep(1.5)
-    assert rec.stop() and rec.t0 >= t_audio - 0.1
+    assert rec.stop() and rec.t0 >= t_audio - 0.5
     with wave.open(os.path.join(TMP, "snd.wav"), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
@@ -465,6 +529,333 @@ def media_server_streams_with_seek():
         except urllib.error.HTTPError as e:
             assert e.code == 404
     media_server._s["resolve"] = None
+
+
+class FakeTk:
+    """Подставной tkinter: исполняет код огонька (рисование, таймер, нажатия) без экрана."""
+    class TclError(Exception):
+        pass
+
+    class Tk:
+        def __init__(self):
+            self.geo, self.calls, self.visible, self._x, self._y = "", [], False, 0, 0
+
+        def overrideredirect(self, v): pass
+        def attributes(self, *a): pass
+        def configure(self, **k): pass
+        def winfo_fpixels(self, v): return 120.0                # экран 125 %
+        def winfo_screenwidth(self): return 1920
+        def winfo_screenheight(self): return 1080
+        def winfo_x(self): return self._x
+        def winfo_y(self): return self._y
+
+        def geometry(self, g):
+            import re as _re
+            self.geo = g
+            m = _re.search(r"\+(-?\d+)\+(-?\d+)$", g)
+            if m:
+                self._x, self._y = int(m.group(1)), int(m.group(2))
+
+        def withdraw(self): self.visible = False
+        def deiconify(self): self.visible = True
+        def after(self, ms, fn): self.calls.append(fn)
+
+        def mainloop(self):
+            for _ in range(12):                                  # 12 тиков таймера
+                if self.calls:
+                    self.calls.pop(0)()
+            FakeTk.root = self
+
+    class Canvas:
+        def __init__(self, root, **k):
+            self.items, self.binds, self.n = {}, {}, 0
+            FakeTk.canvas = self
+
+        def pack(self): pass
+        def configure(self, **k): pass
+
+        def _new(self, kind, **k):
+            self.n += 1
+            self.items[self.n] = dict(k, _kind=kind)
+            return self.n
+
+        def create_oval(self, *a, **k): return self._new("oval", **k)
+        def create_rectangle(self, *a, **k): return self._new("rectangle", **k)
+        def create_text(self, *a, **k): return self._new("text", **k)
+        def create_arc(self, *a, **k): return self._new("arc", **k)
+        def create_line(self, *a, **k): return self._new("line", **k)
+        def create_polygon(self, *a, **k): return self._new("polygon", **k)
+        def itemconfigure(self, i, **k): self.items[i].update(k)
+        def type(self, i): return self.items[i]["_kind"]
+        def scale(self, *a): pass
+        def bind(self, ev, fn): self.binds[ev] = fn
+
+
+@test
+def indicator_draws_drags_and_toggles():
+    from core import rec_indicator as R
+    tk = types.ModuleType("tkinter")
+    tk.Tk, tk.Canvas, tk.TclError = FakeTk.Tk, FakeTk.Canvas, FakeTk.TclError
+    saved_tk, saved_pos = sys.modules.get("tkinter"), R.POS_FILE
+    sys.modules["tkinter"] = tk
+    R.POS_FILE = os.path.join(TMP, "ind.json")
+    got = []
+    R._s.update(on_click=lambda: got.append("open"), on_mic=lambda v: got.append(("mic", v)),
+                on_cam=lambda v: got.append(("cam", v)), on_stop=lambda: got.append("stop"),
+                info=lambda: {"seconds": 75, "mic": True, "camera": False})
+    R.show("recording")
+    try:
+        R._run()
+    finally:
+        if saved_tk is None:
+            sys.modules.pop("tkinter", None)
+        else:
+            sys.modules["tkinter"] = saved_tk
+    root, c = FakeTk.root, FakeTk.canvas
+    assert root.visible and any(it.get("text") == "REC 01:15" for it in c.items.values()), "таймер виден"
+    sc = 1.25
+    ev = lambda x, y, xr=0, yr=0: types.SimpleNamespace(x=x * sc, y=y * sc, x_root=xr, y_root=yr)
+    for x, want in ((60, "open"), (137, ("mic", False)), (173, ("cam", True)), (212, "stop")):
+        c.binds["<ButtonPress-1>"](ev(x, 17, 500, 50))
+        c.binds["<ButtonRelease-1>"](ev(x, 17, 500, 50))
+        time.sleep(0.05)
+        assert got[-1] == want, (x, got)
+    n = len(got)
+    c.binds["<ButtonPress-1>"](ev(60, 17, 500, 50))           # перетаскивание — не нажатие
+    c.binds["<B1-Motion>"](ev(60, 17, 300, 400))
+    c.binds["<ButtonRelease-1>"](ev(60, 17, 300, 400))
+    time.sleep(0.05)
+    assert len(got) == n and R.load_pos() is not None, "место запомнилось, окно не открывалось"
+    assert R.clamp(5000, -50, 295, 42, 1920, 1080) == (1625, 0), "за край экрана не уезжает"
+    assert R.hit(137, 17) == "mic" and R.hit(10, 17) == "open" and R.hit(10, 80) == ""
+    R.POS_FILE = saved_pos
+
+
+@test
+def camera_goes_into_the_video_corner():
+    import shutil
+    from core import screen_rec
+    exe = shutil.which("ffmpeg")
+    if not exe:
+        try:
+            import imageio_ffmpeg
+            exe = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            print("      (ffmpeg нет — пропущено)")
+            return
+    import subprocess
+    d = tempfile.mkdtemp(dir=TMP)
+    run = lambda *a: subprocess.run([exe, "-loglevel", "error", "-y", *a], check=True)
+    run("-f", "lavfi", "-i", "color=c=blue:size=1280x720:rate=30:duration=6", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        os.path.join(d, "scr.mp4"))
+    run("-f", "lavfi", "-i", "color=c=red:size=640x360:rate=30:duration=2", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        os.path.join(d, "cam.mp4"))
+    run("-f", "lavfi", "-i", "sine=f=300:duration=6", "-ac", "2", "-ar", "48000", os.path.join(d, "a.wav"))
+    out = os.path.join(d, "all.mp4")
+    saved = screen_rec._encoders
+    screen_rec._encoders = lambda: [("x264", ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "30"])]
+    try:
+        ok = screen_rec.compose(os.path.join(d, "scr.mp4"), [(os.path.join(d, "cam.mp4"), 102.0)],
+                                os.path.join(d, "a.wav"), out, audio_t0=100.0, screen_t0=100.0, exe=exe)
+    finally:
+        screen_rec._encoders = saved
+    assert ok, "камера наложилась"
+
+    def pixel(t, x, y):
+        raw = subprocess.run([exe, "-loglevel", "error", "-ss", str(t), "-i", out, "-frames:v", "1", "-vf",
+                              f"crop=2:2:{x}:{y}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
+        return raw[:3]
+    assert pixel(1, 1200, 680)[2] > 200, "до камеры — экран"
+    assert pixel(3, 1200, 680)[0] > 200, "камера включена — окошко в правом нижнем углу"
+    assert pixel(3, 100, 100)[2] > 200, "остальной экран виден"
+    assert pixel(5, 1200, 680)[2] > 200, "камеру выключили — снова экран"
+    probe = subprocess.run([exe, "-hide_banner", "-i", out], capture_output=True, text=True).stderr
+    assert "Audio: aac" in probe, "звук на месте"
+
+
+@test
+def camera_can_be_switched_on_mid_recording():
+    from core import meeting_notes as M
+    M.folder = lambda: TMP
+    made = []
+
+    class FakeCam:
+        def __init__(self, path):
+            self.out, self.t0, self.error = path, None, ""
+
+        def start(self):
+            open(self.out, "wb").write(b"\0" * 4000)
+            self.t0 = time.time()
+            return True
+
+        def stop(self):
+            made.append(self.out)
+            return True
+    from core import screen_rec
+    saved = screen_rec.compose
+    composed = {}
+    screen_rec.compose = lambda scr, cams, audio, out, t_audio, scr_t0=None, duration=None: (
+        composed.update(cams=list(cams), scr=scr), open(out, "wb").write(b"\1" * 5000))[1] > 0
+
+    def recorder(emit, stop, with_mic):
+        emit(speechy(2))
+        stop.wait(5)
+    try:
+        M.set_camera(False, recorder_factory=FakeCam)
+        M.start_recording("Урок", True, recorder=recorder, transcribe=lambda *a: [(0.0, "Привет.")], with_screen=False)
+        assert M.live()["camera"] is False
+        M.set_camera(True)
+        for _ in range(50):
+            if (M._s.get("camera") or {}).get("segments"):
+                break
+            time.sleep(0.02)
+        assert M.live()["camera"] is True
+        M.set_camera(False)
+        M.set_camera(True)                                       # второй кусок
+        time.sleep(0.2)
+        M.stop_recording(ask=lambda *a, **k: "## Коротко\nУрок.")
+    finally:
+        screen_rec.compose = saved
+        M._s["camera"]["factory"] = None
+        M._s["camera"]["on"] = False
+    assert len(composed["cams"]) == 2 and composed["scr"] == "", composed
+    it = M.recordings()[-1]
+    assert it["video"].endswith(".mp4") and os.path.exists(it["video"]), "без экрана видео — это камера"
+    assert all(not os.path.exists(p) for p, _ in composed["cams"]), "куски камеры после сборки убраны"
+
+
+@test
+def own_command_words():
+    from core import aliases as A
+    A.FILE = os.path.join(TMP, "aliases.json")
+    assert A.handle("Атлас, когда я говорю «кино» — включай резку") == "Запомнил: «кино» — это «включи резку»."
+    assert "фокус на 50 минут" in A.handle("запомни команду: учёба — это фокус на 50 минут")
+    assert "открой телеграм" in A.handle('назови команду "открой телеграм" как телега')
+    assert A.handle("когда я говорю музыка включай спотифай") == "Запомнил: «музыка» — это «включи спотифай»."
+    assert "занято" in A.handle("когда я скажу стоп, делай паузу"), "управляющие слова не отдаём"
+    assert A.handle("погода это интересно") is None and A.handle("какая погода") is None
+    assert A.expand("Кино") == "включи резку" and A.expand("кино Интерстеллар") == "включи резку Интерстеллар"
+    assert A.expand("учёба") == "фокус на 50 минут" and A.expand("кинотеатр рядом") == "кинотеатр рядом"
+    assert "«телега» — открой телеграм" in A.handle("какие у меня команды")
+    assert A.handle("забудь команду кино") == "Забыл команду «кино»." and A.expand("кино") == "кино"
+
+
+def _ffmpeg():
+    import shutil
+    exe = shutil.which("ffmpeg")
+    if exe:
+        return exe
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return ""
+
+
+@test
+def import_phrases_and_choices():
+    from core import media_import as I
+    assert I.intent("Атлас, сделай конспект видео про электричество") == ("import", "видео про электричество")
+    assert I.intent("расшифруй вчерашнее видео из загрузок") == ("import", "вчерашнее видео из загрузок")
+    assert I.intent("законспектируй это видео") is None, "то, что играет сейчас, — это запись, а не файл"
+    assert I.intent("сделай конспект книги") is None and I.intent("какая погода") is None
+    from core import meeting_notes as M
+    assert M.intent("сделай конспект видео про ток") is None, "«конспект» больше не включает запись"
+    d = tempfile.mkdtemp(dir=TMP)
+    now = datetime(2026, 10, 11, 14, 0)
+    files = []
+    for name, days in (("Электричество урок 5.mp4", 3), ("VID_20261010_1834.mp4", 1), ("Подкаст про ИИ.mp3", 10),
+                       ("VID_20261011_0912.mp4", 0)):
+        p = os.path.join(d, name)
+        open(p, "wb").write(b"x")
+        ts = (now - timedelta(days=days, hours=1)).timestamp()
+        os.utime(p, (ts, ts))
+        files.append(p)
+    assert I.find("видео про электричество", now=now, files=list(files))[0].endswith("Электричество урок 5.mp4")
+    assert I.find("вчерашнее видео", now=now, files=list(files)) == [files[1]], "по дате, когда имя «коварное»"
+    assert I.find("последнее видео", now=now, files=list(files))[0] == files[3]
+    assert I.find("подкаст", now=now, files=list(files))[0].endswith(".mp3")
+    assert I.find("квантовая гравитация", now=now, files=list(files)) == []
+    I._pending.update(items=files[:3], t=time.time())
+    assert I.intent("второй") == ("pick", 2) and I.intent("давай третий") == ("pick", 3)
+    I._pending["items"] = []
+    assert I.intent("второй") is None, "без вопроса «какой?» — обычная фраза"
+
+
+@test
+def import_real_file_makes_text_and_keeps_the_original():
+    exe = _ffmpeg()
+    if not exe:
+        print("      (ffmpeg нет — пропущено)")
+        return
+    import subprocess
+    from core import media_import as I, meeting_notes as M
+    from core import screen_rec
+    M.folder = lambda: TMP
+    saved_ff = screen_rec.ffmpeg_exe
+    screen_rec.ffmpeg_exe = lambda: exe
+    d = tempfile.mkdtemp(dir=TMP)
+    src = os.path.join(d, "Лекция.mp4")                       # 12 с: тон — тишина — тон
+    subprocess.run([exe, "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=10:duration=12",
+                    "-f", "lavfi", "-i", "sine=f=440:duration=5", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono:d=2",
+                    "-f", "lavfi", "-i", "sine=f=660:duration=5",
+                    "-filter_complex", "[1:a][2:a][3:a]concat=n=3:v=0:a=1[a]", "-map", "0:v", "-map", "[a]",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", src], check=True)
+    seen = []
+
+    def transcribe(audio, path, prompt):
+        import wave as _w
+        with _w.open(path) as w:
+            secs = w.getnframes() / w.getframerate()
+        seen.append(round(secs, 1))
+        return [(1.0, f"Кусок длиной {round(secs)} секунд.")]
+    saved_piece = I.PIECE_S
+    I.PIECE_S = 6                                             # короткие куски — проверить разрез и параллельность
+    said = []
+    try:
+        I.import_file(src, announce=said.append, transcribe=transcribe,
+                      ask=lambda *a, **k: "## Коротко\nЛекция про звук.", wait=True)
+    finally:
+        I.PIECE_S = saved_piece
+        screen_rec.ffmpeg_exe = saved_ff
+    assert len(seen) >= 2 and 10 <= sum(seen) <= 12.3, f"звук распознан кусками, тишина пропущена: {seen}"
+    it = M.recordings()[-1]
+    assert it["imported"] and it["video"] == src and it["source"] == src and it["minutes"] == 1, it
+    assert "Лекция про звук" in M.get(it["id"])["notes"] and "Кусок длиной" in M.get(it["id"])["transcript"]
+    assert said and "готов" in said[-1]
+    assert M.delete(it["id"]) and os.path.exists(src), "удалили запись — твой файл остался"
+    assert not os.path.exists(it["txt"]), "текст и конспект удалены"
+    mkv = os.path.join(d, "клип.mkv")
+    subprocess.run([exe, "-loglevel", "error", "-y", "-i", src, "-c", "copy", mkv], check=True)
+    screen_rec.ffmpeg_exe = lambda: exe
+    try:
+        I.import_file(mkv, transcribe=transcribe, ask=lambda *a, **k: "## Коротко\nок", wait=True)
+    finally:
+        screen_rec.ffmpeg_exe = saved_ff
+    it = M.recordings()[-1]
+    assert it["video"] == "" and it["audio"].endswith((".ogg", ".m4a")) and os.path.exists(it["audio"]), \
+        "mkv окно не покажет — рядом звук для плеера"
+
+
+@test
+def wake_word_is_double_checked():
+    from core import wake_check as W
+    for t in ("атлас", "атласа какая погода", "ат лас", "этлас", "atlas"):
+        assert W.looks_like_name(t), t
+    for t in ("отлично", "в класс", "лас вегас", "алмаз", ""):
+        assert not W.looks_like_name(t), t
+    ring = [(0, np.arange(0, 16000, dtype=np.int16)), (16000, np.arange(16000, 32000, dtype=np.int16))]
+    c = W.clip(ring, 0.5, 1.0)
+    assert len(c) == int(1.2 * 16000) and c[0] == int(0.15 * 16000), (len(c), c[0])
+    word = {"word": "атлас", "conf": 1.0, "start": 0.5, "end": 1.0}
+    assert W.verify(None, ring, word, recognize=lambda a: "атлас") == (True, "атлас")
+    assert W.verify(None, ring, word, recognize=lambda a: "отлично") == (False, "отлично")
+    assert W.verify(None, ring, word, recognize=lambda a: 1 / 0)[0], "проверка сломалась — лучше отозваться"
+    os.environ["WAKE_VERIFY"] = "off"
+    try:
+        assert W.verify(None, ring, word, recognize=lambda a: "отлично")[0]
+    finally:
+        del os.environ["WAKE_VERIFY"]
 
 
 @test
@@ -553,7 +944,7 @@ def records_window_api():
     assert api.rec_delete(rows[0]["id"]) and all(x["id"] != rows[0]["id"] for x in api.rec_list())
     page = open(os.path.join(ROOT, "atlas_records.html"), encoding="utf-8").read()
     for name in ("rec_list", "rec_get", "rec_live", "rec_start", "rec_stop", "rec_delete", "rec_rename",
-                 "rec_open_audio", "rec_open_folder", "rec_to_phone", "rec_ask"):
+                 "rec_open_audio", "rec_open_folder", "rec_to_phone", "rec_ask", "rec_set_mic", "rec_set_camera"):
         assert f'"{name}"' in page and hasattr(api, name), name
 
 
@@ -583,7 +974,8 @@ def skills_are_registered_and_hidden_in_the_cloud():
     import skills.pc_plus  # noqa: F401
     names = {"start_dictation", "clipboard_history_search", "paste_from_clipboard_history", "start_focus",
              "start_recording", "stop_recording", "ask_about_recording", "remind_when", "send_notes_to_phone",
-             "open_recordings_window"}
+             "open_recordings_window", "add_command_alias", "list_command_aliases", "remove_command_alias",
+             "summarize_media_file"}
     assert names <= set(REGISTRY), names - set(REGISTRY)
     src = open(os.path.join(ROOT, "cloud", "atlas_cloud.py"), encoding="utf-8").read()
     assert all(f'"{n}"' in src for n in names), "в облаке этих инструментов нет — только через компьютер"

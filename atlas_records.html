@@ -36,7 +36,7 @@
   .rec.busy .dot { background: var(--amber); animation: pulse 1.2s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(34,224,107,.55); } 50% { box-shadow: 0 0 0 7px rgba(34,224,107,0); } }
   .idle-form { display: flex; gap: 10px; align-items: center; flex: 1; flex-wrap: wrap; }
-  .idle-form #title { flex: 1 1 220px; min-width: 160px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+  .idle-form #title { flex: 1 1 150px; min-width: 120px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
     background: rgba(2, 6, 16, .55); outline: none; }
   .idle-form #title:focus { border-color: var(--line-2); }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: rgba(2,6,16,.45); }
@@ -49,7 +49,9 @@
   .rec.on .live-info, .rec.busy .live-info { display: flex; }
   .rec.on .idle-form, .rec.busy .idle-form { display: none; }
   .live-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .live-sub { color: var(--muted); font-size: 12.5px; }
+  .live-sub { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .live-info { flex-wrap: wrap; row-gap: 8px; }
+  .live-info > div:first-child { min-width: 180px; }
   .timer { font: 600 20px Unbounded, sans-serif; letter-spacing: .06em; font-variant-numeric: tabular-nums; color: #CFFFE0; }
   .rec.busy .timer { color: var(--amber); font-size: 14px; }
   .meter { width: 120px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; flex: none; }
@@ -57,7 +59,11 @@
     transition: width .2s; }
   .stop { border: 1px solid rgba(255,122,122,.5); background: rgba(255,122,122,.1); color: #FFD9D9; padding: 10px 16px;
     border-radius: 10px; font-weight: 600; white-space: nowrap; }
-  .rec.busy .stop, .rec.busy .meter { display: none; }
+  .rec.busy .stop, .rec.busy .meter, .rec.busy .tog { display: none; }
+  .tog { border: 1px solid var(--line); background: rgba(255,255,255,.03); color: var(--muted); padding: 9px 12px;
+    border-radius: 10px; white-space: nowrap; position: relative; }
+  .tog[aria-pressed="true"] { border-color: rgba(34,224,107,.5); background: rgba(34,224,107,.12); color: #CFFFE0; }
+  .tog[aria-pressed="false"] { text-decoration: line-through; text-decoration-color: rgba(255,122,122,.8); }
 
   /* --- низ: список и запись --- */
   .main { min-height: 0; display: grid; grid-template-columns: 300px 1fr; gap: 14px; }
@@ -67,6 +73,15 @@
   .list .search input { width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line);
     background: rgba(2,6,16,.5); outline: none; }
   .items { overflow: auto; padding: 6px; }
+  .add { width: 100%; margin-top: 8px; padding: 9px 12px; border-radius: 10px; border: 1px dashed var(--line-2);
+    background: rgba(134,214,255,.05); color: var(--text); }
+  .add:hover { background: rgba(134,214,255,.12); }
+  .item .bar { display: block; height: 4px; border-radius: 2px; background: rgba(255,255,255,.07); margin-top: 6px; overflow: hidden; }
+  .item .bar i { display: block; height: 100%; background: linear-gradient(90deg, #2C6BFF, var(--ion)); transition: width .4s; }
+  .item .err { color: var(--bad); }
+  .drop { position: fixed; inset: 10px; border: 2px dashed var(--ion); border-radius: 18px; background: rgba(2,6,16,.82);
+    display: none; place-items: center; z-index: 50; font: 600 18px Unbounded, sans-serif; letter-spacing: .06em; pointer-events: none; }
+  body.dragging .drop { display: grid; }
   .item { width: 100%; text-align: left; display: block; border: 1px solid transparent; background: none; padding: 10px 12px;
     border-radius: 11px; margin-bottom: 2px; }
   .item:hover { background: rgba(134,214,255,.06); }
@@ -126,7 +141,9 @@
     padding: 10px 16px; border-radius: 12px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 80%; }
   .toast.show { opacity: 1; }
   ::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-thumb { background: rgba(134,214,255,.15); border-radius: 5px; border: 3px solid transparent; background-clip: padding-box; }
-  @media (max-width: 760px) { .main { grid-template-columns: 1fr; } .list { max-height: 34vh; } .top { grid-template-columns: 1fr; } }
+  @media (max-width: 1180px) { .top { grid-template-columns: 1fr; gap: 10px; } .brand { flex-direction: row; align-items: baseline; gap: 14px; } .meter { display: none; } }
+  @media (max-height: 720px) { .player video { max-height: 26vh; } }
+  @media (max-width: 760px) { .main { grid-template-columns: 1fr; } .list { max-height: 34vh; } }
 </style>
 </head>
 <body>
@@ -142,6 +159,7 @@
           <button type="button" id="mVideo" aria-pressed="false" title="Только звук компьютера">Видео / лекция</button>
         </div>
         <label class="chk" title="Записать ещё и экран — получится видео"><input type="checkbox" id="scr"> Экран</label>
+        <label class="chk" title="Твоя веб-камера — окошком в углу видео"><input type="checkbox" id="camChk"> Камера</label>
         <button class="go" type="submit">Начать запись</button>
       </form>
       <div class="live-info">
@@ -151,6 +169,8 @@
         </div>
         <div class="meter" aria-hidden="true"><i id="meter"></i></div>
         <div class="timer" id="timer">00:00</div>
+        <button class="tog" id="micTog" type="button" aria-pressed="false" title="Мой микрофон">Микрофон</button>
+        <button class="tog" id="camTog" type="button" aria-pressed="false" title="Моя веб-камера">Камера</button>
         <button class="stop" id="stopBtn" type="button">Остановить</button>
       </div>
     </section>
@@ -158,7 +178,8 @@
 
   <div class="main">
     <aside class="list">
-      <div class="search"><input id="filter" placeholder="Найти запись" aria-label="Найти запись"></div>
+      <div class="search"><input id="filter" placeholder="Найти запись" aria-label="Найти запись">
+        <button class="add" id="addFile" type="button" title="Видео или аудио с компьютера — сделаю текст и конспект">+ Добавить видео или аудио</button></div>
       <div class="items" id="items"></div>
     </aside>
     <section class="view" id="view">
@@ -167,6 +188,7 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<div class="drop" aria-hidden="true">Отпусти — сделаю текст и конспект</div>
 
 <script>
 (function () {
@@ -214,11 +236,24 @@
   $("mVideo").onclick = () => { mic = false; $("scr").checked = true; $("mVideo").setAttribute("aria-pressed", "true"); $("mCall").setAttribute("aria-pressed", "false"); };
   $("startForm").onsubmit = async (e) => {
     e.preventDefault();
-    const r = await call("rec_start", $("title").value.trim(), mic, $("scr").checked);
+    const r = await call("rec_start", $("title").value.trim(), mic, $("scr").checked, $("camChk").checked);
     if (r && r.error) toast(r.error); else { $("title").value = ""; poll(); }
   };
+  $("micTog").onclick = async () => { await call("rec_set_mic", $("micTog").getAttribute("aria-pressed") !== "true"); poll(); };
+  $("camTog").onclick = async () => { await call("rec_set_camera", $("camTog").getAttribute("aria-pressed") !== "true"); poll(); };
   $("stopBtn").onclick = async () => { await call("rec_stop"); toast("Останавливаю — делаю конспект…"); poll(); };
   $("filter").oninput = renderList;
+  $("addFile").onclick = async () => {
+    const n = await call("rec_import_dialog");
+    if (n) toast(n === 1 ? "Делаю текст и конспект — это займёт немного времени" : "Взял файлов: " + n + " — делаю конспекты");
+    poll();
+  };
+  let dragDepth = 0;                                   // сам файл ловит Atlas (полный путь), здесь — только подсказка
+  document.addEventListener("dragenter", (e) => { dragDepth++; document.body.classList.add("dragging"); e.preventDefault(); });
+  document.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove("dragging"); } });
+  document.addEventListener("dragover", (e) => e.preventDefault());
+  document.addEventListener("drop", (e) => { e.preventDefault(); dragDepth = 0; document.body.classList.remove("dragging");
+    toast("Делаю текст и конспект…"); setTimeout(poll, 600); });
 
   async function loadList(selectId) {
     items = (await call("rec_list")) || [];
@@ -240,12 +275,19 @@
       b.onclick = () => { current = null; showLive(); };
       box.appendChild(b);
     }
+    for (const j of (lastLive && lastLive.imports) || []) {
+      const b = document.createElement("div"); b.className = "item";
+      b.innerHTML = "<b>" + esc(j.title) + "</b>" + (j.stage === "ошибка" ? '<span class="err">не получилось: ' + esc(j.error) + "</span>"
+        : "<span>" + ({ "звук": "достаю звук…", "текст": "распознаю текст…", "конспект": "пишу конспект…", "готово": "готово" }[j.stage] || j.stage) +
+          " " + j.pct + '%</span><span class="bar"><i style="width:' + j.pct + '%"></i></span>');
+      box.appendChild(b);
+    }
     if (!shown.length && !box.children.length) { box.innerHTML = '<div class="empty">' + (q ? "Ничего не нашлось" : "Записей пока нет") + "</div>"; return; }
     for (const it of shown) {
       const b = document.createElement("button"); b.className = "item";
       b.setAttribute("aria-current", String(it.id === current));
       b.innerHTML = "<b>" + esc(it.title) + "</b><span>" + when(it.started) + " · " + it.minutes + " мин" +
-        '<i class="kind">' + (it.video ? "видео" : it.audio ? "звук" : "текст") + "</i></span>";
+        '<i class="kind">' + (it.imported ? "файл" : it.video ? "видео" : it.audio ? "звук" : "текст") + "</i></span>";
       b.onclick = () => open(it.id);
       box.appendChild(b);
     }
@@ -277,7 +319,7 @@
     if (!r || !r.id) { v.innerHTML = '<div class="placeholder"><div>Запись не найдена</div></div>'; return; }
     v.innerHTML =
       '<div class="head"><div style="min-width:0"><h2 id="rTitle" contenteditable="true" spellcheck="false" title="Нажми, чтобы переименовать">' + esc(r.title) + "</h2>" +
-      '<div class="meta">' + when(r.started) + " · " + r.minutes + " мин · " + (r.video ? "видео экрана + звук" : r.mic ? "звук компьютера + микрофон" : "звук компьютера") +
+      '<div class="meta">' + when(r.started) + " · " + r.minutes + " мин · " + (r.imported ? "файл: " + esc(r.source) : r.video ? "видео экрана + звук" : r.mic ? "звук компьютера + микрофон" : "звук компьютера") +
       (r.size_mb ? " · " + r.size_mb + " МБ" : "") + "</div></div>" +
       '<div class="acts">' + (r.audio || r.video ? '<button id="aPlay" title="Открыть в плеере Windows">В плеере</button>' : "") +
       '<button id="aFolder">Папка</button><button id="aPhone">На телефон</button><button class="del" id="aDel">Удалить</button></div></div>' +
@@ -344,7 +386,9 @@
     $("liveTitle").textContent = s.title || "Запись";
     $("timer").textContent = s.phase === "processing" ? "Конспект…" : fmt(s.seconds);
     $("liveSub").textContent = s.phase === "processing" ? (s.screen ? "Сохраняю видео, " : "") + "распознаю последние минуты и пишу конспект"
-      : (s.mic ? "Звук компьютера + микрофон" : "Звук компьютера") + (s.screen ? " + экран" : "") + " · " + (s.lines.length ? s.lines.length + " фраз" : "слушаю");
+      : "Звук компьютера" + (s.mic ? " + микрофон" : "") + (s.screen ? " + экран" : "") + (s.camera ? " + камера" : "") + " · " + (s.lines.length ? s.lines.length + " фраз" : "слушаю");
+    $("micTog").setAttribute("aria-pressed", String(!!s.mic));
+    $("camTog").setAttribute("aria-pressed", String(!!s.camera));
     $("meter").style.width = Math.round(Math.min(1, s.level * 1.4) * 100) + "%";
     if (s.phase === "failed" && was !== "failed") toast("Запись не пошла: " + (s.error || "нет доступа к звуку"));
     if (was !== s.phase) {
@@ -352,6 +396,8 @@
       else renderList();
     }
     if (s.phase === "recording" && !current) paintLive(s);
+    const sig = JSON.stringify((s.imports || []).map((j) => [j.job, j.pct, j.stage]));
+    if (sig !== poll.importSig) { poll.importSig = sig; renderList(); }
     if (lastReady === undefined) lastReady = s.notes_ready;          // первый опрос — просто запомнить
     else if (s.notes_ready && s.notes_ready !== lastReady) {
       lastReady = s.notes_ready; toast("Конспект готов"); loadList(s.notes_ready);

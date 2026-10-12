@@ -288,6 +288,20 @@ def recording_by_voice_starts_and_stops_without_the_brain():
 
 
 @test
+def own_command_word_runs_the_real_command():
+    reset()
+    import tempfile as _tf
+    from core import aliases
+    aliases.FILE = os.path.join(_tf.mkdtemp(), "aliases.json")
+    LISTEN[:] = ["Когда я говорю «браузер» — открой браузер", "Браузер", "выключись"]
+    M._voice_loop()
+    said = [e[1] for e in LOG if isinstance(e, tuple) and e[0] == "speak"]
+    assert any("Запомнил" in t for t in said), said
+    assert M.shared_state["chat_history"][-1] == ("Atlas", "быстро") or any(
+        h == ("Atlas", "быстро") for h in M.shared_state["chat_history"]), "«браузер» → «открой браузер» → быстрый путь"
+
+
+@test
 def chat_shutdown_works_like_voice():
     reset()
     M.shared_state["manual_queue"].append("Выключись.")

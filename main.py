@@ -173,10 +173,29 @@ def _process_command(command: str) -> None:
         shared_state["text"] = ""
         return
 
+    from core import aliases                     # свои названия команд: «кино» → «включи резку»
+    said = aliases.handle(command)
+    if said:
+        _speak_and_update(said, interruptible=False)
+        return
+    real = aliases.expand(command)
+    if real != command:
+        print(f"[свои команды] «{command}» → «{real}»")
+        command = real
+
     from core import meeting_notes               # «запиши созвон», «прекрати запись», «открой записи» — сразу
     rec = meeting_notes.intent(command)
     if rec:
         _record_command(rec)
+        return
+
+    from core import media_import                # «сделай конспект видео про …», «второй»
+    imp = media_import.intent(command)
+    if imp:
+        said = media_import.ask(imp[1], announce=_announce) if imp[0] == "import" else media_import.pick(imp[1])
+        _speak_and_update(said, interruptible=False)
+        if "Какой?" in said:
+            shared_state["follow_up"] = True             # ответ «второй» — без имени
         return
 
     from core import dictation                   # «пиши за мной» — дальше речь печатается в окно
@@ -442,7 +461,8 @@ def main() -> None:
     try:
         from core import meeting_notes, rec_indicator         # зелёный огонёк справа сверху, пока идёт запись
         from web_gui import open_records_window
-        rec_indicator.start(on_click=open_records_window, info=meeting_notes.live)
+        rec_indicator.start(on_click=open_records_window, info=meeting_notes.live, on_mic=meeting_notes.set_mic,
+                            on_cam=meeting_notes.set_camera, on_stop=lambda: _record_command(("stop",)))
         meeting_notes.on_change(rec_indicator.show)
     except Exception as e:
         print(f"[записи] огонёк не запустился: {e}")

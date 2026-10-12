@@ -16,6 +16,8 @@ try:
         "record the call", "record the meeting", "meeting notes", "stop recording", "transcript",
         "когда открою", "когда зайду", "когда запущу", "когда сяду за", "when i open", "when i sit",
         "напомни, когда", "напомни когда",
+        "команду", "когда я говорю", "когда я скажу", "мои команды", "when i say",
+        "расшифр", "законспект", "транскрип", "summarize", "transcribe",
     )
 except Exception:
     pass
@@ -160,3 +162,37 @@ def open_recordings_window() -> str:
     from web_gui import open_records_window
     r = open_records_window()
     return "The Records window is open." if r in ("opened", "shown") else f"Couldn't open the Records window ({r})."
+
+
+# --- свои названия команд ----------------------------------------------------
+from core import aliases  # noqa: E402
+
+
+@skill("pc_plus",
+       description="Saves the user's own word for a command: 'when I say «кино» — включай резку'. phrase: the "
+                   "user's word; action: the command it should run, as the user would say it.",
+       params={"phrase": "the user's own word or short phrase", "action": "the real command, e.g. 'включи резку'"})
+def add_command_alias(phrase: str, action: str) -> str:
+    return aliases.add(phrase, action)
+
+
+@skill("pc_plus", read_only=True, description="Lists the user's own command words.")
+def list_command_aliases() -> str:
+    return aliases.listing()
+
+
+@skill("pc_plus", description="Deletes one of the user's own command words.", params={"phrase": "the word to forget"})
+def remove_command_alias(phrase: str) -> str:
+    return aliases.remove(phrase)
+
+
+# --- конспект готового видео / аудио -----------------------------------------
+@skill("pc_plus",
+       description="Makes a full transcript and notes of an existing video or audio file on this computer: 'сделай "
+                   "конспект видео про электричество', 'расшифруй вчерашнее видео из загрузок'. Finds the file by "
+                   "words from its name, folder, date ('вчерашнее', 'последнее'); if several match, lists them for "
+                   "the user to choose. query: the user's words about the file, or a full path.",
+       params={"query": "words about the file (name, topic, folder, date) or a full path"})
+def summarize_media_file(query: str) -> str:
+    from core import media_import
+    return media_import.ask(query, announce=_announce)

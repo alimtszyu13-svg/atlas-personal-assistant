@@ -69,3 +69,5 @@ fix_*.py
 
 atlas_context_reminders.json
 clipboard.db
+atlas_aliases.json
+rec_indicator.json

@@ -974,7 +974,8 @@ class RecordsApi:
     def rec_list(self) -> list:
         from core import meeting_notes as M
         return [{k: i.get(k) for k in ("id", "title", "started", "minutes", "mic")} |
-                {"audio": bool(i.get("audio")), "video": bool(i.get("video"))} for i in reversed(M.recordings())]
+                {"audio": bool(i.get("audio")), "video": bool(i.get("video")), "imported": bool(i.get("imported"))}
+                for i in reversed(M.recordings())]
 
     def rec_get(self, rid: str) -> dict:
         from core import meeting_notes as M
@@ -982,10 +983,12 @@ class RecordsApi:
         if not r:
             return {}
         from core import media_server
-        out = {k: r.get(k) for k in ("id", "title", "started", "minutes", "mic", "notes", "transcript")}
+        out = {k: r.get(k) for k in ("id", "title", "started", "minutes", "mic", "notes", "transcript", "imported")}
+        out["source"] = os.path.basename(r.get("source") or "")
         out["audio"] = media_server.url(rid, "audio") if r.get("audio") and os.path.exists(r["audio"]) else ""
         out["video"] = media_server.url(rid, "video") if r.get("video") and os.path.exists(r["video"]) else ""
-        size = sum(os.path.getsize(r[k]) for k in ("audio", "video", "txt", "md") if r.get(k) and os.path.exists(r[k]))
+        size = sum(os.path.getsize(r[k]) for k in ("audio", "video", "txt", "md") if r.get(k) and os.path.exists(r[k])
+                   and not (r.get("imported") and r[k] == r.get("source")))
         out["size_mb"] = round(size / 1024 / 1024, 1)
         return out
 
@@ -993,9 +996,25 @@ class RecordsApi:
         from core import meeting_notes as M
         return M.live()
 
-    def rec_start(self, title: str = "", mic: bool = True, screen: bool = None) -> dict:
+    def rec_set_mic(self, on: bool) -> bool:
         from core import meeting_notes as M
-        r = M.start_recording(title, bool(mic), with_screen=None if screen is None else bool(screen))
+        return M.set_mic(bool(on))
+
+    def rec_set_camera(self, on: bool) -> bool:
+        from core import meeting_notes as M
+        return M.set_camera(bool(on))
+
+    def rec_cameras(self) -> list:
+        from core import screen_rec
+        try:
+            return screen_rec.cameras()
+        except Exception:
+            return []
+
+    def rec_start(self, title: str = "", mic: bool = True, screen: bool = None, camera: bool = None) -> dict:
+        from core import meeting_notes as M
+        r = M.start_recording(title, bool(mic), with_screen=None if screen is None else bool(screen),
+                              with_camera=None if camera is None else bool(camera))
         return {"ok": r.startswith("Recording started"), "error": "" if r.startswith("Recording started") else
                 ("Уже идёт запись." if r.startswith("Already") else "Подожди — ещё делаю конспект прошлой записи.")}
 
@@ -1019,8 +1038,33 @@ class RecordsApi:
         it = M.get(rid)
         return it.get(kind) or "" if it else ""
 
+    def rec_import_dialog(self) -> int:
+        """Кнопка «Добавить файл»: выбрать видео/аудио на компьютере → конспект."""
+        w = _GUI.get("records")
+        if w is None:
+            return 0
+        from core import media_import
+        kinds = " ".join("*" + e for e in media_import.VIDEO + media_import.AUDIO)
+        try:
+            mode = webview.FileDialog.OPEN if hasattr(webview, "FileDialog") else webview.OPEN_DIALOG
+            paths = w.create_file_dialog(mode, allow_multiple=True,
+                                         file_types=(f"Видео и аудио ({kinds})", "Все файлы (*.*)")) or []
+        except Exception as e:
+            print(f"[записи] выбор файла: {e}")
+            return 0
+        return self.rec_import_paths(list(paths))
+
+    def rec_import_paths(self, paths: list) -> int:
+        from core import media_import
+        n = 0
+        for p in paths or []:
+            if p and os.path.isfile(p) and media_import.is_media(p):
+                media_import.import_file(p, announce=_records_announce())
+                n += 1
+        return n
+
     def rec_open_audio(self, rid: str) -> bool:
-        p = self._path(rid, "video") or self._path(rid, "audio")
+        p = self._path(rid, "source") or self._path(rid, "video") or self._path(rid, "audio")
         if p and os.path.exists(p):
             os.startfile(p)                                  # плеер Windows по умолчанию
             return True
@@ -1052,6 +1096,34 @@ class RecordsApi:
             return f"Не получилось ответить: {e}"
 
 
+def _records_announce():
+    try:
+        from brain import state
+        return state.announce.get("fn")
+    except Exception:
+        return None
+
+
+def _bind_drop(w) -> None:
+    """Перетащил файл в окно «Записи» → конспект. pywebview отдаёт полный путь файла."""
+    try:
+        from webview.dom import DOMEventHandler
+    except Exception as e:
+        print(f"[записи] перетаскивание файлов недоступно ({e}) — есть кнопка «Добавить файл»")
+        return
+
+    def on_drop(e):
+        files = ((e or {}).get("dataTransfer") or {}).get("files") or []
+        paths = [f.get("pywebviewFullPath") for f in files if isinstance(f, dict) and f.get("pywebviewFullPath")]
+        n = RecordsApi().rec_import_paths(paths)
+        print(f"[записи] перетащили файлов: {len(paths)}, в работу: {n}")
+    try:
+        w.dom.document.events.dragover += DOMEventHandler(lambda e: None, True, True)
+        w.dom.document.events.drop += DOMEventHandler(on_drop, True, True)
+    except Exception as e:
+        print(f"[записи] перетаскивание файлов: {e}")
+
+
 def open_records_window() -> str:
     """Открыть (или показать) окно «Записи». Можно звать из любого потока, когда Atlas уже запущен."""
     w = _GUI.get("records")
@@ -1068,6 +1140,7 @@ def open_records_window() -> str:
         _GUI["records"] = w
         try:
             w.events.closed += lambda: _GUI.update(records=None)
+            w.events.loaded += lambda: _bind_drop(w)
         except Exception:
             pass
         return "opened"

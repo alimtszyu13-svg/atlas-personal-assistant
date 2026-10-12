@@ -123,6 +123,15 @@ def handle_text(text: str, log: bool = True) -> str:
     text = (text or "").strip()
     if not text:
         return ""
+    if not PC_HUB:                                           # свои названия команд живут на компьютере
+        try:
+            from core import aliases
+            said = aliases.handle(text)
+            if said:
+                return said
+            text = aliases.expand(text)
+        except Exception:
+            pass
     _quiet_pc()
     with _brain_lock:
         reply = None

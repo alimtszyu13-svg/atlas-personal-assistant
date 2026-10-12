@@ -56,6 +56,8 @@ def _run(words) -> None:
     known = [w for w in words if not finder or finder(w) >= 0] or words[:1]
     rec = KaldiRecognizer(m, SAMPLE_RATE, json.dumps(known + ["[unk]"], ensure_ascii=False))
     rec.SetWords(True)
+    from collections import deque
+    ring, fed = deque(maxlen=40), 0                                # последние 10 с — для проверки имени
     with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=4000, dtype="int16", channels=1) as st:
         _s["ready"] = time.time()
         print(f"[запуск] уже слышу «Атлас» — через {_s['ready'] - _s['t0']:.1f} с после запуска")
@@ -71,10 +73,20 @@ def _run(words) -> None:
                     if len(_s["after"]) * 0.25 > MAX_AFTER_S:
                         _s["after"].pop(0)
                     continue
+            ring.append((fed, np.frombuffer(data, dtype=np.int16)))
+            fed += len(data) // 2
             if not rec.AcceptWaveform(data):
                 continue
             for w in json.loads(rec.Result()).get("result", []):
                 if w["word"] in known and w["conf"] >= WAKE_CONF:
+                    try:
+                        from core import wake_check
+                        ok, heard = wake_check.verify(m, ring, w, SAMPLE_RATE)
+                    except Exception:
+                        ok, heard = True, ""
+                    if not ok:
+                        print(f"[wake] отклонено проверкой: слышу «{heard or '…'}»")
+                        continue
                     with _lock:
                         _s["woke"], _s["loud"] = time.time(), time.time()
                     print(f"[wake] {w['word']} ({w['conf']:.2f}) — ещё во время запуска")

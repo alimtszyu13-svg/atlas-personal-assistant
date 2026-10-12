@@ -81,8 +81,7 @@ _KINDS = (("созвон", True, "Созвон"), ("звонок", True, "Зво
           ("вебинар", False, "Вебинар"), ("подкаст", False, "Подкаст"), ("стрим", False, "Стрим"),
           ("трансляц", False, "Трансляция"), ("звук", False, "Запись"), ("call", True, "Call"),
           ("meeting", True, "Meeting"), ("video", False, "Video"), ("lecture", False, "Lecture"))
-_START = re.compile(r"^(?:запиши|записывай|начни\s+запис\w*|включи\s+запись|сделай\s+конспект|"
-                    r"законспектируй|record|start\s+recording)\b(.*)$")
+_START = re.compile(r"^(?:запиши|записывай|начни\s+запис\w*|включи\s+запись|record|start\s+recording)\b(.*)$")
 _STOP = re.compile(r"^(?:прекрати|останови|закончи|заверши|выключи|стоп|хватит|остановить|stop|end|finish)\s+"
                    r"(?:запись|записывать|запис\w*|recording|the\s+recording)\b|^хватит\s+записывать")
 _OPEN = re.compile(r"^(?:открой|покажи|show|open)\s+(?:мои\s+|my\s+)?(?:записи|конспекты|recordings|notes)\b")
@@ -159,23 +158,29 @@ def loud_enough(a) -> bool:
 
 
 class Source:
-    """Один источник звука в своём потоке: копит отсчёты 16 кГц."""
+    """Один источник звука в своём потоке: копит отсчёты (по умолчанию 16 кГц моно)."""
 
     GAP_S = 0.2                          # звук пропадал дольше — вставляем тишину, чтобы не уехать по времени
 
-    def __init__(self, name: str, t0: float = None):
-        self.name, self.parts, self.n, self.last, self.t0 = name, [], 0, 0.0, t0
+    def __init__(self, name: str, t0: float = None, rate: int = SR, channels: int = 1, start: int = 0):
+        # n — сколько отсчётов от начала записи этот источник уже покрыл (start — подключился позже)
+        self.name, self.parts, self.n, self.last, self.t0 = name, [], start, 0.0, t0
+        self.rate, self.channels = rate, channels
+        self.gain = 1.0                                   # 0 — выключен (микрофон по кнопке), поток не закрываем
         self.lock = threading.Lock()
+
+    def zeros(self, n: int):
+        return np.zeros(n if self.channels == 1 else (n, self.channels), dtype=np.float32)
 
     def push(self, a, now: float = None) -> None:
         if not len(a):
             return
         now = now or time.time()
         if self.t0 is not None:
-            behind = int((now - self.t0) * SR) - len(a) - self.n
-            if behind > self.GAP_S * SR:          # Windows не отдавал звук, пока в колонках было тихо
-                self._add(np.zeros(behind, dtype=np.float32))
-        self._add(a)
+            behind = int((now - self.t0) * self.rate) - len(a) - self.n
+            if behind > self.GAP_S * self.rate:      # Windows не отдавал звук, пока в колонках было тихо
+                self._add(self.zeros(behind))
+        self._add(a * self.gain if self.gain != 1.0 else a)
         self.last = now
 
     def _add(self, a) -> None:
@@ -185,7 +190,7 @@ class Source:
 
     def pad_to(self, n: int) -> None:
         if n > self.n:
-            self._add(np.zeros(n - self.n, dtype=np.float32))
+            self._add(self.zeros(n - self.n))
             self.last = time.time()
 
     def available(self) -> int:
@@ -194,7 +199,7 @@ class Source:
 
     def take(self, n: int):
         with self.lock:
-            buf = np.concatenate(self.parts) if self.parts else np.zeros(0, np.float32)
+            buf = np.concatenate(self.parts) if self.parts else self.zeros(0)
             out, rest = buf[:n], buf[n:]
             self.parts = [rest] if len(rest) else []
         return out
@@ -202,6 +207,7 @@ class Source:
 
 def duck_gain(loud, frame: int = SR // 10, level: float = 0.01, low: float = 0.3):
     """Усиление микрофона по кадрам 0,1 с: 0.3, где в колонках звук, иначе 1."""
+    loud = loud.mean(axis=1) if loud.ndim > 1 else loud
     n = len(loud)
     k = max(1, -(-n // frame))
     pad = np.zeros(k * frame, dtype=np.float32)
@@ -214,21 +220,25 @@ class Mixer:
     """Сводит источники по часам: источник, который молчит (в колонках ничего не играет), добивается тишиной."""
     IDLE_S, LAG_S = 0.6, 0.3
 
-    def __init__(self, sources: list, t0: float, duck: bool = False):
-        self.sources, self.t0, self.emitted, self.duck = sources, t0, 0, duck
+    def __init__(self, sources: list, t0: float, duck: bool = False, rate: int = SR):
+        self.sources, self.t0, self.emitted, self.duck, self.rate = sources, t0, 0, duck, rate
+
+    def wall(self, now: float = None) -> int:
+        return int(((now or time.time()) - self.t0 - self.LAG_S) * self.rate)
 
     def step(self, now: float = None):
         now = now or time.time()
-        wall = int((now - self.t0 - self.LAG_S) * SR)
-        for s in self.sources:
+        wall = self.wall(now)
+        for s in list(self.sources):
             if now - (s.last or self.t0) > self.IDLE_S:
                 s.pad_to(wall)
-        n = min(s.available() for s in self.sources)
-        if n < SR // 4:
+        n = min(s.available() for s in list(self.sources))
+        if n < self.rate // 4:
             return None
-        parts = [s.take(n) for s in self.sources]
+        parts = [s.take(n) for s in list(self.sources)]
         if self.duck and len(parts) > 1:      # говорит собеседник из колонок — микрофон слышит его эхо, приглушаем
-            parts[1] = parts[1] * duck_gain(parts[0])
+            g = duck_gain(parts[0], frame=self.rate // 10)
+            parts[1] = parts[1] * (g[:, None] if parts[1].ndim > 1 else g)
         out = parts[0]
         for a in parts[1:]:
             out = out + a
@@ -236,55 +246,98 @@ class Mixer:
         return np.clip(out, -1.0, 1.0)
 
 
+HQ_RATE = 48000                             # звук самой записи (то, что слушаешь) — 48 кГц стерео
+
+
+def _stereo(data):
+    a = np.asarray(data, dtype=np.float32)
+    if a.ndim == 1:
+        a = a[:, None]
+    if a.shape[1] == 1:
+        return np.repeat(a, 2, axis=1)
+    return a[:, :2]
+
+
+def set_mic(on: bool) -> bool:
+    """Микрофон во время записи: включить / выключить (кнопка на огоньке и в окне)."""
+    _s["mic"] = bool(on)
+    ctl = _s.get("mic_ctl")
+    if ctl:
+        ctl(bool(on))
+    _changed()
+    return _s["mic"]
+
+
 def _capture(emit, stop: threading.Event, with_mic: bool) -> None:
-    """Звук компьютера (+ микрофон) → emit(блок float32 16 кГц) примерно 4 раза в секунду."""
+    """Звук компьютера (+ микрофон) → emit(блок 48 кГц стерео, 48000) примерно 4 раза в секунду."""
     sc = _soundcard()
-    rate = 48000
+    rate = HQ_RATE
     spk = sc.default_speaker()
-    devices = [("компьютер", sc.get_microphone(id=str(spk.name), include_loopback=True))]
-    if with_mic:
-        devices.append(("микрофон", sc.default_microphone()))
+    loop_dev = sc.get_microphone(id=str(spk.name), include_loopback=True)
     try:
         import voice
-        duck = with_mic and not voice.output_is_headphones()
+        duck = not voice.output_is_headphones()
     except Exception:
-        duck = with_mic
+        duck = True
     t0 = time.time()
     _s["audio_t0"] = t0                                       # начало звука — от него сводится видео
-    sources = [Source(n, t0) for n, _ in devices]
-    errors = []
+    sources, errors = [], []
+    mixer = Mixer(sources, t0, duck=duck, rate=rate)
 
-    def reader(dev, src, gain):
+    def reader(dev, src):
         try:
             with dev.recorder(samplerate=rate, blocksize=1024) as rec:
                 while not stop.is_set():
                     data = rec.record(numframes=None)               # что есть сейчас — не ждёт звука
                     if data is not None and len(data):
-                        src.push(to_16k_mono(data, rate) * gain)
+                        src.push(_stereo(data) * (1.0 if src.name == "компьютер" else 0.9))
                     else:
                         time.sleep(0.02)
         except Exception as e:
             errors.append(f"{src.name}: {e}")
             print(f"[записи] {src.name} не пишется: {e}")
-    for (name, dev), src in zip(devices, sources):
-        threading.Thread(target=reader, args=(dev, src, 1.0 if name == "компьютер" else 0.9), daemon=True,
-                         name=f"rec-{name}").start()
-    print(f"[записи] пишу: звук компьютера ({spk.name})" + (f" + микрофон ({devices[1][1].name})" if with_mic else ""))
-    mixer = Mixer(sources, t0, duck=duck)
-    while not stop.is_set():
-        time.sleep(0.25)
-        if errors and len(errors) == len(sources):
-            raise RuntimeError("; ".join(errors))
-        block = mixer.step()
+            if src.name == "микрофон" and src in sources:
+                sources.remove(src)                           # без микрофона — запись идёт дальше
+
+    def add(name, dev):
+        src = Source(name, t0, rate=rate, channels=2, start=mixer.emitted)   # уже записанное — не его
+        src.pad_to(max(0, int((time.time() - t0) * rate)))   # подключился позже — тишина ровно до «сейчас»
+        sources.append(src)
+        threading.Thread(target=reader, args=(dev, src), daemon=True, name=f"rec-{name}").start()
+        return src
+    add("компьютер", loop_dev)
+    mic_src = {"src": None}
+
+    def mic_ctl(on: bool):
+        if on and mic_src["src"] is None:
+            try:
+                mic_src["src"] = add("микрофон", sc.default_microphone())
+                print(f"[записи] + микрофон ({sc.default_microphone().name})")
+            except Exception as e:
+                print(f"[записи] микрофон не включился: {e}")
+        elif mic_src["src"] is not None:
+            mic_src["src"].gain = 1.0 if on else 0.0
+    _s["mic_ctl"] = mic_ctl
+    if with_mic:
+        mic_ctl(True)
+    print(f"[записи] пишу: звук компьютера ({spk.name}), 48 кГц стерео" + (" + микрофон" if with_mic else ""))
+    try:
+        while not stop.is_set():
+            time.sleep(0.25)
+            if errors and not any(s.name == "компьютер" for s in sources if s) and len(errors) >= len(sources):
+                raise RuntimeError("; ".join(errors))
+            block = mixer.step()
+            if block is not None:
+                emit(block, rate)
+            if time.time() - t0 > MAX_S:
+                print("[записи] 4 часа — останавливаю")
+                threading.Thread(target=stop_recording, daemon=True).start()
+                break
+        block = mixer.step(time.time() + Mixer.LAG_S)
         if block is not None:
-            emit(block)
-        if time.time() - t0 > MAX_S:
-            print("[записи] 4 часа — останавливаю")
-            threading.Thread(target=stop_recording, daemon=True).start()
-            break
-    block = mixer.step(time.time() + Mixer.LAG_S)
-    if block is not None:
-        emit(block)
+            emit(block, rate)
+    finally:
+        _s["mic_ctl"] = None
 
 
 class Chunker:
@@ -327,29 +380,40 @@ class Chunker:
 
 
 class AudioFile:
-    """Звук записи на диск по ходу (OGG, если нет — FLAC). Не получилось — пишем без звука."""
+    """Звук записи на диск по ходу (OGG, если нет — FLAC), в том качестве, в каком он пришёл (48 кГц стерео).
+    Открывается при первом куске. Не получилось — пишем без звука, только текст."""
 
     def __init__(self, base: str):
-        self.f, self.path = None, ""
+        self.base, self.f, self.path, self.failed = base, None, "", False
         try:
-            import soundfile as sf
-            for ext, fmt, sub in ((".ogg", "OGG", "VORBIS"), (".flac", "FLAC", "PCM_16")):
-                try:
-                    self.f = sf.SoundFile(base + ext, "w", samplerate=SR, channels=1, format=fmt, subtype=sub)
-                    self.path = base + ext
-                    break
-                except Exception:
-                    continue
+            import soundfile  # noqa: F401
+            self.path = base + ".ogg"                  # путь известен сразу (окно, видео)
         except Exception as e:
+            self.failed = True
             print(f"[записи] звук не сохраняю ({e}) — будет только текст")
 
-    def write(self, a) -> None:
-        if self.f is not None:
+    def _open(self, rate: int, channels: int) -> None:
+        import soundfile as sf
+        for ext, fmt, sub in ((".ogg", "OGG", "VORBIS"), (".flac", "FLAC", "PCM_16")):
             try:
+                self.f = sf.SoundFile(self.base + ext, "w", samplerate=rate, channels=channels, format=fmt, subtype=sub)
+                self.path = self.base + ext
+                return
+            except Exception:
+                continue
+        self.failed, self.path = True, ""
+
+    def write(self, a, rate: int = SR) -> None:
+        if self.failed:
+            return
+        try:
+            if self.f is None:
+                self._open(rate, 1 if a.ndim == 1 else a.shape[1])
+            if self.f is not None:
                 self.f.write(a)
-            except Exception as e:
-                print(f"[записи] звук: {e}")
-                self.f = None
+        except Exception as e:
+            print(f"[записи] звук: {e}")
+            self.failed = True
 
     def close(self) -> None:
         if self.f is not None:
@@ -363,14 +427,15 @@ class AudioFile:
 # Распознавание
 # ---------------------------------------------------------------------------
 def _transcribe(audio, path: str, prompt: str = "") -> list:
-    """Groq Whisper → [(секунда от начала куска, текст)]."""
+    """Groq Whisper → [(секунда от начала куска, текст)]. audio=None — path уже готовый .wav."""
     import wave
-    pcm = (np.clip(audio, -1, 1) * 32767).astype(np.int16)
-    with wave.open(path, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(SR)
-        wf.writeframes(pcm.tobytes())
+    if audio is not None:
+        pcm = (np.clip(audio, -1, 1) * 32767).astype(np.int16)
+        with wave.open(path, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(SR)
+            wf.writeframes(pcm.tobytes())
     import voice
     kw = dict(model=STT_MODEL, temperature=0.0, response_format="verbose_json")
     if prompt:
@@ -448,7 +513,7 @@ def _new_id(started: float, title: str) -> str:
 
 
 def start_recording(title: str = "", with_mic: bool = True, announce=None, recorder=None, transcribe=None,
-                    with_screen: bool = None, screen=None) -> str:
+                    with_screen: bool = None, screen=None, with_camera: bool = None) -> str:
     """with_screen: писать ещё и экран (по умолчанию — для видео и лекций, то есть без микрофона)."""
     if _s["phase"] == "recording":
         return f"Already recording '{_s['title']}' for {round((time.time() - _s['started']) / 60)} min."
@@ -463,20 +528,25 @@ def start_recording(title: str = "", with_mic: bool = True, announce=None, recor
     if with_screen is None:
         with_screen = not with_mic
     _s.update(phase="recording", id=rid, title=title[:80], started=started, mic=with_mic, segments=[], stop=stop,
-              error="", level=0.0, audio=audio.path, queue=q, busy=0, notes_ready=None, audio_t0=started,
+              error="", level=0.0, audio=audio.path, audio_obj=audio, queue=q, busy=0, notes_ready=None, audio_t0=started,
               screen=None, screen_on=False)
     if with_screen and (screen is not None or recorder is None):   # с подставным звуком (тесты) — экран не трогаем
         _start_screen(os.path.join(folder(), rid), screen)
+    cam = _s.setdefault("camera", {"on": False, "rec": None, "segments": [], "n": 0, "factory": None})
+    cam.update(rec=None, segments=[], n=0)
+    if with_camera if with_camera is not None else cam["on"]:
+        set_camera(True)
     if announce:
         _s["announce"] = announce
     _s["worker"] = threading.Thread(target=_worker, args=(q, transcribe), daemon=True, name="rec-stt")
     _s["worker"].start()
     chunker = Chunker(lambda a, start: q.put((a, start)))
 
-    def emit(block):
-        _s["level"] = min(1.0, rms(block) * 12)
-        audio.write(block)
-        chunker.add(block)
+    def emit(block, rate=SR):
+        audio.write(block, rate)                               # в файл — как есть (48 кГц стерео)
+        small = block if rate == SR and block.ndim == 1 else to_16k_mono(block, rate)
+        _s["level"] = min(1.0, rms(small) * 12)
+        chunker.add(small)                                     # распознаванию — 16 кГц моно
 
     def run():
         try:
@@ -519,24 +589,82 @@ def _start_screen(base: str, screen=None) -> None:
     threading.Thread(target=run, daemon=True, name="rec-screen").start()
 
 
+def set_camera(on: bool, recorder_factory=None) -> bool:
+    """Веб-камера во время записи: включить / выключить. Каждое включение — свой кусок, в конце всё ляжет
+    на видео окошком в углу (без экрана — камера и есть картинка)."""
+    cam = _s.setdefault("camera", {"on": False, "rec": None, "segments": [], "n": 0, "factory": None})
+    if recorder_factory:
+        cam["factory"] = recorder_factory
+    if _s["phase"] != "recording":
+        cam["on"] = bool(on)                                   # запомнить для следующей записи
+        _changed()
+        return cam["on"]
+    if on and cam["rec"] is None:
+        cam["n"] += 1
+        path = os.path.join(folder(), f"{_s['id']}.cam{cam['n']}.mp4")
+        from core import screen_rec
+        rec = (cam["factory"] or screen_rec.camera_recorder)(path)
+        cam["rec"], cam["on"] = rec, True
+
+        def run():
+            if rec.start():
+                if cam["rec"] is rec:
+                    cam["segments"].append((rec.out, rec.t0))
+                    print("[записи] + камера")
+                else:
+                    rec.stop()
+            else:
+                if cam["rec"] is rec:
+                    cam["rec"], cam["on"] = None, False
+                _s["error"] = f"камера не включилась ({rec.error.strip()[:120]})"
+                print(f"[записи] {_s['error']}")
+            _changed()
+        threading.Thread(target=run, daemon=True, name="rec-camera").start()
+    elif not on and cam["rec"] is not None:
+        rec, cam["rec"], cam["on"] = cam["rec"], None, False
+        threading.Thread(target=rec.stop, daemon=True).start()
+    _changed()
+    return cam["on"]
+
+
 def _finish_screen(base: str, audio_path: str) -> str:
-    """Остановить запись экрана и склеить со звуком. → путь к видео или ''."""
+    """Остановить экран и камеру, собрать одно видео со звуком. → путь к видео или ''."""
     rec = _s.get("screen")
     _s["screen"], _s["screen_on"] = None, False
-    if rec is None or not rec.stop():
-        return ""
-    raw = rec.out
-    if audio_path and os.path.exists(audio_path) and rec.t0:
-        from core import screen_rec
-        out = base + ".mp4"
-        if screen_rec.mux(raw, audio_path, out, rec.t0 - _s.get("audio_t0", _s["started"])):
+    cam = _s.get("camera") or {}
+    if cam.get("rec") is not None:
+        cam["rec"].stop()
+        cam["rec"] = None
+    segs = [(p, t) for p, t in cam.get("segments", []) if p and os.path.exists(p)]
+    cam["segments"] = []
+    screen_ok = rec is not None and rec.stop()
+    raw = rec.out if screen_ok else ""
+    from core import screen_rec
+    audio_ok = bool(audio_path and os.path.exists(audio_path))
+    t_audio = _s.get("audio_t0", _s["started"])
+    out = base + ".mp4"
+    if segs:                                                    # камера была — собираем всё вместе
+        dur = time.time() - t_audio
+        if screen_rec.compose(raw, segs, audio_path if audio_ok else "", out, t_audio,
+                              rec.t0 if screen_ok else None, duration=dur):
+            for p in [raw] + [p for p, _ in segs]:
+                try:
+                    if p:
+                        os.remove(p)
+                except OSError:
+                    pass
+            return out
+        print("[записи] камеру наложить не вышло — оставляю экран и куски камеры отдельно")
+    if not screen_ok:
+        return segs[0][0] if segs else ""
+    if audio_ok and rec.t0:
+        if screen_rec.mux(raw, audio_path, out, rec.t0 - t_audio):
             try:
                 os.remove(raw)
             except OSError:
                 pass
             return out
-    out = base + ".mp4"                                     # звука нет / не склеилось — хотя бы картинка
-    try:
+    try:                                                        # звука нет / не склеилось — хотя бы картинка
         os.replace(raw, out)
         return out
     except OSError:
@@ -583,6 +711,8 @@ def stop_recording(ask=None, wait: float = 600) -> str:
     _s["stop"].set()
     if _s["thread"]:
         _s["thread"].join(timeout=15)
+    if _s.get("audio_obj") is not None:
+        _s["audio"] = _s["audio_obj"].path                   # мог стать .flac, если OGG не открылся
     video = _finish_screen(os.path.join(folder(), _s["id"]), _s["audio"])
     if _s["worker"]:
         _s["worker"].join(timeout=wait)                     # дождаться распознавания последних кусков
@@ -694,8 +824,13 @@ def delete(rid: str) -> bool:
         it = next((i for i in items if i.get("id") == rid), None)
         if not it:
             return False
+        mine = folder()
         for k in ("txt", "md", "audio", "video"):
-            if it.get(k) and os.path.exists(it[k]):
+            p = it.get(k)
+            if p and it.get("imported") and (p == it.get("source") or
+                                             os.path.dirname(os.path.abspath(p)) != os.path.abspath(mine)):
+                continue                                       # чужой файл (добавленный тобой) — не трогаем
+            if p and os.path.exists(p):
                 try:
                     os.remove(it[k])
                 except OSError:
@@ -754,9 +889,19 @@ def notes_file(which: str = "") -> str:
 def live(tail: int = 40) -> dict:
     """Для окна и огонька: что происходит прямо сейчас."""
     return {"phase": _s["phase"], "id": _s["id"], "title": _s["title"], "mic": _s["mic"], "screen": _s.get("screen_on", False),
+            "camera": bool((_s.get("camera") or {}).get("on")),
+            "imports": _imports(),
             "seconds": int(time.time() - _s["started"]) if _s["phase"] in ("recording", "processing") else 0,
             "level": round(_s["level"], 3), "lines": transcript_text(_s["segments"][-tail:]).splitlines(),
             "error": _s["error"], "notes_ready": _s["notes_ready"]}
+
+
+def _imports() -> list:
+    try:
+        from core import media_import
+        return media_import.jobs()
+    except Exception:
+        return []
 
 
 def status() -> str:
@@ -775,58 +920,65 @@ def status() -> str:
 # Включи видео с речью (YouTube) и запусти — 20 секунд записи, потом распознавание.
 # ---------------------------------------------------------------------------
 def selfcheck(seconds: int = 20, with_mic: bool = True) -> bool:
+    """1) звук компьютера + микрофон → распознавание; 2) экран + звук вместе → готовое видео (откроется само)."""
     import tempfile
     from dotenv import load_dotenv
     load_dotenv()
     print(f"Проверка записи: {seconds} с. Включи видео с речью (YouTube) и, если хочешь, скажи что-нибудь сам.\n")
-    got, stop = [], threading.Event()
+    from core import screen_rec
+    tmp = tempfile.gettempdir()
+    base = os.path.join(tmp, "atlas_check")
+    small, stop = [], threading.Event()
+    audio = AudioFile(base)
+    screen = screen_rec.ScreenRecorder(base + ".screen.mp4")
+    threading.Thread(target=screen.start, daemon=True).start()
     t0 = time.time()
 
-    def emit(block):
-        got.append(block)
-        sec = int(time.time() - t0)
-        if len(got) % 4 == 0:
-            bar = "█" * int(min(1.0, rms(block) * 12) * 30)
-            print(f"  {sec:3d} с  уровень {bar:<30} {rms(block):.4f}")
+    def emit(block, rate=SR):
+        audio.write(block, rate)
+        a = to_16k_mono(block, rate) if rate != SR or block.ndim > 1 else block
+        small.append(a)
+        if len(small) % 4 == 0:
+            bar = "█" * int(min(1.0, rms(a) * 12) * 30)
+            print(f"  {int(time.time() - t0):3d} с  уровень {bar:<30} {rms(a):.4f}")
     th = threading.Thread(target=_capture, args=(emit, stop, with_mic), daemon=True)
     th.start()
     time.sleep(seconds)
     stop.set()
     th.join(timeout=5)
-    if not got:
+    audio.close()
+    if not small:
         print("\n✗ Звук не пришёл вообще — проверь, что soundcard установлен и выбраны колонки/наушники по умолчанию.")
         return False
-    audio = np.concatenate(got)
-    print(f"\nЗаписано {len(audio) / SR:.1f} с (ожидалось ~{seconds}), средний уровень {rms(audio):.4f}")
-    if len(audio) / SR < seconds * 0.8:
-        print("! Записалось меньше, чем шло времени — звук компьютера мог прерываться.")
-    if not loud_enough(audio):
+    a16 = np.concatenate(small)
+    print(f"\nЗаписано {len(a16) / SR:.1f} с, средний уровень {rms(a16):.4f}; звук в файл: "
+          f"{os.path.basename(audio.path) or 'нет'} (48 кГц стерео)")
+    ok = True
+    if not loud_enough(a16):
         print("✗ Слишком тихо — видео точно играло? Громкость системы не на нуле?")
-        return False
-    path = os.path.join(tempfile.gettempdir(), "atlas_selfcheck.wav")
-    t1 = time.time()
-    try:
-        parts = _transcribe(audio, path)
-    except Exception as e:
-        print(f"✗ Распознавание не удалось: {e}")
-        return False
-    print(f"Распознано за {time.time() - t1:.1f} с ({STT_MODEL}):\n")
-    print(transcript_text(parts) or "(пусто)")
-    ok = bool(parts)
-    print("\n✓ Запись и распознавание работают." if ok else "\n✗ Речь не распознана — было ли в видео говорение?")
-    print("\nПроверяю запись экрана (4 с)…")
-    from core import screen_rec
-    out = os.path.join(tempfile.gettempdir(), "atlas_selfcheck_screen.mp4")
-    rec = screen_rec.ScreenRecorder(out)
-    if rec.start():
-        time.sleep(4)
-        good = rec.stop()
-        print(f"{'✓' if good else '✗'} Экран пишется ({rec.how}), файл {os.path.getsize(out) // 1024} КБ: {out}" if good
-              else "✗ Экран начал писаться, но файл пустой.")
-        if good and os.name == "nt":
-            os.startfile(out)                                # открой и посмотри: весь ли экран попал
+        ok = False
     else:
-        print(f"✗ Экран не пишется: {rec.error.strip()[:200]} — видео-записи будут только со звуком.")
+        t1 = time.time()
+        try:
+            parts = _transcribe(a16, base + ".wav")
+            print(f"Распознано за {time.time() - t1:.1f} с ({STT_MODEL}):\n")
+            print(transcript_text(parts) or "(пусто)")
+            ok = bool(parts)
+        except Exception as e:
+            print(f"✗ Распознавание не удалось: {e}")
+            ok = False
+    print("\nЭкран:")
+    if screen.proc is None and not screen.t0:
+        print(f"✗ Экран не пишется: {screen.error.strip()[:200]} — видео-записи будут только со звуком.")
+        return ok
+    screen.stop()
+    out = base + ".mp4"
+    if audio.path and screen.t0 and screen_rec.mux(screen.out, audio.path, out, screen.t0 - _s.get("audio_t0", t0)):
+        print(f"✓ Экран + звук ({screen.how}, {screen_rec.FPS} к/с): {out} — {os.path.getsize(out) // 1024} КБ")
+        if os.name == "nt":
+            os.startfile(out)                                  # посмотри: весь ли экран, совпадает ли звук
+    else:
+        print(f"! Экран записался ({screen.out}), но склеить со звуком не вышло.")
     return ok
 
 
