@@ -74,11 +74,18 @@ def test(fn):
 
 def call(path, method="GET", body=None, headers=None):
     req = urllib.request.Request(BASE + path, data=body, method=method, headers=headers or {})
-    try:
-        with urllib.request.urlopen(req, timeout=10) as r:
-            return r.status, dict(r.headers), r.read()
-    except urllib.error.HTTPError as e:
-        return e.code, dict(e.headers), e.read()
+    last = None
+    for _ in range(4):                       # Windows иногда рвёт локальный сокет (WinError 10053) — пробуем снова
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.status, dict(r.headers), r.read()
+        except urllib.error.HTTPError as e:
+            return e.code, dict(e.headers), e.read()
+        except (ConnectionError, OSError, urllib.error.URLError) as e:
+            last = e
+            import time as _t
+            _t.sleep(0.2)
+    raise last
 
 
 def ask(text, key=None):
