@@ -46,6 +46,9 @@ APPS = {
     "vlc": (r"vlc|влц|плеер", ("vlc", "potplayermini64", "mpc-hc64", "wmplayer")),
 }
 _APP_RX = [(k, re.compile(r"(?<![\w])(?:" + rx + r")\w*", re.I)) for k, (rx, _) in APPS.items()]
+# Приложения из Microsoft Store (окно висит под ApplicationFrameHost): ищем ещё и по заголовку окна.
+_APP_TITLE = {k: re.compile(r"\b" + p + r"\b", re.I) for k, p in
+              {"whatsapp": "whatsapp", "telegram": "telegram", "spotify": "spotify", "discord": "discord"}.items()}
 
 # --- где поставить ----------------------------------------------------------------
 _POS = [   # порядок важен: сначала углы и трети, потом половины
@@ -350,6 +353,11 @@ def find(target: dict, wins: list, used=()):
         for w in wins:
             if w["hwnd"] not in used and w["app"].lower() in exes:
                 return w
+        rx = _APP_TITLE.get(target["app"])                 # UWP/Store (WhatsApp и пр.): окно под ApplicationFrameHost,
+        if rx:                                             # но имя программы стоит в заголовке
+            for w in wins:
+                if w["hwnd"] not in used and rx.search(w["title"] or ""):
+                    return w
         return None
     words = [w.lower() for w in target.get("words") or []]
     best, score = None, 0

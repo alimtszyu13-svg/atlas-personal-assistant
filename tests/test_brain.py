@@ -521,6 +521,30 @@ def memory_review_flags_then_removes_only_after_yes():
         features._ROOT, features._json_call = saved_root, saved_json
 
 
+@test
+def fast_first_model_only_for_simple_short_asks():
+    P = providers
+    S, F = P.MODEL_SMART, P.MODEL_FAST
+    f = planner._first_model
+    # простая короткая просьба — быстрая модель (первый токен раньше)
+    assert f("сколько времени", {"get_weather"}, None) == F
+    assert f("поставь таймер на 5 минут", {"set_timer"}, None) == F
+    # сложная формулировка — думаем на тяжёлой
+    assert f("сравни два ноутбука и напиши вывод", {"search_web"}, None) == S
+    assert f("объясни почему небо голубое", {"search_web"}, None) == S
+    # нужна память, длинная фраза, браузер, много инструментов — тяжёлая
+    assert f("напомни что я говорил", {"recall_memories"}, "- (вчера) ты просил…") == S
+    assert f(" ".join(["слово"] * 12), {"get_news"}, None) == S
+    assert f("открой сайт и нажми кнопку", {"browser_open"}, None) == S
+    assert f("коротко", set("t%d" % i for i in range(13)), None) == S
+    # выключатель в .env
+    os.environ["ATLAS_FAST_FIRST"] = "off"
+    try:
+        assert f("сколько времени", {"get_weather"}, None) == S
+    finally:
+        os.environ.pop("ATLAS_FAST_FIRST", None)
+
+
 def main():
     ok = 0
     for t in TESTS:

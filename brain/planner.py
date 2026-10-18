@@ -177,6 +177,25 @@ def _bare(question: str) -> str:
     return _HINTS.sub("", question or "")
 
 
+_SIMPLE_MAX_WORDS = int(os.getenv("ATLAS_FAST_FIRST_WORDS") or 8)
+
+
+def _first_model(bare: str, names: set, mem_block) -> str:
+    """Первый шаг обычно на тяжёлой модели (понять и спланировать). Но для явно простой короткой
+    просьбы — сразу быстрая: первый токен раньше, качество одношаговых ответов не страдает.
+    ATLAS_FAST_FIRST=off в .env — всегда тяжёлая, как раньше."""
+    if (os.getenv("ATLAS_FAST_FIRST") or "on").strip().lower() in ("off", "0", "false", "no"):
+        return providers.MODEL_SMART
+    q = bare.lower()
+    if any(h in q for h in _COMPLEX_HINTS) or mem_block:          # сложная формулировка или нужна память — думаем
+        return providers.MODEL_SMART
+    if len(q.split()) > _SIMPLE_MAX_WORDS or len(names) > 12:     # длинная фраза или много инструментов — думаем
+        return providers.MODEL_SMART
+    if "browser_open" in names:
+        return providers.MODEL_SMART
+    return providers.MODEL_FAST
+
+
 def _effort_for(question: str, groups: set) -> str:
     """high — только для сложных многошаговых задач, иначе low (быстрее в разы)."""
     q = question.lower()
@@ -268,7 +287,7 @@ def _count(model, usage_obj, est, response, t0, err: str = "") -> None:
         tin, tout = usage.tokens_of(usage_obj)
         usage.record(usage.provider_of(model), model, tin or est,
                      tout or (llm_gateway.estimate(response) if response else 0), (time.time() - t0) * 1000,
-                     ok=not err, err=err)
+                     ok=not err, err=err, cached_prompt=usage.cached_prompt_tokens(usage_obj))
         warn = usage.budget_warning()                      # 80 % / 100 % месячного предела — сказать один раз
         if warn and state.announce.get("fn"):
             state.announce["fn"](warn)
@@ -336,17 +355,28 @@ def _brain_ask(question: str, speech=None) -> str:
     turn["tainted"] = False                                  # чужой текст с «командами» в этом ходе
     state._cancel_event.clear()
     hist.append({"role": "user", "content": question})
-    context_msg = {"role": "system", "content": _context_snapshot(question)}
     bare = _bare(question)
-    active_groups = tool_router.groups_for(bare)
-    schema = tools._with_learned(tools._with_pairs(tool_router.smart_schema(bare, tools.TOOLS_SCHEMA, active_groups)))
-    schema = tools._trim_schema(bare, schema)
-    schema = tools._with_intent(bare, schema)              # «включи …» — музыка и кино всегда под рукой
     words = bare.split()
-    mem_block = memory.recall_block(question) if len(words) > 2 else None   # «да», «открой его» — память не нужна
-    names = {t["function"]["name"] for t in schema}
+    # контекст экрана/буфера, память и портрет пользователя — параллельно: не ждём их по очереди,
+    # а пока они считаются, на этом же потоке собираем набор инструментов (это только процессор)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as _ex:
+        f_ctx = _ex.submit(_context_snapshot, question)
+        f_mem = _ex.submit(memory.recall_block, question) if len(words) > 2 else None   # «да», «открой его» — память не нужна
+        f_prof = _ex.submit(_user_profile)                 # прогреваем кэш портрета (цикл потом берёт готовое)
+        active_groups = tool_router.groups_for(bare)
+        schema = tools._with_learned(tools._with_pairs(tool_router.smart_schema(bare, tools.TOOLS_SCHEMA, active_groups)))
+        schema = tools._trim_schema(bare, schema)
+        schema = tools._with_intent(bare, schema)          # «включи …» — музыка и кино всегда под рукой
+        names = {t["function"]["name"] for t in schema}
+        context_msg = {"role": "system", "content": f_ctx.result()}
+        mem_block = (f_mem.result() if f_mem else None)
+        try:
+            f_prof.result()
+        except Exception:
+            pass
     first_effort = _effort_for(bare, {"browser"} if "browser_open" in names else set())
-    print(f"[мозг] инструментов: {len(schema)} | {sorted(names)}")
+    first_model = _first_model(bare, names, mem_block)
+    print(f"[мозг] инструментов: {len(schema)} | первая модель: {first_model.split('/')[-1]} | {sorted(names)}")
 
     try:
         step = 0
@@ -363,7 +393,7 @@ def _brain_ask(question: str, speech=None) -> str:
                                                       "or tell the user plainly what blocks you."} if turn["failures"] >= 2 else None):
                 if blk:
                     extra.append(blk)
-            model = providers.MODEL_SMART if step == 0 else providers.MODEL_FAST
+            model = first_model if step == 0 else providers.MODEL_FAST
             effort = first_effort if step == 0 else "low"
             response, model, dt = _ask_model(on_text, state.clean_messages_for_api(hist) + extra, schema, model, effort)
             print(f"[время] модель ({model.split('/')[-1]}, шаг {step}, {effort}): {dt:.2f}с")

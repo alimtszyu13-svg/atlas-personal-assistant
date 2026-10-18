@@ -1048,7 +1048,8 @@ def warm() -> None:
     _warm["t"] = time.time()
 
     def go():
-        for name, fn in (("распознавание", lambda: groq_client.models.list()), ("модель", _warm_brain)):
+        for name, fn in (("распознавание", lambda: groq_client.models.list()), ("модель", _warm_brain),
+                         ("голос", _warm_fish)):
             try:
                 fn()
             except Exception as e:
@@ -1426,18 +1427,41 @@ _fish = None
 FISH_MODEL = os.getenv("FISH_MODEL", "s2.1-pro-free")   # бесплатная модель Fish Audio
 
 
+_fish_http = None
+_fish_http_lock = threading.Lock()
+
+
+def _fish_session():
+    """Одно постоянное соединение с Fish (keep-alive): не переустанавливаем TLS на каждый ответ — звук быстрее."""
+    global _fish_http
+    with _fish_http_lock:
+        if _fish_http is None:
+            import httpx
+            _fish_http = httpx.Client(timeout=60, limits=httpx.Limits(max_keepalive_connections=2, keepalive_expiry=120))
+    return _fish_http
+
+
+def _warm_fish() -> None:
+    """Прогреть соединение с Fish, пока ты говоришь (как с Groq) — первый звук приходит раньше."""
+    if not FISH_API_KEY:
+        return
+    try:
+        _fish_session().get("https://api.fish.audio/", timeout=5)
+    except Exception:
+        pass
+
+
 def _generate_speech_fish(text: str, filename: str, voice_id: str) -> None:
     """Fish Audio S2.1 Pro — бесплатная модель, русский и английский."""
-    import httpx
     fmt = "mp3" if filename.endswith(".mp3") else "wav"
-    r = httpx.post(
-        "https://api.fish.audio/v1/tts",
-        headers={"Authorization": f"Bearer {FISH_API_KEY}",
-                 "Content-Type": "application/json",
-                 "model": FISH_MODEL},
-        json={"text": _emo.for_fish(text, FISH_MODEL), "reference_id": voice_id, "format": fmt},
-        timeout=60,
-    )
+    payload = {"text": _emo.for_fish(text, FISH_MODEL), "reference_id": voice_id, "format": fmt}
+    headers = {"Authorization": f"Bearer {FISH_API_KEY}", "Content-Type": "application/json", "model": FISH_MODEL}
+    try:
+        r = _fish_session().post("https://api.fish.audio/v1/tts", headers=headers, json=payload)
+    except Exception as e:
+        import httpx                                          # соединение отвалилось — разовый запрос, как раньше
+        print(f"[fish] постоянное соединение не сработало ({str(e)[:60]}) — обычный запрос")
+        r = httpx.post("https://api.fish.audio/v1/tts", headers=headers, json=payload, timeout=60)
     if r.status_code != 200:
         raise RuntimeError(f"Fish {r.status_code}: {r.text[:200]}")
     with open(filename, "wb") as f:

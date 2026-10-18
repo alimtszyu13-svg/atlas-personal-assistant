@@ -38,7 +38,8 @@ def price(provider: str) -> float:
 
 
 def record(provider: str, model: str = "", tokens_in: int = 0, tokens_out: int = 0, ms: float = 0, ok: bool = True,
-           kind: str = "chat", cached: bool = False, chars: int = 0, err: str = "", path: str = None) -> dict:
+           kind: str = "chat", cached: bool = False, chars: int = 0, err: str = "", path: str = None,
+           cached_prompt: int = 0) -> dict:
     cost = 0.0
     if not cached:
         cost = (tokens_in + tokens_out) / 1e6 * price(provider)
@@ -49,7 +50,7 @@ def record(provider: str, model: str = "", tokens_in: int = 0, tokens_out: int =
                 pass
     row = {"ts": time.time(), "p": provider, "m": str(model).split("/")[-1], "in": int(tokens_in or 0),
            "out": int(tokens_out or 0), "ms": int(ms or 0), "ok": bool(ok), "k": kind, "c": bool(cached),
-           "ch": int(chars or 0), "usd": round(cost, 6)}
+           "ch": int(chars or 0), "usd": round(cost, 6), "pc": int(cached_prompt or 0)}
     if err:
         row["err"] = "limit" if re.search(r"429|rate|quota|limit", err, re.I) else "offline" if re.search(
             r"connect|getaddrinfo|timed? ?out|unreachable|name resolution", err, re.I) else "error"
@@ -72,6 +73,16 @@ def tokens_of(usage) -> tuple:
         return 0, 0
     g = (lambda k: usage.get(k)) if isinstance(usage, dict) else (lambda k: getattr(usage, k, None))
     return int(g("prompt_tokens") or g("input_tokens") or 0), int(g("completion_tokens") or g("output_tokens") or 0)
+
+
+def cached_prompt_tokens(usage) -> int:
+    """Сколько токенов промпта Groq/OpenAI взяли из кэша (prompt_tokens_details.cached_tokens)."""
+    if usage is None:
+        return 0
+    det = usage.get("prompt_tokens_details") if isinstance(usage, dict) else getattr(usage, "prompt_tokens_details", None)
+    if det is None:
+        return 0
+    return int((det.get("cached_tokens") if isinstance(det, dict) else getattr(det, "cached_tokens", 0)) or 0)
 
 
 def rows(days: float = 1.0, path: str = None, now: float = None) -> list:
@@ -104,8 +115,11 @@ def summary(days: float = 1.0, path: str = None, now: float = None) -> dict:
             b["limits"] += 1
         elif r.get("err"):
             b["errors"] += 1
+    pin = sum(r.get("in", 0) for r in rs)
+    pc = sum(r.get("pc", 0) for r in rs)
     return {"n": len(rs), "cached": sum(1 for r in rs if r.get("c")), "usd": round(sum(r.get("usd", 0) for r in rs), 4),
-            "tokens": sum(r.get("in", 0) + r.get("out", 0) for r in rs), "by": by}
+            "tokens": sum(r.get("in", 0) + r.get("out", 0) for r in rs), "by": by,
+            "prompt_in": pin, "prompt_cached": pc, "cache_hit": round(100 * pc / pin) if pin else 0}
 
 
 def month_spend(path: str = None, now: float = None) -> float:
@@ -159,6 +173,8 @@ def describe(ru: bool = True, path: str = None, now: float = None) -> str:
          if ru else f"Today {d['n']} model calls ({who}), about {d['tokens'] // 1000}k tokens. ")
     if d["cached"]:
         s += f"Из кэша — {d['cached']}. " if ru else f"{d['cached']} from cache. "
+    if d.get("cache_hit"):
+        s += f"Кэш промпта — {d['cache_hit']} %. " if ru else f"Prompt cache hit {d['cache_hit']}%. "
     lim = sum(b["limits"] for b in d["by"].values())
     if lim:
         s += f"В лимиты упирался {lim} раз. " if ru else f"Hit rate limits {lim} times. "

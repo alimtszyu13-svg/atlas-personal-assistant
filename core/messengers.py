@@ -252,11 +252,20 @@ def _get_ui():
 
 
 # --- окно мессенджера --------------------------------------------------------------------------
+_STORE_TITLE = {"whatsapp": re.compile(r"\bwhatsapp\b", re.I), "telegram": re.compile(r"\btelegram\b", re.I),
+                "discord": re.compile(r"\bdiscord\b", re.I)}
+
+
 def find_window(app: str, wins: list):
     a = APPS[app]
     for w in wins:
         if w["app"].lower() in a["exe"]:
             return dict(w, web=False)
+    rx = _STORE_TITLE.get(app)                                # WhatsApp из Store: окно под ApplicationFrameHost
+    if rx:
+        for w in wins:
+            if w["app"].lower() not in _BROWSERS and rx.search(w["title"] or ""):
+                return dict(w, web=False)
     for w in wins:
         if w["app"].lower() in _BROWSERS and any(k in w["title"].lower() for k in a["web"]):
             return dict(w, web=True)
@@ -500,6 +509,13 @@ _CUR = re.compile(r"^(?:ему|ей|им|на (?:это|него|нее|неё|�
 _READ = re.compile(r"(?:что|чего)\s+(?:мне\s+)?(?:написал[аио]?|пишет|пишут|ответил[аи]?|прислал[аи]?)\s+(.+)|"
                    r"(?:прочитай|прочти|покажи|read)\s+(?:мне\s+)?(?:последн\w+\s+)?(?:сообщени\w+|переписк\w+|чат|messages?)"
                    r"(?:\s+(?:от|с|from|with))?\s*(.*)|what did (.+?) (?:write|send|say)", re.I)
+_THINGS = re.compile(r"^(?:письм\w*|письмецо|заметк\w*|сообщени\w*|текст\w*|пост\w*|коммент\w*|имейл\w*|емейл\w*|"
+                     r"мейл\w*|эссе|сочинени\w*|файл\w*|код\b|note|letter|email|mail|post|comment|essay|file|code)\b", re.I)
+_KIN = re.compile(r"^(?:мам\w*|пап\w*|бат[яюе]\w*|отц\w*|отец|брат\w*|сестр\w*|сест[реу]\w*|жен[аеуы]\w*|муж\w*|сын\w*|"
+                  r"доч\w*|дядь?\w*|тёт\w*|тет\w*|баб\w*|дед\w*|друг\w*|подруг\w*|любим\w*|девушк\w*|парн\w*|"
+                  r"mom\w*|mum\w*|dad\w*|bro\b|sis\b|wife|husband|son|daughter|friend)$", re.I)
+_MSG_ONLY = re.compile(r"^(?:в\s+|во\s+|на\s+|через\s+|in\s+|on\s+|via\s+)?(?:телеграм\w*|телег\w*|телег[еу]|ватсап\w*|"
+                       r"вотсап\w*|whatsapp|инстаграм\w*|инст[ае]?\w*|instagram|дискорд\w*|discord)\s*\.?$", re.I)
 _YES = re.compile(r"^(?:да|давай|отправь|отправляй|шли|жми|го|ок|окей|ага|можно|верно|yes|yeah|yep|send|ok|okay|go)\b", re.I)
 _NO = re.compile(r"^(?:нет|не надо|не отправляй|отмена|отмени|стоп|no|nope|cancel|don'?t)\b", re.I)
 _EDIT = re.compile(r"короче|длиннее|подробнее|по-другому|по другому|иначе|вежлив|формальн|неформальн|проще|"
@@ -526,7 +542,14 @@ def intent(text: str, last: str = None):
     if not t:
         return None
     p = pending()
-    if p and (last is None or _same(last, _s.get("said"))) and len(t) < 120:
+    if p and p.get("need_app") and (last is None or _same(last, _s.get("said"))) and len(t) < 40:
+        if _MSG_ONLY.match(t):                          # «в телеграме» / «ватсап» — выбор мессенджера
+            ak, _ = _app_in(t)
+            if ak:
+                return ("pick_app", ak)
+        if _NO.search(t.strip(" .!").lower()):
+            return ("cancel",)
+    if p and not p.get("need_app") and (last is None or _same(last, _s.get("said"))) and len(t) < 120:
         bare = t.strip(" .!").lower()
         if _NO.search(bare):
             return ("cancel",)
@@ -592,7 +615,11 @@ def intent(text: str, last: str = None):
             return ("reply_here", None, gist, exact)
         app = known_app(contact)
         if not app:
-            return None                                # «напиши маме…» без мессенджера — пусть решает модель
+            first = (contact.split() or [""])[0]
+            person = bool(_KIN.match(contact) or (first[:1].isupper() and re.search(r"[A-Za-zА-Яа-яЁё]", first)))
+            if not person or _THINGS.match(contact) or not stems(contact):
+                return None                            # «напиши письмо», «скажи что-нибудь» — не мессенджер
+            return ("reply", None, contact, gist.strip(" .,"), exact)   # «напиши маме/Алиму» — мессенджер выберем сами
     if contact is not None and not stems(contact):
         return None
     return ("reply", app, contact, gist.strip(" .,"), exact)
@@ -628,10 +655,40 @@ def _no_chat(r: dict, app: str, contact: str, ru: bool) -> str:
             else f"Couldn't find “{contact}” in {name}. Say the name as saved, or open the chat and say “reply here”.")
 
 
+def _default_app():
+    d = (os.getenv("ATLAS_DEFAULT_MESSENGER") or "").lower().strip()
+    if not d:
+        return None
+    return next((k for k in APPS if k == d or re.search(APPS[k]["rx"], d, re.I)), None)
+
+
+def _resolve_app(contact, ui):
+    """«Напиши маме» без названия мессенджера: вспомнить / открытый / единственный открытый / по умолчанию."""
+    if contact and known_app(contact):
+        return known_app(contact)
+    wins = ui.windows()
+    found = current_messenger(wins)                                   # мессенджер уже на переднем плане
+    if found:
+        return found[0]
+    open_apps = [k for k in APPS if find_window(k, wins)]
+    if len(open_apps) == 1:                                           # открыт ровно один — он и есть
+        return open_apps[0]
+    return _default_app()
+
+
 def prepare(app, contact, gist: str, exact: str = None, ru: bool = True, ui=None, ask=None) -> str:
     """Открыть чат, прочитать, написать черновик — и спросить «Отправить?»."""
     ui = ui or _get_ui()
-    if app is None:                                                    # «ответь ему» — в открытом чате
+    if app is None and contact is not None:                           # «напиши маме» — выбрать мессенджер сами
+        app = _resolve_app(contact, ui)
+        if app is None:
+            _s["pending"] = {"need_app": True, "contact": contact, "gist": gist, "exact": exact,
+                             "created": time.time(), "ru": ru}
+            q = (f"В каком мессенджере написать {contact}? Telegram, WhatsApp, Instagram или Discord?" if ru else
+                 f"Which messenger should I use for {contact}? Telegram, WhatsApp, Instagram or Discord?")
+            _s["said"] = q
+            return q
+    if app is None:                                                   # «ответь ему» — в открытом чате
         found = current_messenger(ui.windows())
         if not found:
             return ("Открой чат в мессенджере и скажи ещё раз — или назови, кому и где." if ru else
@@ -773,6 +830,11 @@ def handle(text: str, last: str = None, ui=None, ask=None):
         if not current_messenger((ui or _get_ui()).windows()):
             return None                                # «ответь на это» не в мессенджере — не наше
         return prepare(None, None, it[2], it[3], ru, ui, ask)
+    if k == "pick_app":
+        np = _s.get("pending") or {}
+        _s["pending"] = None
+        return prepare(it[1], np.get("contact"), np.get("gist", ""), np.get("exact"),
+                       np.get("ru", ru), ui, ask)
     return prepare(it[1], it[2], it[3], it[4], ru, ui, ask)
 
 

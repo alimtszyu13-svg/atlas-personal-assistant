@@ -573,9 +573,12 @@ def messengers_parse():
     assert M.intent("text mom on whatsapp that I am late")[1:4] == ("whatsapp", "mom", "I am late")
     assert M.stems("Маме") == ["мам"] and M.stems("Алиму Сыдыкову") == ["алим", "сыдыков"]
     assert M.line_matches("Мама ❤", ["мам"]) and not M.line_matches("Мадина", ["мам"])
-    for other in ("напиши письмо маме", "скажи что-нибудь смешное", "tell me a joke", "напиши маме что я дома",
+    for other in ("напиши письмо маме", "скажи что-нибудь смешное", "tell me a joke",
                   "отправь файл на телефон", "да"):
         assert M.intent(other) is None, other
+    # «напиши маме/Алиму» без названия мессенджера — теперь берёт мессенджер (а не Блокнот), приложение выберем потом
+    assert M.intent("напиши маме что я дома") == ("reply", None, "маме", "я дома", None)
+    assert M.intent("Напиши Алиму, что буду в 7")[:3] == ("reply", None, "Алиму")
 
 
 @test
@@ -645,6 +648,50 @@ def messengers_read_sides():
     ui.open = "Мама ❤"
     conv = M.read_chat(5, False, ui)
     assert conv == [("them", "Ты где?"), ("me", "щас буду"), ("them", "Купи хлеб")], conv
+
+
+@test
+def messengers_pick_app_when_none_named():
+    """«Напиши маме» без мессенджера → берём открытый; если нет — спрашиваем, а не пишем в Блокнот."""
+    M = _fresh_messengers()
+    os.environ.pop("ATLAS_DEFAULT_MESSENGER", None)
+
+    class NoMsg:                                              # на экране нет ни одного мессенджера
+        def windows(self):
+            return [{"hwnd": 9, "app": "Code", "title": "main.py", "min": False, "max": False, "rect": (0, 0, 9, 9)}]
+
+    # 1) мессенджер открыт (Telegram) → сразу пишем туда, Блокнот не трогаем
+    said = M.handle("напиши маме что скоро буду", ui=FakeTG(), ask=lambda s, u, max_tokens=0: "«Скоро буду»")
+    assert said == "Напишу Мама ❤ в Telegram: «Скоро буду». Отправить?", said
+
+    # 2) мессенджера нет и контакт незнаком → Atlas спрашивает, какой, и запоминает намерение
+    M = _fresh_messengers()                                  # забываем «мам→telegram» из шага 1
+    q = M.handle("напиши маме что скоро буду", ui=NoMsg(), ask=lambda *a, **k: 1 / 0)
+    assert q.startswith("В каком мессенджере") and "маме" in q, q
+    assert M._s["pending"]["need_app"] and M._s["pending"]["gist"] == "скоро буду"
+    # 3) отвечаем «в телеграме» → продолжает в Telegram
+    out = M.handle("в телеграме", last=q, ui=FakeTG(), ask=lambda s, u, max_tokens=0: "«Скоро буду»")
+    assert out == "Напишу Мама ❤ в Telegram: «Скоро буду». Отправить?", out
+    # 4) по умолчанию из .env — без вопроса
+    M._s.update(pending=None, said=None)
+    os.environ["ATLAS_DEFAULT_MESSENGER"] = "whatsapp"
+    try:
+        assert M._resolve_app("кому-то", NoMsg()) == "whatsapp"
+    finally:
+        os.environ.pop("ATLAS_DEFAULT_MESSENGER", None)
+
+
+@test
+def whatsapp_store_window_found_by_title():
+    """WhatsApp из Microsoft Store: окно под ApplicationFrameHost — ловим по заголовку, и в окнах, и в мессенджерах."""
+    from core import window_layout as W, messengers as M
+    wins = [{"hwnd": 1, "app": "applicationframehost", "title": "WhatsApp", "min": False, "max": False,
+             "rect": (0, 0, 800, 600)},
+            {"hwnd": 2, "app": "chrome", "title": "YouTube — Chrome", "min": False, "max": False, "rect": (0, 0, 8, 8)}]
+    assert (W.find({"app": "whatsapp"}, wins) or {}).get("hwnd") == 1, "окна: WhatsApp по заголовку"
+    assert W.find({"app": "word"}, wins) is None, "не хватаем лишнее по заголовку"
+    fw = M.find_window("whatsapp", wins)
+    assert fw and fw["hwnd"] == 1 and fw["web"] is False, "мессенджеры: то же окно, не как веб"
 
 
 def main():

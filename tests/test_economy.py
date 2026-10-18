@@ -36,11 +36,19 @@ def usage_counts_and_describes():
     U.record("groq", "openai/gpt-oss-20b", 900, 100, 400, path=p)
     U.record("cerebras", "gpt-oss-120b", 0, 0, 50, ok=False, err="Error code: 429 rate limit", path=p)
     U.record("cache", "", kind="quick", cached=True, path=p)
+    U.record("groq", "openai/gpt-oss-120b", 2000, 50, 300, path=p,
+             cached_prompt=1600)                                   # кэш промпта: 1600 из 2000 входных
     s = U.summary(1, p)
-    assert s["n"] == 4 and s["tokens"] == 3000 and s["cached"] == 1 and s["usd"] == 0, s
-    assert s["by"]["groq"]["n"] == 2 and s["by"]["cerebras"]["limits"] == 1
+    assert s["n"] == 5 and s["cached"] == 1 and s["usd"] == 0, s
+    assert s["prompt_cached"] == 1600 and s["cache_hit"] == round(100 * 1600 / s["prompt_in"]), s
+    from types import SimpleNamespace as _NS
+    assert U.cached_prompt_tokens(_NS(prompt_tokens_details=_NS(cached_tokens=42))) == 42
+    assert U.cached_prompt_tokens({"prompt_tokens_details": {"cached_tokens": 7}}) == 7
+    assert U.cached_prompt_tokens(_NS(prompt_tokens=10)) == 0 and U.cached_prompt_tokens(None) == 0
+    assert s["by"]["groq"]["n"] == 3 and s["by"]["cerebras"]["limits"] == 1
     d = U.describe(True, p)
-    assert d.startswith("Сегодня 4 запросов к моделям (Groq 2") and "Из кэша — 1" in d and "лимиты упирался 1" in d, d
+    assert d.startswith("Сегодня 5 запросов к моделям (Groq 3") and "Из кэша — 1" in d and "лимиты упирался 1" in d, d
+    assert "Кэш промпта" in d, d
     assert "0 $" in d
     assert U.provider_of("openai/gpt-oss-120b") == "groq" and U.provider_of("gem:gemini-3.8-flash") == "gem"
     assert U.provider_of("gh:openai/gpt-4.1-mini") == "gh" and U.provider_of("ollama:qwen2.5:7b") == "ollama"
