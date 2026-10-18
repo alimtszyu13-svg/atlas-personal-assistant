@@ -189,3 +189,7 @@ what did we agree on the call yesterday	knowledge
 search my notes for the wifi password	knowledge
 что я записывал за неделю	voice_notes
 что сказал Арсен в телеграме	other
+сколько ты потратил сегодня	usage_stats
+сколько запросов к моделям было	usage_stats
+how many tokens did you use	usage_stats
+сколько стоит билет в кино	other

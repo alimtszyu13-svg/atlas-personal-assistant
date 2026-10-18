@@ -59,6 +59,15 @@ _gem_down = {"until": 0.0}
 _GEM_EFFORT = {"v": os.getenv("GEMINI_EFFORT") or "none"}       # без размышлений — быстро
 _GEM_DUMMY_SIG = {"google": {"thought_signature": "skip_thought_signature_validator"}}
 
+# локальная модель (Ollama) — когда нет интернета или все облачные заняты. OLLAMA_MODEL=qwen2.5:7b в .env
+OLLAMA_NAME = (os.getenv("OLLAMA_MODEL") or "").strip()
+OLLAMA = "ollama:" + OLLAMA_NAME
+ollama_client = (OpenAI(api_key="ollama", base_url=os.getenv("OLLAMA_URL") or "http://localhost:11434/v1",
+                        max_retries=0, timeout=120) if OLLAMA_NAME else None)
+_ollama = {"ready": False}
+_net_down = {"until": 0.0}                         # нет интернета — минуту сразу идём к локальной модели
+_OFFLINE_RE = re.compile(r"connect|getaddrinfo|name resolution|timed? ?out|unreachable|network|nodename", re.I)
+
 EXTRA_GROQ = [("moonshotai/kimi-k2-instruct-0905", 10000), ("llama-3.3-70b-versatile", 12000)]
 _extra_models = []
 
@@ -67,6 +76,8 @@ try:                                         # лимиты и «цена» дл
     llm_gateway.MODEL_TPM[GH_MODEL] = 100000
     llm_gateway.MODEL_TPM[GEM_MODEL] = 250000
     llm_gateway.MODEL_PENALTY[GEM_MODEL] = float(os.getenv("GEMINI_PENALTY") or 15.0)
+    llm_gateway.MODEL_TPM[OLLAMA] = 10 ** 9                        # у своей модели лимитов нет
+    llm_gateway.MODEL_PENALTY[OLLAMA] = 30.0                       # но она медленнее — только когда облако не может
 except Exception:
     pass
 
@@ -91,8 +102,32 @@ def _detect_extra_models() -> None:
         print(f"[модели] список моделей Groq недоступен: {e}")
 
 
+def _detect_ollama() -> None:
+    if ollama_client is None:
+        return
+    try:
+        ids = {m.id for m in ollama_client.models.list().data}
+        _ollama["ready"] = OLLAMA_NAME in ids or any(i.split(":")[0] == OLLAMA_NAME.split(":")[0] for i in ids)
+        print(f"[локальная модель] {OLLAMA_NAME}: {'готова — работаю и без интернета' if _ollama['ready'] else 'не скачана (ollama pull ' + OLLAMA_NAME + ')'}")
+    except Exception as e:
+        print(f"[локальная модель] Ollama не запущена: {str(e)[:80]}")
+
+
+def local_ready() -> bool:
+    return ollama_client is not None and _ollama["ready"]
+
+
+def is_offline_error(err) -> bool:
+    return bool(_OFFLINE_RE.search(str(err))) and "429" not in str(err)
+
+
+def mark_offline(seconds: float = 60) -> None:
+    _net_down["until"] = time.time() + seconds
+
+
 def start() -> None:
     threading.Thread(target=_detect_extra_models, daemon=True).start()
+    threading.Thread(target=_detect_ollama, daemon=True).start()
 
 
 # =============================================================================
@@ -105,6 +140,8 @@ def _insert_after(base: list, model: str, other: str, item: str) -> None:
 
 def _candidates(model: str, other: str) -> list:
     now = time.time()
+    if local_ready() and now < _net_down["until"]:
+        return [OLLAMA]                                      # интернета нет — не ждём таймаутов облака
     base = ([CEREBRAS_MODEL, model, other] if cerebras_client is not None and now >= _cerebras_down["until"]
             else [model, other])
     base += [m for m in _extra_models if m not in base]
@@ -122,6 +159,15 @@ def _candidates(model: str, other: str) -> list:
             if free_at > _cer_cool["until"]:
                 llm_gateway.cooldown(CEREBRAS_MODEL, free_at - now)
                 _cer_cool["until"] = free_at
+    try:                                                     # месячный предел расхода: платные — в сторону
+        from core import usage
+        if any(usage.price(usage.provider_of(m)) > 0 for m in base) and usage.over_budget():
+            free = [m for m in base if usage.price(usage.provider_of(m)) <= 0]
+            base = free or base
+    except Exception:
+        pass
+    if local_ready():
+        base.append(OLLAMA)                                  # последней — если облачные все заняты
     return base
 
 
@@ -165,6 +211,11 @@ def _gem_messages(msgs):
 
 def _client_for(kwargs: dict):
     m = str(kwargs.get("model", ""))
+    if m.startswith("ollama:") and ollama_client is not None:
+        kw = {k: v for k, v in kwargs.items() if k != "reasoning_effort"}
+        kw["model"] = m.split(":", 1)[1]
+        kw["messages"] = _strip_gem_fields(kwargs.get("messages"))
+        return ollama_client, kw
     if m.startswith("gem:") and gem_client is not None:
         kw = {k: v for k, v in kwargs.items() if k != "reasoning_effort"}
         kw["model"] = m.split(":", 1)[1]

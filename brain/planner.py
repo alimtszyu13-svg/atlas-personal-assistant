@@ -261,6 +261,21 @@ def _slim_answer(question: str, parsed, outcomes, on_text) -> str:
 # =============================================================================
 # Один ход разговора
 # =============================================================================
+def _count(model, usage_obj, est, response, t0, err: str = "") -> None:
+    """Счётчик расхода (core/usage): запросы, токены, лимиты, деньги."""
+    try:
+        from core import usage
+        tin, tout = usage.tokens_of(usage_obj)
+        usage.record(usage.provider_of(model), model, tin or est,
+                     tout or (llm_gateway.estimate(response) if response else 0), (time.time() - t0) * 1000,
+                     ok=not err, err=err)
+        warn = usage.budget_warning()                      # 80 % / 100 % месячного предела — сказать один раз
+        if warn and state.announce.get("fn"):
+            state.announce["fn"](warn)
+    except Exception:
+        pass
+
+
 def _ask_model(on_text, msgs_base, schema, model, effort):
     """Запрос к модели через шлюз: подобрать свободную модель, при лимите — ужать или подождать."""
     other = providers.MODEL_FAST if model == providers.MODEL_SMART else providers.MODEL_SMART
@@ -278,6 +293,7 @@ def _ask_model(on_text, msgs_base, schema, model, effort):
                                                            reasoning_effort=effort)
             llm_gateway.record(model, est, usage, llm_gateway.chars(msgs) + llm_gateway.chars(schema),
                                fallback=llm_gateway.estimate(response) + (600 if effort == "high" else 150))
+            _count(model, usage, est, response, t0)
             return response, model, time.time() - t0
         except TaskCancelled:
             raise
@@ -292,6 +308,15 @@ def _ask_model(on_text, msgs_base, schema, model, effort):
             if attempt < 2 and ("tool_use_failed" in low or "tool call validation" in low):
                 model = providers.MODEL_SMART
                 continue
+            _count(model, None, 0, None, t0, err=err)
+            if providers.is_offline_error(err) and providers.local_ready() and not str(model).startswith("ollama:"):
+                providers.mark_offline()                        # интернета нет — отвечает своя модель
+                print("[мозг] облако недоступно — отвечает локальная модель")
+                t0 = time.time()
+                response, usage = providers._call_model_stream(on_text, model=providers.OLLAMA,
+                                                               messages=llm_gateway.fit(msgs_base, schema), tools=schema)
+                _count(providers.OLLAMA, usage, 0, response, t0)
+                return response, providers.OLLAMA, time.time() - t0
             raise
     raise RuntimeError("rate_limit: все модели заняты после трёх попыток")
 

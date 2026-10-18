@@ -122,8 +122,14 @@ def canonical(text: str, label: str, ask=None) -> str:
     system = ("Rewrite the user's request as ONE standard command in the same language, in the style of these "
               "examples (keep every specific detail: names, numbers, apps, files, places):\n- " + "\n- ".join(ex) +
               "\nIf the request is NOT this kind of command, answer exactly NONE. Output only the command or NONE.")
-    q = ask or _ask_fast
-    out = (q(system, text) or "").strip().strip("«»\"'.")
+    cached = None
+    if ask is None:
+        from core import llm_cache                   # та же фраза — та же стандартная команда, без запроса
+        cached = llm_cache.get(system, text, 0)
+    out = cached if cached is not None else ((ask or _ask_fast)(system, text) or "").strip().strip("«»\"'.")
+    if ask is None and cached is None:
+        from core import llm_cache
+        llm_cache.put(system, text, 0, out or "NONE", ttl=7 * 86400)
     if not out or out.upper().startswith("NONE") or len(out) > 200:
         return ""
     return out
