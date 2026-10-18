@@ -239,7 +239,7 @@ def enroll(speak) -> str:
         for attempt in range(2):
             speak(f"Фраза {i}: {phrase}" if ru else f"Phrase {i}: {phrase}")
             shared_state["state"] = "listening"
-            audio = _listen_once(max_duration=12, silence_limit=1.0, start_timeout=8)
+            audio, _ready = _listen_once(max_duration=12, silence_limit=1.0, start_timeout=8)
             shared_state["state"] = "idle"
             if audio is not None and len(audio) >= SR * 1.5:
                 embs.append(embed(audio))

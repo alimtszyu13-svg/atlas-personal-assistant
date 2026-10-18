@@ -185,6 +185,21 @@ def _pc_power(command: str):
 # Команды
 # =============================================================================
 def _process_command(command: str) -> None:
+    """Выполнить команду и записать, сколько ушло времени (core/turn_trace)."""
+    from core import turn_trace
+    if turn_trace.current() is None:
+        turn_trace.begin()                        # набрано в чате — секундомер с этого момента
+    try:
+        _process_command_inner(command)
+    finally:
+        tr = turn_trace.current()
+        if tr is not None and "path" not in tr["notes"]:
+            turn_trace.note(path="fast")
+        turn_trace.end()
+
+
+def _process_command_inner(command: str) -> None:
+    from core import turn_trace
     print(f"[cmd] {command!r}")
     shared_state["chat_history"].append(("You", command))
     memory.log_turn("user", command)
@@ -286,6 +301,8 @@ def _process_command(command: str) -> None:
     # Мозг. Язык ответа подсказываем на каждом ходу — не полагаемся на то, что модель
     # «запомнит» переключение (язык мог смениться через интерфейс, минуя разговор)
     shared_state["state"] = "thinking"
+    turn_trace.mark("route")
+    turn_trace.note(path="brain")
     lang_hint = "(Respond in Russian.) " if get_response_language() == "ru" else "(Respond in English.) "
     from voice import SpeechStream
     speech = SpeechStream()
@@ -440,7 +457,12 @@ def _voice_turn():
 
         _hush_greeting()
         shared_state["state"] = "listening"
-        command = listen(max_duration=30, silence_limit=1.4) if trigger == "dictation" else listen()
+        try:
+            import voice as _vw
+            _vw.warm()                              # прогреть соединения, пока ты говоришь
+        except Exception:
+            pass
+        command = listen(max_duration=30, silence_limit=1.4, early=False) if trigger == "dictation" else listen()
         if len(command.strip()) < MIN_COMMAND_LENGTH and not re.search(r"\d", command):
             return                              # пустое распознавание — не тратим запрос к модели
 

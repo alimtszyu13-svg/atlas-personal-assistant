@@ -157,6 +157,11 @@ def _disk(t, c):
     return disk_clean.intent(t, c["last"]) is not None
 
 
+def _speed(t, c):
+    from core import turn_trace
+    return bool(turn_trace._ASK.search(t))
+
+
 def _meeting(t, c):
     from core import meeting_notes
     return meeting_notes.intent(t) is not None
@@ -219,6 +224,7 @@ INTENTS = [
     ("scenarios", _scenarios, "pc_fast"),
     ("quick_math", _math, "pc_fast"),
     ("report", _report, "pc_fast"),
+    ("speed_stats", _speed, "pc_fast"),
     ("proofread", _proofread, "pc_fast"),
     ("form_fill", _forms, "pc_fast"),
     ("screen_history", _screen_history, "pc_fast"),

@@ -60,6 +60,7 @@ def _handlers(text: str, last, announce, local, runner, on_full, ru_default, nes
         "scenarios": lambda: scenarios.handle(text, runner) if (runner is not None and not nested) else None,
         "quick_math": lambda: quick_math.answer(text),
         "report": lambda: report.handle(text),
+        "speed_stats": lambda: __import__("core.turn_trace", fromlist=["x"]).handle(text),
         "proofread": lambda: proofread.handle(text),
         "form_fill": lambda: form_fill.handle(text),
         "screen_history": lambda: screen_history.handle(text, last=last),

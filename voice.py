@@ -477,7 +477,7 @@ def _transcribe_audio(recording: np.ndarray) -> str:
     audio = stt_guard.prepare(recording, spans)
     seconds = stt_guard.speech_seconds(spans) if spans else len(recording) / SAMPLE_RATE
 
-    temp_path = "temp_stt.wav"
+    temp_path = f"temp_stt_{threading.get_ident()}_{int(time.time() * 1000) % 100000}.wav"
     with wave.open(temp_path, 'wb') as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
@@ -734,6 +734,7 @@ def _play_file(path: str, interruptible: bool = False) -> None:
     """Проигрывает готовый файл и держит интерфейс в курсе."""
     pygame.mixer.music.load(path)
     pygame.mixer.music.play()
+    _mark("first_audio")
     duration = pygame.mixer.Sound(path).get_length()
     shared_state["speech_envelope"] = _compute_envelope(path, duration)
     shared_state["speech_duration"] = duration
@@ -1028,51 +1029,85 @@ def speak(text: str, interruptible: bool = True, cache_as: str = None) -> None:
 LISTEN_START_TIMEOUT = 8.0     # сколько ждать начала речи после нажатия / имени
 
 
-def _listen_once(max_duration: float, silence_limit: float,
-                 start_timeout: float = LISTEN_START_TIMEOUT):
-    """Одна фраза. Начало и конец речи определяет Silero VAD, а не порог
-    громкости, — поэтому работает и с тихим микрофоном, и при шуме.
-    Возвращает аудио или None, если за start_timeout никто не заговорил."""
-    import torch
-    from collections import deque
-    from silero_vad import VADIterator
-
-    block = 512                                   # 32 мс — размер, который ждёт VAD
-    vad = VADIterator(_get_vad(), sampling_rate=SAMPLE_RATE, threshold=0.5,
-                      min_silence_duration_ms=int(silence_limit * 1000),
-                      speech_pad_ms=100)
-    preroll = deque(maxlen=10)                    # ~0.3 с до начала речи — не теряем первый слог
-    frames, started = [], False
-    t0 = time.time()
-
-    stream = _mic_array(samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=block)
-    stream.start()
+def _mark(name: str) -> None:
     try:
-        while True:
-            chunk, _overflow = stream.read(block)
-            shared_state["mic_level"] = min(1.0, float(np.sqrt(np.mean(
-                chunk.astype(np.float32) ** 2))) / 32768 * 9)   # для звезды в интерфейсе
-            if started:
-                frames.append(chunk)
-            else:
-                preroll.append(chunk)
-            ev = vad(torch.from_numpy(chunk.flatten().astype("float32") / 32768.0))
-            if ev and "start" in ev and not started:
-                started = True
-                frames.extend(preroll)
-            if ev and "end" in ev and started:
-                break                              # пауза дольше silence_limit — фраза закончена
-            if not started and time.time() - t0 > start_timeout:
-                break                              # так и не заговорили
-            if started and len(frames) * block / SAMPLE_RATE > max_duration:
-                break
+        from core import turn_trace
+        turn_trace.mark(name)
+    except Exception:
+        pass
+
+
+_warm = {"t": 0.0}
+
+
+def warm() -> None:
+    """Сразу после «Атлас»: прогреть соединения с Groq (распознавание и модель), пока ты говоришь.
+    Иначе после паузы больше 5 с каждый запрос заново устанавливает защищённое соединение (+0,1–0,3 с)."""
+    if time.time() - _warm["t"] < 20:
+        return
+    _warm["t"] = time.time()
+
+    def go():
+        for name, fn in (("распознавание", lambda: groq_client.models.list()), ("модель", _warm_brain)):
+            try:
+                fn()
+            except Exception as e:
+                print(f"[прогрев] {name}: {str(e)[:80]}")
+    threading.Thread(target=go, daemon=True, name="warmup").start()
+
+
+def _warm_brain():
+    from brain import providers as P
+    P.client.models.list()
+
+
+def _listen_once(max_duration: float, silence_limit: float,
+                 start_timeout: float = LISTEN_START_TIMEOUT, speculate: bool = False, early: bool = True):
+    """Одна фраза. Начало и конец речи определяет Silero VAD (не порог громкости — работает и с тихим
+    микрофоном, и при шуме). speculate=True — раннее распознавание на паузах (core/listen_loop).
+    → (звук или None, готовый текст или None)."""
+    import torch
+    from core import listen_loop
+
+    model = _get_vad()
+    try:
+        model.reset_states()
+    except Exception:
+        pass
+    stream = _mic_array(samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=listen_loop.BLOCK)
+    stream.start()
+
+    def read():
+        chunk, _overflow = stream.read(listen_loop.BLOCK)
+        return chunk
+
+    def prob(chunk):
+        return float(model(torch.from_numpy(chunk.flatten().astype("float32") / 32768.0), SAMPLE_RATE))
+
+    def level(chunk):
+        shared_state["mic_level"] = min(1.0, float(np.sqrt(np.mean(chunk.astype(np.float32) ** 2))) / 32768 * 9)
+
+    try:
+        audio, text, note = listen_loop.run(
+            read, prob, max_duration, silence_limit, start_timeout,
+            transcribe=(lambda a: _transcribe_audio(a.flatten())) if speculate else None,
+            is_complete=listen_loop.complete_command if early else None, level=level)
     finally:
         stream.stop()
         stream.close()
-        vad.reset_states()
+        try:
+            model.reset_states()
+        except Exception:
+            pass
         shared_state["mic_level"] = 0.0
-
-    return np.concatenate(frames) if started else None
+    if note in ("hit", "early"):
+        print(f"[время] раннее распознавание: {'фраза закончена раньше' if note == 'early' else 'текст был готов'}")
+    try:
+        from core import turn_trace
+        turn_trace.note(spec=note)
+    except Exception:
+        pass
+    return audio, text
 
 
 def _wait_for_continuation(window: float = 0.9):
@@ -1100,7 +1135,7 @@ def _wait_for_continuation(window: float = 0.9):
 LISTEN_CONTINUATIONS = 0   # VAD сам ждёт паузу; лишнее окно добавляло ~1 с к каждой фразе
 
 
-def listen(max_duration: int = 15, silence_limit: float = 1.2) -> str:
+def listen(max_duration: int = 15, silence_limit: float = 1.2, early: bool = True) -> str:
     """Слушает команду. После паузы недолго ждёт продолжения — чтобы можно
     было договорить мысль, а не выпаливать её на одном дыхании."""
     print("Listening...")
@@ -1110,15 +1145,34 @@ def listen(max_duration: int = 15, silence_limit: float = 1.2) -> str:
     if left is not None and len(left) > SAMPLE_RATE * 0.4:
         print("   (команда сказана вместе с именем)")
         _last_audio["audio"] = left
+        try:
+            from core import turn_trace
+            turn_trace.begin()
+        except Exception:
+            pass
         with _T("распознавание"):
             text = _transcribe_audio(left)
+        _mark("stt")
         if text:
             print(f"[You]: {text}")
             return text
 
-    audio = _listen_once(max_duration, silence_limit)
+    audio, ready = _listen_once(max_duration, silence_limit, speculate=True, early=early)
     if audio is None:
         return ""
+    try:
+        from core import turn_trace
+        turn_trace.begin()                         # секундомер ответа — с конца твоей фразы
+    except Exception:
+        pass
+    if ready is not None and LISTEN_CONTINUATIONS == 0:
+        _last_audio["audio"] = audio
+        _mark("stt")
+        if not ready:
+            print("Didn't catch that, try again.")
+            return ""
+        print(f"[You]: {ready}")
+        return ready
 
     parts = [audio]
     # до двух продолжений: хватает на длинную мысль, но не даёт слушать вечно
@@ -1126,7 +1180,7 @@ def listen(max_duration: int = 15, silence_limit: float = 1.2) -> str:
         if not _wait_for_continuation():
             break
         print("   (продолжаешь — слушаю дальше)")
-        more = _listen_once(max_duration, silence_limit)
+        more, _ready = _listen_once(max_duration, silence_limit)
         if more is None:
             break
         parts.append(more)
@@ -1135,6 +1189,7 @@ def listen(max_duration: int = 15, silence_limit: float = 1.2) -> str:
     _last_audio["audio"] = recording
     with _T("распознавание"):
         text = _transcribe_audio(recording)
+    _mark("stt")
 
     if text == "":
         print("Didn't catch that, try again.")
@@ -1272,14 +1327,19 @@ class SpeechStream:
         threading.Thread(target=self._gen_loop, daemon=True).start()
         self.play_t.start()
 
+    FIRST_MIN_CHARS = 12    # первая фраза — короче: «Готово, сэр.» звучит сразу, пока модель пишет дальше
+
     def feed(self, delta: str) -> None:
         """Новый кусок текста от модели."""
+        if not self.buf and not self.spoken_any and delta:
+            _mark("first_token")
         self.buf += delta
         while True:
-            m = re.search(r"[.!?\u2026](?=\s)", self.buf[self.MIN_CHARS:])
+            lim = self.FIRST_MIN_CHARS if not self.spoken_any else self.MIN_CHARS
+            m = re.search(r"[.!?\u2026](?=\s)", self.buf[lim:])
             if not m:
                 break
-            cut = self.MIN_CHARS + m.end()
+            cut = lim + m.end()
             self._push(self.buf[:cut])
             self.buf = self.buf[cut:]
 
