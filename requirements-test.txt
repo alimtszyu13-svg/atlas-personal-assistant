@@ -1,0 +1,13 @@
+# Только то, что нужно тестам (полный список — requirements.txt, он для Windows).
+numpy
+pillow
+psutil
+requests
+pypdf
+pypdfium2
+python-docx
+python-pptx
+lxml
+defusedxml
+cryptography
+sounddevice

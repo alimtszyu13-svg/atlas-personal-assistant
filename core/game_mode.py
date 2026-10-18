@@ -302,6 +302,11 @@ _OFF = re.compile(r"(?:выключи|отключи|останови|завер
                   r"(?:я\s+)?наигрался|поиграл(?:и)?(?:\s+всё|\s+все)?$|game over", re.I)
 
 
+def intent(text: str):
+    t = " ".join((text or "").split()).strip(" .!")
+    return "off" if _OFF.search(t) else "on" if _ON.search(t) else None
+
+
 def handle(text: str, env=None):
     t = " ".join((text or "").split()).strip(" .!")
     ru = _ru(t)

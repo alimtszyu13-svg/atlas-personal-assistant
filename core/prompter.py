@@ -451,6 +451,19 @@ _MODE_ALL = re.compile(r"(?:суфл[её]р\w*[,\s]+)?(?:отвечай|под�
 _MODE_ME = re.compile(r"(?:суфл[её]р\w*[,\s]+)?(?:отвечай|подсказывай)\s+только\s+(?:мне|на мои|когда меня)|only (?:me|mine)", re.I)
 
 
+def intent(text: str):
+    """Без побочных эффектов: names | off | on | all | me | None."""
+    t = " ".join((text or "").split()).strip(" .!")
+    if not t:
+        return None
+    if _NAMES.search(t) and (_s["ask_name"] or re.search(r"созвон|суфл|call", t, re.I)):
+        return "names"
+    for kind, rx in (("off", _OFF), ("on", _ON), ("all", _MODE_ALL), ("me", _MODE_ME)):
+        if rx.search(t):
+            return kind
+    return None
+
+
 def handle(text: str, last: str = None):
     t = " ".join((text or "").split()).strip(" .!")
     if not t:

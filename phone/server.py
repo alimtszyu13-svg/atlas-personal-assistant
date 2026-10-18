@@ -147,6 +147,7 @@ def handle_text(text: str, log: bool = True) -> str:
         if not PC_HUB:                                       # окна, файлы, «скажи, когда…», мессенджеры — без модели
             try:
                 from core import pc_fast
+                text = pc_fast.prepare(text, local=False)
                 reply = pc_fast.handle(text, local=False, announce=_pc_announce)
             except Exception as e:
                 print(f"[телефон] команды ПК: {e}")

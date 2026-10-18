@@ -303,6 +303,7 @@ def intent(text: str):
         rest = next((g for g in m.groups() if g is not None), "") or ""
         apps = [{"app": k} for k, _, _ in _apps_in(rest)]
         if not apps and re.search(r"(?:раздели|разбей|split|tile|разлож|arrange)", t, re.I) and \
+                re.search(r"(?<![\w])(?:экран\w*|окна|окон|screen|windows)(?![\w])", t, re.I) and \
                 not re.search(r"\b(?:файл|текст|документ|список|file|text)\w*", t, re.I):
             return {"do": "tile", "targets": [], "ru": ru}
         if len(apps) >= 2:

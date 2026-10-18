@@ -206,6 +206,12 @@ def _process_command(command: str) -> None:
         print(f"[свои команды] «{command}» → «{real}»")
         command = real
 
+    from core import pc_fast                     # «нет, я имел в виду …» и перефразировки — до разбора
+    real = pc_fast.prepare(command, last=_last_reply())
+    if real != command:
+        print(f"[смысл] «{command}» → «{real}»")
+        command = real
+
     from core import meeting_notes               # «запиши созвон», «прекрати запись», «открой записи» — сразу
     rec = meeting_notes.intent(command)
     if rec:

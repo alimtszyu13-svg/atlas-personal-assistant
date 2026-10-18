@@ -287,8 +287,9 @@ def calls_wiring():
     assert "call_secretary.start(_announce)" in src and "prompter.active()" in src
     hk = open(os.path.join(ROOT, "selection_hotkey.py"), encoding="utf-8").read()
     assert 'add_hotkey("ctrl+alt+h"' in hk
-    fast = open(os.path.join(ROOT, "core", "pc_fast.py"), encoding="utf-8").read()
-    assert fast.index("call_secretary.handle") < fast.index("messengers.intent")
+    from core import intent_router
+    assert intent_router.LABELS.index("call_secretary") < intent_router.LABELS.index("messengers"), \
+        "идёт звонок — «ответь» значит «возьми трубку», а не мессенджер"
     import skills.pc_power  # noqa: F401
     from core.skills import REGISTRY
     assert "call_prompter" in REGISTRY

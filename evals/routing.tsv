@@ -1,0 +1,179 @@
+# фраза	кто должен взять (метка маршрутизатора или other — быстрые команды / мозг)
+поставь хром слева, а ворд справа	window_layout
+разверни телеграм	window_layout
+перенеси хром на второй монитор	window_layout
+раздели экран между кодом и браузером	window_layout
+сверни всё, кроме кода	window_layout
+верни окна как было	window_layout
+поставь телеграм в правый верхний угол	window_layout
+сделай хром на весь экран	window_layout
+put chrome on the left and word on the right	window_layout
+сверни все окна	window_layout
+поставь хром и ворд рядом	window_layout
+разверни окно	window_layout
+скажи, когда скачается файл	watchers
+сообщи, когда закончится рендер	watchers
+скажи, когда закроется премьер	watchers
+скажи, когда на этой странице появится в наличии	watchers
+дай знать, когда страница изменится	watchers
+скажи, когда в загрузках появится файл	watchers
+скажи, когда вернётся интернет	watchers
+скажи когда ноутбук зарядится до 80%	watchers
+скажи, когда эти наушники подешевеют ниже 3000	watchers
+let me know when the download finishes	watchers
+за чем ты следишь	watchers
+перестань следить за загрузкой	watchers
+что занимает место	disk_clean
+почисти компьютер	disk_clean
+освободи место на диске	disk_clean
+убери мусор	disk_clean
+clean up my pc	disk_clean
+распознай текст с экрана	screen_snip
+скопируй текст с картинки	screen_snip
+объясни то, что выделю	screen_snip
+переведи то, что я выделю	screen_snip
+сделай снимок области	screen_snip
+что это под курсором	what_is
+что это за кнопка	what_is
+what's under the cursor	what_is
+сколько будет 15% от 34 тысяч	quick_math
+200 долларов в сомах	quick_math
+5 миль в километры	quick_math
+2 в степени 10	quick_math
+корень из 144	quick_math
+сколько дней до 1 декабря	quick_math
+какой день будет через 45 дней	quick_math
+what is 12 times 7	quick_math
+сколько будет полтора миллиона разделить на 3	quick_math
+100 кг в фунтах	quick_math
+отчёт	report
+доложи обстановку	report
+статус	report
+Атлас, отчёт	report
+status report	report
+проверь	proofread
+проверь текст перед отправкой	proofread
+проверь эссе на ошибки	proofread
+proofread this	proofread
+заполни эту форму	form_fill
+заполни анкету	form_fill
+для анкет: меня зовут Алим Иванов, почта alim@mail.com	form_fill
+что ты знаешь для анкет	form_fill
+включи машину времени	screen_history
+где я видел цену 3500	screen_history
+что было на экране вчера в 15:00	screen_history
+не записывай экран 30 минут	screen_history
+запиши мысль: надо переделать главную страницу	voice_notes
+идея: в Atlas сделать режим для презентаций	voice_notes
+запиши: купить молоко и батарейки	voice_notes
+заметка: пароль от вайфая на роутере снизу	voice_notes
+что у меня в идеях	voice_notes
+список покупок	voice_notes
+купил молоко	voice_notes
+игровой режим	game_mode
+включи игровой режим	game_mode
+я наигрался	game_mode
+следи за осанкой	wellbeing
+не напоминай про перерывы	wellbeing
+я сижу ровно	wellbeing
+сожми эти фото	file_ops
+сожми фото в Загрузках	file_ops
+сожми это видео	file_ops
+сделай из видео mp3	file_ops
+вытащи звук из видео	file_ops
+переведи эти картинки в jpg	file_ops
+сделай из фото pdf	file_ops
+склей эти pdf	file_ops
+сделай pdf из ворда	file_ops
+заархивируй эту папку	file_ops
+распакуй архив	file_ops
+переименуй фото по дате	file_ops
+верни названия	file_ops
+convert these images to png	file_ops
+где реферат, который я вчера скачал?	where_saved
+куда я сохранил презентацию	where_saved
+что я последним скачал	where_saved
+последний скачанный файл	where_saved
+открой реферат который я вчера скачал	where_saved
+ответь маме в телеграме, что опоздаю на 10 минут	messengers
+напиши Алиму в ватсапе: буду в 7	messengers
+спроси Дану в инсте, когда сдавать проект	messengers
+ответь ему, что согласен	messengers
+что написала мама в телеграме?	messengers
+что мне пишут в телеграме	messengers
+напиши магазину Mobi в инстаграме: есть ли iPhone 15 в синем	messengers
+text mom on whatsapp that I am late	messengers
+включи суфлёр	prompter
+выключи суфлёр	prompter
+суфлёр, отвечай на все вопросы	prompter
+запиши созвон	meeting_notes
+запиши лекцию	meeting_notes
+прекрати запись	meeting_notes
+открой записи	meeting_notes
+конспект этого ролика	link_notes
+сделай конспект этой статьи	link_notes
+сравни эссе и эссе v2	doc_compare
+переведи документ про проект на английский	doc_translate
+сожми выделенное	squeeze
+объясни проще	other
+сделай конспект видео про физику	media_import
+пиши за мной	dictation
+который час	instant
+какая погода	instant
+какие главные новости	instant
+курс доллара	instant
+открой ютуб	other
+включи музыку	other
+сделай громче	other
+поставь будильник на 7 утра	other
+что на экране	other
+напомни через 5 минут выключить плиту	other
+поставь на паузу	other
+найди эссе	other
+переведи привет на английский	other
+сделай скриншот	other
+что я делал вчера	other
+привет	other
+как дела	other
+расскажи анекдот	other
+кто такой Илон Маск	other
+громкость 50	other
+выключи компьютер	other
+режим фокуса на 50 минут	other
+напиши код на питоне	other
+запомни что я люблю кофе	other
+проверь почту	other
+утренняя сводка	other
+поставь таймер на 5 минут	other
+перенеси встречу на завтра	other
+поставь музыку на паузу	other
+разложи файлы по папкам	other
+скажи, когда у меня встреча	other
+напомни, когда открою ворд	other
+скажи когда закроется магазин	other
+напиши письмо маме	other
+скажи что-нибудь смешное	other
+напиши маме что я дома	other
+отправь файл на телефон	other
+сожми текст	squeeze
+переведи текст на английский	other
+очисти историю буфера	other
+очисти корзину	other
+где находится Бишкек	other
+где лежит ключ от машины	other
+сколько стоит айфон	other
+включи 5 серию	other
+отчёт по физике	other
+объясни это	squeeze
+переведи это на английский	other
+что это значит	other
+запиши в память что я люблю кофе	other
+я буду играть в футбол	other
+открой хром	other
+что слева на экране?	other
+когда закончится семестр	other
+сколько времени	instant
+открой блокнот и напиши тест	other
+найди в интернете кто написал Евгения Онегина	other
+сколько свободного места на диске C?	instant
+какая загрузка процессора	instant

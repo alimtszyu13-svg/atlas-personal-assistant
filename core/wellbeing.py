@@ -164,8 +164,29 @@ def posture_tick(face, now: float, c: dict = None) -> str:
 
 
 # --- фразы -------------------------------------------------------------------------------------------------------
+_KINDS = [
+    ("posture_off", r"(?:не следи|перестань следить|хватит следить|stop watching)\s+(?:за\s+)?(?:моей\s+)?осанк|posture off"),
+    ("posture_on", r"(?:следи|присматривай|смотри)\s+за\s+(?:моей\s+)?осанк|watch my posture"),
+    ("calibrate", r"(?:я\s+)?(?:сижу|сел)\s+ровно|запомни,? как я сижу|i'?m sitting straight"),
+    ("breaks_off", r"не напоминай (?:про|о) перерыв|без напоминаний о перерывах|no break reminders"),
+    ("breaks_every", r"перерыв\w*\s+(реже|чаще)|напоминай (?:про|о) перерыв\w* (?:каждые|раз в)\s+(\d+)\s*мин"),
+    ("breaks_on", r"напоминай (?:про|о) перерыв|break reminders on"),
+]
+
+
+def intent(text: str):
+    """Без побочных эффектов: что это за команда (или None)."""
+    t = " ".join((text or "").split()).strip(" .!").lower()
+    for kind, rx in _KINDS:
+        if re.search(rx, t):
+            return kind
+    return None
+
+
 def handle(text: str, camera=None):
     t = " ".join((text or "").split()).strip(" .!").lower()
+    if not intent(t):
+        return None
     c = cfg()
     if re.search(r"(?:не следи|перестань следить|хватит следить|stop watching)\s+(?:за\s+)?(?:моей\s+)?осанк|posture off", t):
         c["posture"] = False

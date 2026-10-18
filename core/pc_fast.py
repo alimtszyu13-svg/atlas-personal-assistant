@@ -30,82 +30,107 @@ def default_runner(cmd: str) -> str:
         return f"error: {e}"
 
 
+def _handlers(text: str, last, announce, local, runner, on_full, ru_default, nested) -> dict:
+    """Метка маршрутизатора → как её выполнить. Ответ None = «не моё», маршрут идёт к следующей заявке."""
+    from core import (call_secretary, disk_clean, file_ops, form_fill, game_mode, messengers, prompter, proofread,
+                      quick_math, report, scenarios, screen_history, screen_snip, voice_notes, watchers, wellbeing,
+                      what_is, where_saved, window_layout)
+
+    def snip():
+        kind = screen_snip.intent(text)
+        ru = screen_snip._ru(text) if ru_default is None or screen_snip._ru(text) else ru_default
+        short, full = screen_snip.snip(kind, ru=ru)
+        if full and full != short and on_full:
+            on_full(full)
+        return short
+
+    def what():
+        hot = text.strip().lower() == what_is.HOTKEY_PHRASE and ru_default is not None
+        return what_is.handle(text, ru=ru_default if hot else None)
+
+    return {
+        "call_secretary": lambda: call_secretary.handle(text),
+        "prompter": lambda: prompter.handle(text),
+        "messengers": lambda: messengers.handle(text, last=last),
+        "pending_disk": lambda: disk_clean.handle(text, announce=announce, last=last),
+        "pending_proofread": lambda: proofread.handle(text, last=last),
+        "pending_where": lambda: where_saved.handle(text, last=last),
+        "screen_snip": snip,
+        "what_is": what,
+        "scenarios": lambda: scenarios.handle(text, runner) if (runner is not None and not nested) else None,
+        "quick_math": lambda: quick_math.answer(text),
+        "report": lambda: report.handle(text),
+        "proofread": lambda: proofread.handle(text),
+        "form_fill": lambda: form_fill.handle(text),
+        "screen_history": lambda: screen_history.handle(text, last=last),
+        "voice_notes": lambda: voice_notes.handle(text),
+        "game_mode": lambda: game_mode.handle(text),
+        "wellbeing": lambda: wellbeing.handle(text),
+        "file_ops": lambda: file_ops.handle(text, announce=announce),
+        "window_layout": lambda: window_layout.handle(text),
+        "watchers": lambda: watchers.handle(text),
+        "where_saved": lambda: where_saved.handle(text, last=last),
+        "disk_clean": lambda: disk_clean.handle(text, announce=announce, last=last),
+    }
+
+
+LAST = {"text": "", "route": None, "said": None}
+
+
 def handle(text: str, last: str = None, announce=None, local: bool = True, runner=default_runner,
            on_full=None, ru_default: bool = None, nested: bool = False):
-    """→ ответ (строка) или None. on_full(text) — длинный текст в чат (снимок экрана, перевод)."""
-    from core import (disk_clean, file_ops, messengers, quick_math, scenarios, screen_snip, watchers,
-                      what_is, where_saved, window_layout)
+    """→ ответ (строка) или None. on_full(text) — длинный текст в чат (снимок экрана, перевод).
+    Кто берёт фразу — решает маршрутизатор (core/intent_router); если первая заявка отказалась,
+    пробуется следующая. Фразы, которые выполняет main (записи, конспекты) или мозг, — None."""
+    from core import intent_router
     try:
-        from core import call_secretary, prompter
-        said = call_secretary.handle(text)              # идёт звонок: «возьми трубку», «скажи, что занят»
-        if said:
-            return said
-        if local:
-            said = prompter.handle(text)                # «включи суфлёр», «меня зовут Алим»
+        r = intent_router.route(text, {"last": last, "local": local})
+        if r.ambiguous:
+            print(f"[маршрут] «{text[:60]}» → {r.label} (спорили: {', '.join(r.claims)})")
+        if not r.claims:
+            return None
+        table = _handlers(text, last, announce, local, runner, on_full, ru_default, nested)
+        for label in r.claims:
+            if intent_router.OWNER.get(label) != "pc_fast":
+                return None                               # это выполнит main или мозг — дальше по цепочке
+            fn = table.get(label)
+            said = fn() if fn else None
             if said:
+                if not nested:
+                    import time
+                    LAST.update(text=text, route=label, said=said, ts=time.time())
                 return said
-        if messengers.intent(text, last):               # «ответь маме в телеграме…», «да» — отправить
-            said = messengers.handle(text, last=last)
-            if said:
-                return said
-        from core import form_fill, proofread, report
-        for fn in (lambda: disk_clean.handle(text, announce=announce, last=last) if disk_clean.pending() else None,
-                   lambda: proofread.handle(text, last=last) if (local and proofread._s.get("pending")) else None,
-                   lambda: where_saved.handle(text, last=last) if where_saved._s.get("last") else None):
-            said = fn()
-            if said:
-                return said
-        if local:
-            snip = screen_snip.intent(text)
-            if snip:
-                ru = screen_snip._ru(text) if ru_default is None or screen_snip._ru(text) else ru_default
-                short, full = screen_snip.snip(snip, ru=ru)
-                if full and full != short and on_full:
-                    on_full(full)
-                return short
-            if what_is.intent(text):
-                return what_is.handle(text, ru=ru_default if text.strip().lower() == what_is.HOTKEY_PHRASE and
-                                      ru_default is not None else None)
-        if not nested and runner is not None:
-            said = scenarios.handle(text, runner)
-            if said:
-                return said
-        said = quick_math.answer(text)
-        if said:
-            return said
-        said = report.handle(text)                      # «отчёт» — как у Джарвиса
-        if said:
-            return said
-        if local:
-            for fn in (proofread.handle, form_fill.handle):
-                said = fn(text)
-                if said:
-                    return said
-        elif form_fill._REMEMBER.match(" ".join((text or "").split())) or form_fill._SHOW.search(text or ""):
-            said = form_fill.handle(text)
-            if said:
-                return said
-        from core import game_mode, screen_history, voice_notes, wellbeing
-        for fn in ((lambda: screen_history.handle(text, last=last)) if local else (lambda: None),
-                   lambda: voice_notes.handle(text), lambda: game_mode.handle(text) if local else None,
-                   lambda: wellbeing.handle(text) if local else None):
-            said = fn()
-            if said:
-                return said
-        said = file_ops.handle(text, announce=announce)
-        if said:
-            return said
-        for fn in (window_layout.handle, watchers.handle):
-            said = fn(text)
-            if said:
-                return said
-        said = where_saved.handle(text, last=last)
-        if said:
-            return said
-        return disk_clean.handle(text, announce=announce, last=last)
+        return None
     except Exception as e:
         print(f"[ПК] {e}")
         return None
+
+
+def prepare(command: str, last: str = None, local: bool = True, ask=None) -> str:
+    """До разбора: исправление («нет, я имел в виду …» — запомнить и выполнить правильное) и перефразировки
+    (смысловой слой: «растяни телегу на весь экран» → «разверни телеграм»). Возвращает команду для выполнения."""
+    import time
+    from core import intent_router, semantic_router
+    ctx = {"last": last, "local": local}
+    try:
+        fix = semantic_router.correction(command)
+        if fix:
+            r = intent_router.route(fix, ctx)
+            if r.label == "other" and semantic_router.enabled():
+                res = semantic_router.rescue(fix, ctx, ask)
+                if res:
+                    fix, r = res[0], intent_router.route(res[0], ctx)
+            recent = LAST.get("text") and time.time() - LAST.get("ts", 0) < 90
+            if recent and r.label not in ("other", LAST.get("route")):
+                semantic_router.learn(LAST["text"], r.label)  # в следующий раз эта фраза — сюда
+            return fix
+        if intent_router.route(command, ctx).label == "other" and semantic_router.enabled():
+            res = semantic_router.rescue(command, ctx, ask)
+            if res:
+                return res[0]
+    except Exception as e:
+        print(f"[смысл] {e}")
+    return command
 
 
 def is_question(said: str) -> bool:

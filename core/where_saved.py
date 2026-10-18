@@ -212,6 +212,9 @@ _ASK = re.compile(r"(?:где|куда)\s+(?:я\s+)?(?:[\w-]+,?\s+){0,6}?(?:со
                   r"(?:котор\w+|что)\s+я\s+(?:\w+\s+)?(?:скачал|сохранил|загрузил)\w*|"
                   r"where (?:did i (?:save|put|download)|is the file)|what did i (?:last )?download|"
                   r"(?:open|find|show) the \w+ i (?:downloaded|saved)", re.I)
+_DOCWORDS = (r"реферат|эссе|доклад|документ|презентац|таблиц|фото|картин|скрин|видео|музык|песн|pdf|пдф|docx?|"
+             r"xlsx?|pptx?|архив|zip|установщик|конспект|курсов|диплом|отчёт|отчет|резюме|сертификат|билет|"
+             r"essay|report|document|photo|video|presentation")
 _YES = re.compile(r"^(?:да|открой|открывай|давай|ага|yes|open|ok|окей|ок)\b", re.I)
 _REVEAL = re.compile(r"(?:покажи|открой)\s+(?:в|его в)\s+(?:папк|проводник)\w*|show in folder|show it in explorer", re.I)
 _NEXT = re.compile(r"^(?:не (?:тот|то|та)|другой|другую|следующ\w*|ещё|еще|not that|another|next)\b", re.I)
@@ -229,6 +232,9 @@ def intent(text: str, last: str = None):
         if _YES.search(t) and len(t) < 25:
             return ("open",)
     if _ASK.search(t):
+        weak = not re.search(r"сохранил|скачал|загрузил|положил|файл|download|save|последн", t, re.I)
+        if weak and not re.search(_DOCWORDS, t, re.I):
+            return None                                   # «где лежит ключ?» — не про файлы
         return ("find", t)
     return None
 
