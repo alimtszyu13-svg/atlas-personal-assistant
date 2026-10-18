@@ -376,6 +376,11 @@ def _run_one_tool(name: str, args: dict):
     if not func:
         return f"Функция {name} не найдена.", False, 0
     try:
+        from core import verify                       # самопроверка: сработало ли на самом деле
+        snap = verify.before(name, args)
+    except Exception:
+        verify, snap = None, {}
+    try:
         valid = set(inspect.signature(func).parameters.keys())
         result = func(**{k: v for k, v in args.items() if k in valid})
         success = True
@@ -383,6 +388,11 @@ def _run_one_tool(name: str, args: dict):
         print(f"[Tool error in {name}]: {tool_err}")
         _heal_report(tool_err, name)
         result, success = f"Something went wrong running {name}: {tool_err}", False
+    if verify is not None:
+        try:
+            result, success = verify.after(name, args, result, success, snap)
+        except Exception as e:
+            print(f"[проверка] {name}: {e}")
     ms = int((time.time() - start) * 1000)
     print(f"[время] {name}: {ms / 1000:.2f}с")
     return result, success, ms
