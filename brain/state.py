@@ -33,7 +33,7 @@ MAX_TOOL_RESULT_CHARS = 2500    # большие результаты (поис�
 
 # --- рабочая память и текущий ход --------------------------------------------
 situation = {"goal": "", "actions": [], "reply": ""}               # цель, последние действия, последний ответ
-turn = {"question": "", "lesson_msg": None, "plan": None, "failures": 0}
+turn = {"question": "", "lesson_msg": None, "plan": None, "failures": 0, "tainted": False}
 announce = {"fn": None}                                            # «сказать вслух» для фоновых задач
 
 

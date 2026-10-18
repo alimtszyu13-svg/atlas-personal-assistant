@@ -16,6 +16,11 @@ _T0 = _time.time()
 from core import logbook  # noqa: E402
 
 print(f"[журнал] {logbook.start()}")
+try:
+    from core import vault  # noqa: E402  — ключи из хранилища Windows (KEY=@vault в .env) — до всех клиентов
+    vault.load()
+except Exception as _e:
+    print(f"[ключи] {_e}")
 if __name__ == "__main__":                       # только настоящий запуск (тесты импортируют main.py)
     try:
         from core import early_ears  # noqa: E402  — «Атлас» слышно через секунду, пока грузится остальное

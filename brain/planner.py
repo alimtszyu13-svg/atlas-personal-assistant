@@ -308,6 +308,7 @@ def _brain_ask(question: str, speech=None) -> str:
             speech.feed(delta)
 
     turn["plan"] = None
+    turn["tainted"] = False                                  # чужой текст с «командами» в этом ходе
     state._cancel_event.clear()
     hist.append({"role": "user", "content": question})
     context_msg = {"role": "system", "content": _context_snapshot(question)}

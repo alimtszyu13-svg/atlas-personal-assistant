@@ -482,6 +482,8 @@ if __name__ == "__main__":
     try:
         from dotenv import load_dotenv
         load_dotenv(os.path.join(ROOT, ".env"))
+        from core import vault                   # ключи из хранилища Windows (KEY=@vault)
+        vault.load()
     except Exception:
         pass
     st = store_from_env()

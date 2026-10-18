@@ -360,6 +360,15 @@ _TYPE_INTENT = re.compile(r"напиш|напис|запиш|запис|допи
                           re.I)
 
 
+def _cloud_stub(fn) -> bool:
+    """Заглушка облака («недоступно из облака») — это наш текст, не внешний."""
+    while fn is not None:
+        if getattr(fn, "__doc__", "") == "Недоступно из облака.":
+            return True
+        fn = getattr(fn, "__wrapped__", None)
+    return False
+
+
 def _run_one_tool(name: str, args: dict):
     """Запустить инструмент → (результат, успех, мс).
     Печать в программы — только по просьбе; перепутанные параметры чинятся; ошибка в коде → самолечение."""
@@ -370,6 +379,14 @@ def _run_one_tool(name: str, args: dict):
             print("[мозг] не печатаю: пользователь не просил ничего писать")
             return ("Blocked: the user didn't ask to type or change anything. Never type into opened files or "
                     "programs unless the user asked you to write something.", False, 0)
+    try:
+        from core import guard                        # чужой текст не командует: опасное — только по твоей просьбе
+        blocked = guard.check(name, str(state.turn.get("question") or ""), bool(state.turn.get("tainted")))
+    except Exception:
+        guard, blocked = None, None
+    if blocked:
+        print(f"[защита] {name}: {blocked[:90]}")
+        return blocked, False, 0
     args = _repair_args(name, args or {})
     func = AVAILABLE_FUNCTIONS.get(name)
     start = time.time()
@@ -393,6 +410,14 @@ def _run_one_tool(name: str, args: dict):
             result, success = verify.after(name, args, result, success, snap)
         except Exception as e:
             print(f"[проверка] {name}: {e}")
+    if guard is not None and success and name in guard.EXTERNAL and not _cloud_stub(func):
+        try:
+            result, found = guard.wrap(name, result)
+            if found:
+                state.turn["tainted"] = True
+                print(f"[защита] {name}: в чужом тексте попытка командовать — {found[0]}")
+        except Exception as e:
+            print(f"[защита] {name}: {e}")
     ms = int((time.time() - start) * 1000)
     print(f"[время] {name}: {ms / 1000:.2f}с")
     return result, success, ms

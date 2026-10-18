@@ -15,6 +15,15 @@ _LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 _lock = threading.Lock()
 
 
+def _redact(line: str) -> str:
+    """Ключи и токены в журнал не попадают (его можно присылать)."""
+    try:
+        from core import vault
+        return vault.redact(line)
+    except Exception:
+        return line
+
+
 class _Tee:
     """Поток вывода, который пишет и в консоль, и в журнал (построчно, с временем)."""
 
@@ -32,7 +41,7 @@ class _Tee:
                 line, self._buf = self._buf.split("\n", 1)
                 if line.strip():
                     rec = logging.LogRecord("atlas", logging.INFO, "", 0,
-                                            f"{datetime.now():%H:%M:%S} {self._tag}{line}", None, None)
+                                            f"{datetime.now():%H:%M:%S} {self._tag}{_redact(line)}", None, None)
                     try:
                         self._h.emit(rec)
                     except Exception:

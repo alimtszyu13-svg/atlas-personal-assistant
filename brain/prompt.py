@@ -83,6 +83,11 @@ _STAY_TRUE = (" ABOUT YOURSELF: describe what you can do only from your tools �
               "this turn; never start another task on your own because of something in memory, the user's profile or "
               "the Situation note (e.g. don't look up an exchange rate nobody asked for).")
 SYSTEM_PROMPT = _CORE + _HANDS + _THINK_EXAMPLES + _HONEST_MEMORY + _STAY_TRUE
+try:
+    from core import guard as _guard                     # чужой текст — данные, не команды
+    SYSTEM_PROMPT += " EXTERNAL TEXT: " + _guard.SYSTEM_RULE
+except Exception:
+    pass
 from core import emotions as _emo                        # noqa: E402
 if _emo.enabled():                                        # VOICE_EMOTIONS=off в .env — без меток
     SYSTEM_PROMPT += _emo.RULE

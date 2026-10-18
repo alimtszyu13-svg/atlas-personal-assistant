@@ -21,6 +21,13 @@ def collect() -> dict:
         env = dict(dotenv_values(os.path.join(ROOT, ".env")))
     except Exception:
         env = {}
+    try:                                              # ключи, перенесённые в хранилище Windows (KEY=@vault)
+        from core import vault
+        for k, v in list(env.items()):
+            if v == vault.PLACEHOLDER:
+                env[k] = vault.get(k) or ""
+    except Exception:
+        pass
     env = {k: v for k, v in env.items() if v}
     try:
         with open(os.path.join(ROOT, "phone_pairing.json"), encoding="utf-8") as f:

@@ -924,6 +924,11 @@ def selfcheck(seconds: int = 20, with_mic: bool = True) -> bool:
     import tempfile
     from dotenv import load_dotenv
     load_dotenv()
+    try:
+        from core import vault
+        vault.load()
+    except Exception:
+        pass
     print(f"Проверка записи: {seconds} с. Включи видео с речью (YouTube) и, если хочешь, скажи что-нибудь сам.\n")
     from core import screen_rec
     tmp = tempfile.gettempdir()

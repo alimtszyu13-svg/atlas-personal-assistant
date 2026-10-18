@@ -22,6 +22,11 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 try:
+    from core import vault                       # ключи из хранилища Windows (KEY=@vault) — раньше .env
+    vault.load()
+except Exception:
+    pass
+try:
     from dotenv import load_dotenv
     load_dotenv()
 except Exception:
