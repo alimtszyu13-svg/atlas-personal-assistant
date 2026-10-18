@@ -121,7 +121,7 @@ def _is_unavailable(fn) -> bool:
 
 # Обёртки мозга над компьютерными модулями (голо-экран, жесты, мастерская навыков, самолечение,
 # мини-окно, ритуалы с действиями на компьютере, установка на устройства) — по метке их не распознать
-CLOUD_HIDE = {"holo_show", "holo_weather", "holo_graph", "holo_control", "look", "gestures_control", "learn_skill",
+CLOUD_HIDE = {"search_my_knowledge", "holo_show", "holo_weather", "holo_graph", "holo_control", "look", "gestures_control", "learn_skill",
               "install_skill", "reject_skill", "list_learned_skills", "remove_skill", "heal_status", "heal_apply",
               "heal_reject", "day_report", "mini_mode", "install_on_device", "create_routine", "list_routines",
               "run_routine", "delete_routine", "get_cpu_usage",   # нагрузка сервера — не твоего компьютера

@@ -88,3 +88,6 @@ atlas_form_profile.json
 *20[0-9][0-9][0-1][0-9][0-3][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]/
 atlas_route_examples.json
 evals/results/
+atlas_knowledge.db
+atlas_knowledge.db-wal
+atlas_knowledge.db-shm

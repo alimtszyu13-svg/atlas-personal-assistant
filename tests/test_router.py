@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import traceback
+import zlib
 
 import numpy as np
 
@@ -35,7 +36,7 @@ def trigram_embed(texts):
         v = np.zeros(1024, dtype=np.float32)
         s = f"  {t.lower().replace('ё', 'е')}  "
         for i in range(len(s) - 2):
-            v[hash(s[i:i + 3]) % 1024] += 1.0
+            v[zlib.crc32(s[i:i + 3].encode()) % 1024] += 1.0
         out.append(v / max(1e-9, float(np.linalg.norm(v))))
     return np.array(out)
 

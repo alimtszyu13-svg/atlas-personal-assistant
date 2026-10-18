@@ -41,3 +41,6 @@ atlas_form_profile.json
 .atlas_backups/
 atlas_route_examples.json
 evals/results/
+atlas_knowledge.db
+atlas_knowledge.db-wal
+atlas_knowledge.db-shm

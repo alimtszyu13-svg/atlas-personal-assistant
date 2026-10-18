@@ -537,6 +537,11 @@ def main() -> None:
     skill_forge.start(_quiet_announce)            # мастерская навыков
     day_report.start()                            # учёт времени для итогов
     try:
+        from core import knowledge                  # «что препод говорил про дедлайн?» — по твоим записям
+        knowledge.start()
+    except Exception as e:
+        print(f"[база знаний] не запустилась: {e}")
+    try:
         from core import worklog                    # память компьютера: документы, окна, сайты — локально
         worklog.start()
     except Exception as e:
