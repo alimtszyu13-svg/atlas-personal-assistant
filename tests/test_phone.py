@@ -540,22 +540,50 @@ def file_from_the_computer_opens_on_the_phone():
         file_drop.resolve = saved
 
 
+def _socket_flake(exc) -> bool:
+    """Обрыв локального сокета (Windows WinError 10053/10054) — это не ошибка теста, а икота сети."""
+    seen = set()
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
+        if isinstance(exc, (ConnectionError, TimeoutError)) and not isinstance(exc, urllib.error.HTTPError):
+            return True
+        if isinstance(exc, OSError) and getattr(exc, "winerror", None) in (10053, 10054, 10060):
+            return True
+        exc = exc.__cause__ or exc.__context__
+    return False
+
+
 def main():
     global S, BASE, TOKEN
     install()
     from phone import server as S
     S.PAIR_FILE = os.path.join(tempfile.mkdtemp(), "phone_pairing.json")
     TOKEN = S.pairing_token(create=True)
-    port = S.start(0)
-    BASE = f"http://127.0.0.1:{port}"
+
+    def boot():
+        global BASE
+        BASE = f"http://127.0.0.1:{S.start(0)}"
+    boot()
     ok = 0
     for t in TESTS:
-        try:
-            t()
-            ok += 1
-            print(f"  ✓ {t.__name__}")
-        except Exception:
-            print(f"  ✗ {t.__name__}\n" + "".join("      " + ln for ln in traceback.format_exc().splitlines(True)[-5:]))
+        for attempt in range(3):             # сокет оборвался — перезапускаем сервер и пробуем тест заново
+            try:
+                t()
+                ok += 1
+                print(f"  ✓ {t.__name__}")
+                break
+            except Exception as e:
+                if attempt < 2 and _socket_flake(e):
+                    try:
+                        S.stop()
+                    except Exception:
+                        pass
+                    import time as _t
+                    _t.sleep(0.3)
+                    boot()
+                    continue
+                print(f"  ✗ {t.__name__}\n" + "".join("      " + ln for ln in traceback.format_exc().splitlines(True)[-5:]))
+                break
     S.stop()
     print(f"\nТестов пройдено: {ok} из {len(TESTS)}")
     sys.stdout.flush()
