@@ -534,23 +534,25 @@ def main() -> None:
         handoff.start_alerts()
     except Exception as e:
         print(f"[уведомления ПК] не запустились: {e}")
-    try:
-        from core import autopilot                  # «утром ты обычно открываешь… — сделать рабочим местом?»
+    from core import scheduler                    # один планировщик фоновых задач; второстепенное — чуть позже,
+    scheduler.start()                             # чтобы Atlas отзывался сразу после запуска
+
+    def _autopilot():                             # «утром ты обычно открываешь… — сделать рабочим местом?»
+        from core import autopilot
         autopilot.start(_quiet_announce)
-    except Exception as e:
-        print(f"[автопилот] не запустился: {e}")
-    skill_forge.start(_quiet_announce)            # мастерская навыков
-    day_report.start()                            # учёт времени для итогов
+
+    def _worklog():                               # память компьютера: документы, окна, сайты — локально
+        from core import worklog
+        worklog.start()
+    scheduler.once(25, _autopilot, "автопилот")
+    scheduler.once(20, lambda: skill_forge.start(_quiet_announce), "мастерская навыков")
+    scheduler.once(10, day_report.start, "учёт времени")
+    scheduler.once(30, _worklog, "память ПК")
     try:
         from core import knowledge                  # «что препод говорил про дедлайн?» — по твоим записям
         knowledge.start()
     except Exception as e:
         print(f"[база знаний] не запустилась: {e}")
-    try:
-        from core import worklog                    # память компьютера: документы, окна, сайты — локально
-        worklog.start()
-    except Exception as e:
-        print(f"[память ПК] не запустилась: {e}")
     gestures.start()                              # хлопки (жесты — в интерфейсе)
     try:
         from core import meeting_notes, rec_indicator         # зелёный огонёк справа сверху, пока идёт запись
@@ -584,7 +586,12 @@ def main() -> None:
     except Exception as e:
         print(f"[забота / заметки / история экрана] не запустились: {e}")
     ai_brain.set_announcer(_announce)             # итоги фоновых задач — вслух
-    ai_brain.features.start_memory_autoreview()   # раз в 3 дня — проверка памяти, удаление только после «да»
+    scheduler.once(45, ai_brain.features.start_memory_autoreview, "проверка памяти")  # раз в 3 дня, удаление — после «да»
+    try:
+        from core import updater                    # раз в день: есть ли новое на GitHub (сказать один раз)
+        updater.start(_quiet_announce)
+    except Exception as e:
+        print(f"[обновления] {e}")
     try:
         from core import cloud_sync                 # одна память на все устройства (если настроен Supabase)
         cloud_sync.start()

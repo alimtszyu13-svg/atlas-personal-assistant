@@ -270,21 +270,13 @@ def ensure_fresh(max_age: float = 30.0) -> None:
             print(f"[база знаний] индекс: {e}")
 
 
-def start(every: float = 600) -> threading.Thread:
-    """Фоновая индексация: сразу после запуска (через минуту) и потом каждые every секунд."""
+def start(every: float = 600):
+    """Фоновая индексация через общий планировщик: через минуту после запуска, потом каждые every секунд."""
     if _s["thread"] is not None or not enabled():
         return _s["thread"]
-
-    def loop():
-        time.sleep(60)
-        while True:
-            try:
-                index()
-            except Exception as e:
-                print(f"[база знаний] фон: {e}")
-            time.sleep(every)
-    _s["thread"] = threading.Thread(target=loop, daemon=True, name="knowledge-index")
-    _s["thread"].start()
+    from core import scheduler
+    _s["thread"] = scheduler.every(every, index, "база знаний", first=60, heavy=True, essential=False)
+    scheduler.start()
     return _s["thread"]
 
 

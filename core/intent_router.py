@@ -162,6 +162,16 @@ def _speed(t, c):
     return bool(turn_trace._ASK.search(t))
 
 
+def _updater(t, c):
+    from core import updater
+    return updater.intent(t) is not None
+
+
+def _background(t, c):
+    from core import scheduler
+    return bool(scheduler._ASK.search(t))
+
+
 def _usage(t, c):
     from core import usage
     return bool(usage._ASK.search(t))
@@ -236,6 +246,8 @@ INTENTS = [
     ("report", _report, "pc_fast"),
     ("speed_stats", _speed, "pc_fast"),
     ("usage_stats", _usage, "pc_fast"),
+    ("background", _background, "pc_fast"),
+    ("updater", _updater, "pc_fast"),
     ("knowledge", _knowledge, "pc_fast"),
     ("proofread", _proofread, "pc_fast"),
     ("form_fill", _forms, "pc_fast"),

@@ -45,3 +45,4 @@ atlas_knowledge.db
 atlas_knowledge.db-wal
 atlas_knowledge.db-shm
 atlas_llm_cache.db
+atlas_update_state.json

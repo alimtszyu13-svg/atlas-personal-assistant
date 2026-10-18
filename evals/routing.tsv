@@ -193,3 +193,9 @@ search my notes for the wifi password	knowledge
 сколько запросов к моделям было	usage_stats
 how many tokens did you use	usage_stats
 сколько стоит билет в кино	other
+что у тебя работает в фоне	background
+какие фоновые задачи запущены	background
+обнови себя	updater
+есть ли обновления	updater
+откати обновление	updater
+обнови драйвер видеокарты	other

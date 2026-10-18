@@ -261,23 +261,26 @@ def handle(text: str, ask=None):
     return listing(it[1], ru, since=time.time() - 7 * 86400 if it[2] else 0)
 
 
-def start(announce, every: float = 300) -> threading.Thread:
-    def loop():
-        while True:
-            time.sleep(every)
-            try:
-                n = datetime.now()
-                key = n.strftime("%Y-%W")
-                if n.weekday() == 6 and n.hour >= 19:
-                    d = load()
-                    if d.get("digest") != key:
-                        msg = digest()
-                        d["digest"] = key
-                        _save(d)
-                        if msg and announce:
-                            announce(msg)
-            except Exception as e:
-                print(f"[заметки] {e}")
-    t = threading.Thread(target=loop, daemon=True, name="voice-notes")
-    t.start()
-    return t
+def weekly_check(announce, now: datetime = None) -> str:
+    """Воскресенье после 19:00 — итоги недели по заметкам (один раз за неделю). → сказанное или ''."""
+    n = now or datetime.now()
+    key = n.strftime("%Y-%W")
+    if n.weekday() != 6 or n.hour < 19:
+        return ""
+    d = load()
+    if d.get("digest") == key:
+        return ""
+    msg = digest()
+    d["digest"] = key
+    _save(d)
+    if msg and announce:
+        announce(msg)
+    return msg or ""
+
+
+def start(announce, every: float = 300):
+    """Проверка раз в every секунд — через общий планировщик (без своего спящего потока)."""
+    from core import scheduler
+    job = scheduler.every(every, lambda: weekly_check(announce), "итоги недели по заметкам", essential=False)
+    scheduler.start()
+    return job
