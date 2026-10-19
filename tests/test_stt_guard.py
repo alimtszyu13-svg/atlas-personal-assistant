@@ -70,6 +70,15 @@ def unclear_short_phrase_is_asked_again():
 
 
 @test
+def alternative_command_is_asked_with_both_options():
+    r = G.pick([("Turn off.", -0.72, 0.0), ("Тернов.", -0.54, 0.0)], "", seconds=0.7)
+    assert r["text"] == "Тернов." and r["doubt"] and r["alts"] == ["Turn off."], r
+    assert "Turn off" in G.ask_which(r["text"], r["alts"], "ru") and "Тернов" in G.ask_which(r["text"], r["alts"], "en")
+    r = G.pick([("News", -0.51, 0.0), ("Ньюс", -0.21, 0.0)], "", seconds=0.6)
+    assert not r["doubt"], "«Ньюс» уверенно — выполняем, не переспрашиваем"
+
+
+@test
 def long_or_clear_phrases_are_never_questioned():
     r = G.pick([("Найди документ про путешествия на компьютере.", -0.95, 0.0),
                 ("Найди документ о путешествиях на компьютере.", -0.97, 0.0)], "", seconds=2.8)

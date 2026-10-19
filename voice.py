@@ -448,12 +448,17 @@ def _vosk_command(audio) -> str:
         return ""
 
 
-_last_stt = {"doubt": False}
+_last_stt = {"doubt": False, "alts": []}
 
 
 def last_was_unclear() -> bool:
     """Последняя фраза распознана неуверенно и коротко — лучше переспросить, чем выполнять."""
     return bool(_last_stt.get("doubt"))
+
+
+def last_alternatives() -> list:
+    """Другие варианты распознавания последней неуверенной фразы — их называем, когда переспрашиваем."""
+    return list(_last_stt.get("alts") or [])
 
 
 _WHISPER_JUNK = {
@@ -470,6 +475,7 @@ def _transcribe_audio(recording: np.ndarray) -> str:
     from concurrent.futures import ThreadPoolExecutor
     from core import stt_guard
     _last_stt["doubt"] = False
+    _last_stt["alts"] = []
     spans = _speech_spans(recording)
     if spans is not None and stt_guard.speech_seconds(spans) < 0.3:
         print("[VAD] речи нет — Whisper не вызываю")
@@ -506,6 +512,7 @@ def _transcribe_audio(recording: np.ndarray) -> str:
             print("[Whisper] пустая или выдуманная фраза отброшена")
             return ""
         _last_stt["doubt"] = choice["doubt"]
+        _last_stt["alts"] = choice.get("alts") or []
         return text
     except Exception as e:
         print(f"[STT error]: {e}")
@@ -1309,27 +1316,63 @@ def _compute_envelope(filename: str, duration: float, buckets: int = 40) -> list
 import queue as _queue
 
 
+def _cut_point(text: str, limit: int) -> int:
+    """Где разрезать длинную фразу: последняя запятая/точка с запятой/тире не раньше 40-го символа, иначе пробел."""
+    best = 0
+    for m in re.finditer(r"[,;:\u2014\u2013](?=\s)", text[:limit]):
+        if m.end() >= 40:
+            best = m.end()
+    if best:
+        return best
+    sp = text.rfind(" ", 40, limit)
+    return sp + 1 if sp > 0 else limit
+
+
+def _speech_pieces(text: str, limit: int = 130) -> list:
+    """Делит текст на куски для синтеза: по предложениям, длинные — по запятым;
+    соседние короткие склеивает, чтобы речь не была рваной."""
+    out = []
+    for s in re.split(r"(?<=[.!?\u2026])\s+", text.strip()):
+        s = s.strip()
+        while len(s) > limit:
+            cut = _cut_point(s, limit)
+            out.append(s[:cut].strip())
+            s = s[cut:].strip()
+        if s:
+            out.append(s)
+    merged = []
+    for p in out:
+        if merged and len(merged[-1]) + len(p) < 90:
+            merged[-1] += " " + p
+        else:
+            merged.append(p)
+    return merged or [text]
+
+
 class SpeechStream:
-    """Принимает текст кусками, режет на фразы и озвучивает по порядку:
-    пока играет фраза N, синтезируется N+1."""
-    MIN_CHARS = 40          # короче не режем — иначе речь рваная
+    """Принимает текст кусками, режет на фразы и озвучивает по порядку.
+    Фразы синтезируются ПАРАЛЛЕЛЬНО (по 2 одновременно), а играют строго по очереди:
+    пока звучит фраза N, N+1 и N+2 уже готовятся — без пауз после запятых."""
+    MIN_CHARS = 40          # с третьей фразы режем только по концу предложения — речь не рваная
+    SECOND_MIN_CHARS = 24   # вторая фраза — тоже короткая и тоже по запятой: успеет, пока звучит первая
+    FIRST_MIN_CHARS = 12    # первая фраза — короче: «Готово, сэр.» звучит сразу, пока модель пишет дальше
+    FIRST_HARD_CAP = 48     # первую фразу не тянем дольше: обрыв по пробелу — звук пойдёт раньше
+    WORKERS = 3             # одновременных запросов к голосу
+    PIECE_MAX = 130         # длиннее не отдаём в синтез одним куском: длинный кусок синтезируется долго и даёт паузу
     _END = object()
 
     def __init__(self, interruptible: bool = True):
+        from concurrent.futures import ThreadPoolExecutor
         self.interruptible = interruptible
         self.buf = ""
         self.spoken_any = False
         self.n = 0
-        self.texts = _queue.Queue()
         self.files = _queue.Queue()
         self.ext = ".mp3" if _response_language["lang"] == "ru" else ".wav"
+        self.pool = ThreadPoolExecutor(max_workers=self.WORKERS, thread_name_prefix="atlas-tts")
         _stop_speaking.clear()
         self.play_t = threading.Thread(target=self._play_loop, daemon=True)
-        threading.Thread(target=self._gen_loop, daemon=True).start()
         self.play_t.start()
-
-    FIRST_MIN_CHARS = 12    # первая фраза — короче: «Готово, сэр.» звучит сразу, пока модель пишет дальше
-    FIRST_HARD_CAP = 48     # первую фразу не тянем дольше: обрыв по пробелу — звук пойдёт раньше
 
     def feed(self, delta: str) -> None:
         """Новый кусок текста от модели."""
@@ -1337,18 +1380,20 @@ class SpeechStream:
             _mark("first_token")
         self.buf += delta
         while True:
-            first = not self.spoken_any
-            lim = self.FIRST_MIN_CHARS if first else self.MIN_CHARS
-            # \u043f\u0435\u0440\u0432\u0443\u044e \u0444\u0440\u0430\u0437\u0443 \u0440\u0435\u0436\u0435\u043c \u0438 \u043f\u043e \u0437\u0430\u043f\u044f\u0442\u043e\u0439/\u0434\u0432\u043e\u0435\u0442\u043e\u0447\u0438\u044e/\u0442\u0438\u0440\u0435 \u2014 \u0437\u0432\u0443\u043a \u043d\u0430\u0447\u0438\u043d\u0430\u0435\u0442\u0441\u044f \u0440\u0430\u043d\u044c\u0448\u0435, \u043f\u043e\u043a\u0430 \u043c\u043e\u0434\u0435\u043b\u044c \u043f\u0438\u0448\u0435\u0442 \u043e\u0441\u0442\u0430\u0442\u043e\u043a
-            pat = r"[.!?\u2026,;:\u2014\u2013](?=\s)" if first else r"[.!?\u2026](?=\s)"
+            k = self.n
+            lim = self.FIRST_MIN_CHARS if k == 0 else self.SECOND_MIN_CHARS if k == 1 else self.MIN_CHARS
+            # первые две фразы режем и по запятой/двоеточию/тире — звук начинается раньше и не ждёт
+            pat = r"[.!?…,;:—–](?=\s)" if k <= 1 else r"[.!?…](?=\s)"
             m = re.search(pat, self.buf[lim:])
             if m:
                 cut = lim + m.end()
-            elif first and len(self.buf) > self.FIRST_HARD_CAP:
+            elif k == 0 and len(self.buf) > self.FIRST_HARD_CAP:
                 sp = self.buf.rfind(" ", lim, self.FIRST_HARD_CAP)
                 if sp <= 0:
                     break
                 cut = sp + 1
+            elif k >= 2 and len(self.buf) > self.PIECE_MAX:          # длинное предложение без точки — режем по запятой
+                cut = _cut_point(self.buf, self.PIECE_MAX)
             else:
                 break
             self._push(self.buf[:cut])
@@ -1358,8 +1403,9 @@ class SpeechStream:
         """Отдать остаток и дождаться конца речи."""
         self._push(self.buf)
         self.buf = ""
-        self.texts.put(self._END)
+        self.files.put(self._END)
         self.play_t.join()
+        self.pool.shutdown(wait=False)
 
     def _push(self, text: str) -> None:
         text = re.sub(r"^\s*(?:[-*•]|#+|\d+\.)\s+", "", text, flags=re.M)
@@ -1369,23 +1415,19 @@ class SpeechStream:
             text = filler.piece(text).strip()
         except Exception:
             pass
-        if text and not _stop_speaking.is_set():
+        if not text or _stop_speaking.is_set():
+            return
+        for piece in _speech_pieces(text, self.PIECE_MAX):           # хвост ответа приходит целиком — делим на куски
             self.spoken_any = True
-            self.texts.put(text)
-
-    def _gen_loop(self):
-        while True:
-            text = self.texts.get()
-            if text is self._END or _stop_speaking.is_set():
-                self.files.put(self._END)
-                return
             fn = f"temp_live_{self.n}{self.ext}"
             self.n += 1
-            try:
-                fn = _generate_any(text, fn)
-                self.files.put((text, fn))
-            except Exception as e:
-                print(f"[live tts]: {e}")
+            self.files.put((piece, self.pool.submit(self._gen, piece, fn)))
+
+    @staticmethod
+    def _gen(text: str, fn: str):
+        if _stop_speaking.is_set():
+            return None
+        return _generate_any(text, fn)
 
     def _play_loop(self):
         while True:
@@ -1393,21 +1435,25 @@ class SpeechStream:
             if item is self._END:
                 shared_state["state"] = "idle"
                 return
-            text, fn = item
+            text, job = item
+            fn = None
             try:
-                if not _stop_speaking.is_set():
+                fn = job.result() if hasattr(job, "result") else job
+                if fn and not _stop_speaking.is_set():
                     print(f"[Atlas ▶] {_emo.strip(text)}")
                     shared_state["state"] = "speaking"
                     shared_state["text"] = _emo.strip(text)
                     _vary_pitch(fn)
                     _play_file(fn, self.interruptible)
             except Exception as e:
-                print(f"[live play]: {e}")
+                print(f"[live tts]: {e}")
             finally:
                 try:
-                    os.remove(fn)
+                    if fn:
+                        os.remove(fn)
                 except Exception:
                     pass
+
 
 # ---------------------------------------------------------------------------
 # Выбор голоса: Kokoro / ElevenLabs + голоса Fish Audio из .env
@@ -1447,7 +1493,7 @@ def _fish_session():
     with _fish_http_lock:
         if _fish_http is None:
             import httpx
-            _fish_http = httpx.Client(timeout=60, limits=httpx.Limits(max_keepalive_connections=2, keepalive_expiry=120))
+            _fish_http = httpx.Client(timeout=60, limits=httpx.Limits(max_keepalive_connections=4, keepalive_expiry=120))
     return _fish_http
 
 

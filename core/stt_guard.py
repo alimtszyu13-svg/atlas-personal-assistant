@@ -107,8 +107,37 @@ def pick(cands: list, vosk: str = "", seconds: float = 0.0) -> dict:
     if vosk and norm(text) == vosk:
         return {"text": text, "source": "whisper", "doubt": False, "why": "совпало с Vosk"}
     doubt = shaky and words <= 3
-    return {"text": text, "source": "whisper", "doubt": doubt,
+    alts = []
+    for c in cands:
+        if norm(c[0]) != norm(text) and c[0] not in alts:
+            alts.append(c[0])
+    # другой вариант — команда («Turn off» против «Тернов»): не гадаем, а спрашиваем, что имелось в виду
+    alt_cmd = bool(alts) and words <= 3 and any(is_command(a) for a in alts) and not is_command(text)
+    if not doubt and alts and words <= 3:
+        # варианты почти равны по уверенности, и оба неуверенные — тоже спросить
+        close = score < -0.45 and any(score - c[1] < 0.3 for c in cands if norm(c[0]) != norm(text))
+        doubt = alt_cmd or close
+    return {"text": text, "source": "whisper", "doubt": doubt or alt_cmd, "alts": [x for x in alts if is_command(x)] if alt_cmd else [],
             "why": f"{score:.2f}{'' if agree else ', варианты разные'}{', похоже на тишину' if no_speech > NO_SPEECH else ''}"}
+
+
+def is_command(text: str) -> bool:
+    """Похоже на короткую команду управления: выключение, стоп или команда из списка Vosk."""
+    try:
+        from core.control_words import is_shutdown, is_stop
+        if is_shutdown(text) or is_stop(text):
+            return True
+    except Exception:
+        pass
+    return norm(text) in COMMANDS
+
+
+def ask_which(heard: str, alts: list, lang: str) -> str:
+    """«Не уверен, что расслышал: «Turn off» или «Тернов»?» — переспрос с вариантами."""
+    a, b = alts[0].strip(" .!?"), heard.strip(" .!?")
+    if lang == "en":
+        return f"Sorry, sir — did you say \u201c{a}\u201d or \u201c{b}\u201d?"
+    return f"Не уверен, что расслышал: \u00ab{a}\u00bb или \u00ab{b}\u00bb?"
 
 
 REPEAT = {"ru": ["Не расслышал — повторите?", "Простите, не разобрал. Ещё раз?"],

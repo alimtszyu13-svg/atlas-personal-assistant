@@ -429,7 +429,9 @@ def _unclear(command: str) -> bool:
         return False
     print(f"[голос] не уверен, что расслышал «{command}» — переспрашиваю")
     shared_state["chat_history"].append(("You", command))
-    _speak_and_update(random.choice(stt_guard.REPEAT[get_response_language()]))
+    alts = _v.last_alternatives() if hasattr(_v, "last_alternatives") else []
+    lang = get_response_language()
+    _speak_and_update(stt_guard.ask_which(command, alts, lang) if alts else random.choice(stt_guard.REPEAT[lang]))
     shared_state["follow_up"] = True
     return True
 

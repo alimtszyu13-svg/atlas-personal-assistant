@@ -8,15 +8,15 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Exo+2:wght@400;500;600&family=Manrope:wght@400;500;600&display=swap">
 <style>
   :root {
-    --void: #02040A;
-    --glass: rgba(8, 16, 34, 0.7);
-    --glass-strong: rgba(8, 16, 34, 0.86);
-    --line: rgba(120, 170, 255, 0.18);
-    --line-strong: rgba(134, 214, 255, 0.34);
-    --text: #EAF2FF;
-    --muted: #A2B4D6;
-    --ion: #86D6FF;
-    --nebula: #4A86FF;
+    --void: #020202;
+    --glass: rgba(14,10,8, 0.7);
+    --glass-strong: rgba(14,10,8, 0.86);
+    --line: rgba(255,196,150, 0.18);
+    --line-strong: rgba(255,210,161, 0.34);
+    --text: #F4EDE6;
+    --muted: #B9AC9E;
+    --ion: #FFD2A1;
+    --nebula: #E08A4A;
     --amber: #FFB35A;
     --good: #7FD9A8;
     box-sizing: border-box;
@@ -24,18 +24,18 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --void: #02040A; --text: #EAF2FF; --muted: #A2B4D6; }
+    :root:not([data-theme="light"]) { --void: #020202; --text: #F4EDE6; --muted: #B9AC9E; }
   }
-  :root[data-theme="dark"] { --void: #02040A; --text: #EAF2FF; --muted: #A2B4D6; }
+  :root[data-theme="dark"] { --void: #020202; --text: #F4EDE6; --muted: #B9AC9E; }
   /* Шар — свет в темноте: и в светлой теме устройства сцена остаётся ночной */
-  :root[data-theme="light"] { --void: #030712; --text: #EAF2FF; --muted: #AABBDA; }
+  :root[data-theme="light"] { --void: #030303; --text: #F4EDE6; --muted: #BDB0A2; }
   *, *::before, *::after { box-sizing: border-box; }
   html { scroll-padding-top: env(safe-area-inset-top, 0px); }
   html, body { height: 100%; margin: 0; }
   body { background: var(--void); color: var(--text); font-family: "Exo 2", Manrope, "Segoe UI", system-ui, sans-serif; overflow: hidden; }
   #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   .vignette { position: fixed; inset: 0; pointer-events: none;
-    background: radial-gradient(ellipse at 50% 46%, rgba(6,17,42,0) 0%, rgba(2,4,10,0.5) 68%, rgba(2,4,10,0.94) 100%); }
+    background: radial-gradient(ellipse at 50% 50%, rgba(12,8,5,0) 0%, rgba(2,2,2,0.35) 66%, rgba(0,0,0,0.9) 100%); }
   .hud { position: fixed; inset: 0; pointer-events: none; }
   .hud button, .hud input, .hud select, .hud a, .panel, .page, .pop { pointer-events: auto; }
   button { font: inherit; color: inherit; }
@@ -44,21 +44,21 @@
   .mark { position: absolute; left: 28px; top: calc(24px + env(safe-area-inset-top, 0px));
     display: flex; align-items: center; gap: 10px;
     font-family: Unbounded, Manrope, sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.24em; }
-  .mark i { width: 8px; height: 8px; border-radius: 50%; background: var(--ion); box-shadow: 0 0 10px 2px rgba(134,214,255,.5); }
+  .mark i { width: 8px; height: 8px; border-radius: 50%; background: var(--ion); box-shadow: 0 0 10px 2px rgba(255,210,161,.5); }
 
   /* ATLAS поверх звезды: режим «разница» сам инвертирует цвет —
      на яркой звезде буквы тёмные, в космосе светлые */
   /* ATLAS внутри звезды: позиция и размер считаются из проекции звезды на экран каждый кадр.
      Голографические буквы: светлые линии развёртки внутри, тёмный ореол для контраста на яркой плазме */
   .wordmark { position: fixed; left: 0; top: 0; transform-origin: 0 0; isolation: isolate;
-    display: flex; gap: .3em; font-family: Unbounded, sans-serif; font-weight: 600; font-size: 22px; line-height: 1;
-    filter: drop-shadow(0 0 1.5px rgba(2,6,22,1)) drop-shadow(0 0 4px rgba(2,6,22,.85)) drop-shadow(0 0 10px rgba(90,170,255,.45));
+    display: flex; gap: .42em; font-family: Unbounded, sans-serif; font-weight: 500; font-size: 22px; line-height: 1;
+    filter: drop-shadow(0 0 2px rgba(0,0,0,.85)) drop-shadow(0 0 10px rgba(0,0,0,.55)) drop-shadow(0 0 14px rgba(255,190,130,.22));
     pointer-events: none; user-select: none; white-space: nowrap;
     opacity: calc(0.82 + var(--amp, 0) * 0.18); }
   .wordmark span { position: relative; isolation: isolate; }
   .wordmark span::before { content: ''; position: absolute; left: -0.22em; right: -0.22em; top: -0.18em; bottom: -0.18em; z-index: -1;
-    background: radial-gradient(ellipse at center, rgba(2,6,22,.7) 0%, rgba(2,6,22,.35) 55%, rgba(2,6,22,0) 75%); }
-  .wordmark span { color: #EEF7FF; }
+    background: none; }
+  .wordmark span { color: #FBF4EC; }
   .wordmark span { display: inline-block; animation: wm-in 1.6s cubic-bezier(.2,.8,.2,1) both; }
   .wordmark span:nth-child(2) { animation-delay: .08s; } .wordmark span:nth-child(3) { animation-delay: .16s; }
   .wordmark span:nth-child(4) { animation-delay: .24s; } .wordmark span:nth-child(5) { animation-delay: .32s; }
@@ -70,12 +70,12 @@
   .reticle[data-state="listening"], .reticle[data-state="speaking"] { opacity: .8; }
   .reticle[data-state="thinking"] { opacity: .7; }
   .reticle svg { width: 100%; height: 100%; overflow: visible; }
-  .r-dash { fill: none; stroke: #86D6FF; stroke-width: .25; stroke-dasharray: .8 2.4; opacity: .55; }
-  .r-arc { fill: none; stroke: #86D6FF; stroke-width: .45; stroke-linecap: round; opacity: .7; }
+  .r-dash { fill: none; stroke: #FFD2A1; stroke-width: .25; stroke-dasharray: .8 2.4; opacity: .55; }
+  .r-arc { fill: none; stroke: #FFD2A1; stroke-width: .45; stroke-linecap: round; opacity: .7; }
   .r-arc.faint { opacity: .35; }
-  .r-bracket { fill: none; stroke: #A2B4D6; stroke-width: .35; opacity: .5; }
-  .r-ticks line { stroke: #86D6FF; stroke-width: .3; opacity: .4; }
-  .r-label { font: 500 2.6px Manrope, sans-serif; letter-spacing: .35px; fill: #A2B4D6; }
+  .r-bracket { fill: none; stroke: #B9AC9E; stroke-width: .35; opacity: .5; }
+  .r-ticks line { stroke: #FFD2A1; stroke-width: .3; opacity: .4; }
+  .r-label { font: 500 2.6px Manrope, sans-serif; letter-spacing: .35px; fill: #B9AC9E; }
   .r-label.dim { opacity: .6; }
   .r-spin { transform-origin: 0 0; animation: rspin 120s linear infinite; }
   .r-spin-rev { transform-origin: 0 0; animation: rspin 70s linear infinite reverse; }
@@ -97,20 +97,20 @@
     display: grid; place-items: center; color: var(--muted); transition: color .2s, border-color .2s; }
   .icon-btn:hover, .icon-btn[aria-expanded="true"] { color: var(--text); border-color: var(--line-strong); }
   .badge { position: absolute; top: 6px; right: 6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
-    background: var(--ion); color: #02040A; font-size: 10px; font-weight: 700; display: grid; place-items: center; }
+    background: var(--ion); color: #020202; font-size: 10px; font-weight: 700; display: grid; place-items: center; }
   .badge.live { animation: live 1.6s ease-in-out infinite; }
-  @keyframes live { 50% { box-shadow: 0 0 0 5px rgba(134,214,255,.18); } }
+  @keyframes live { 50% { box-shadow: 0 0 0 5px rgba(255,210,161,.18); } }
 
   .panel { position: absolute; right: 24px; top: calc(72px + env(safe-area-inset-top, 0px)); width: min(360px, calc(100% - 48px));
     max-height: calc(100% - 110px); overflow: auto; padding: 18px; border-radius: 18px;
     background: var(--glass-strong); border: 1px solid var(--line); backdrop-filter: blur(16px);
-    box-shadow: 0 24px 70px rgba(2,4,10,.6); }
+    box-shadow: 0 24px 70px rgba(2,2,2,.6); }
   .panel h2 { margin: 0 0 14px; font-size: 15px; font-weight: 600; }
   .panel h4 { margin: 18px 0 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
-  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13.5px; padding: 8px 0; border-top: 1px solid rgba(120,170,255,.08); }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13.5px; padding: 8px 0; border-top: 1px solid rgba(255,196,150,.08); }
   .row:first-of-type { border-top: 0; }
   .row small { color: var(--muted); font-size: 12px; }
-  .bar { height: 3px; border-radius: 2px; background: rgba(120,170,255,.16); overflow: hidden; margin-top: 8px; }
+  .bar { height: 3px; border-radius: 2px; background: rgba(255,196,150,.16); overflow: hidden; margin-top: 8px; }
   .bar b { display: block; height: 100%; background: var(--ion); transition: width .6s; }
   .gauges { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; text-align: center; font-size: 12px; color: var(--muted); }
   .gauges svg { display: block; margin: 0 auto 6px; }
@@ -121,17 +121,17 @@
   .field select { appearance: none; -webkit-appearance: none; height: 40px; border-radius: 0; cursor: pointer;
     clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
     border: 1px solid var(--line); color: var(--text); padding: 0 38px 0 12px; font: 500 13.5px "Exo 2", Manrope, sans-serif;
-    background: rgba(2,4,10,.7) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2386D6FF' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 14px center; }
+    background: rgba(2,2,2,.7) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23FFD2A1' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 14px center; }
   .field select:hover, .field select:focus-visible { border-color: var(--line-strong); }
-  .field select option { background: #0A1428; color: #EAF2FF; }
-  .field select option:checked { background: #1C3A6E; color: #FFFFFF; }
+  .field select option { background: #120E0B; color: #F4EDE6; }
+  .field select option:checked { background: #4A3424; color: #FFFFFF; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip { height: 36px; padding: 0 12px; border-radius: 18px; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 13px; }
-  .chip:hover, .chip[aria-pressed="true"] { color: var(--text); border-color: var(--line-strong); background: rgba(74,134,255,.14); }
+  .chip:hover, .chip[aria-pressed="true"] { color: var(--text); border-color: var(--line-strong); background: rgba(224,138,74,.14); }
   /* срезанные углы и линии развёртки — «приборный» вид панелей */
   .panel, .pop, .page {
     clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
-    background-image: repeating-linear-gradient(0deg, rgba(134,214,255,.035) 0 1px, transparent 1px 3px);
+    background-image: repeating-linear-gradient(0deg, rgba(255,210,161,.035) 0 1px, transparent 1px 3px);
   }
   .panel::before, .page::before { content: ''; position: absolute; left: 18px; top: 0; width: 44px; height: 2px; background: var(--ion); opacity: .8; }
   .pop::before { content: ''; position: absolute; left: 0; top: 14px; width: 2px; height: 22px; background: var(--ion); opacity: .8; }
@@ -146,7 +146,7 @@
   body.saver .hud > *:not(.pops) { opacity: 0 !important; pointer-events: none; }
   .wordmark { transition: opacity 1.2s; }
   body.saver .wordmark { opacity: 0; }
-  .say input { flex: 1; min-width: 0; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: rgba(2,4,10,.6); color: var(--text); padding: 0 12px; font: 500 13.5px Manrope, sans-serif; }
+  .say input { flex: 1; min-width: 0; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: rgba(2,2,2,.6); color: var(--text); padding: 0 12px; font: 500 13.5px Manrope, sans-serif; }
   .hint { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 10px; }
   kbd { font: 600 11px Manrope, sans-serif; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line); color: var(--text); }
 
@@ -155,7 +155,7 @@
     display: flex; flex-direction: column; gap: 10px; transition: right .35s; }
   .pops.shift { right: calc(24px + min(360px, calc(100% - 48px)) + 12px); }
   .pop { position: relative; overflow: hidden; padding: 14px 16px 16px; border-radius: 16px;
-    background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(14px); box-shadow: 0 18px 50px rgba(2,4,10,.5);
+    background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(14px); box-shadow: 0 18px 50px rgba(2,2,2,.5);
     transform: translateY(-8px); opacity: 0; transition: transform .4s cubic-bezier(.2,.8,.2,1), opacity .4s; }
   .pop.in { transform: none; opacity: 1; }
   .pop.out { opacity: 0; transform: translateY(-8px); }
@@ -163,7 +163,7 @@
   .pop p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
   .pop .big { font-family: Unbounded, Manrope, sans-serif; font-size: 30px; font-weight: 500; margin: 2px 0; }
   .pop .timer { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--ion); opacity: .5; transform-origin: left; }
-  .pop .act { margin-top: 10px; height: 36px; padding: 0 14px; border-radius: 18px; cursor: pointer; border: 1px solid var(--line-strong); background: rgba(74,134,255,.14); font-size: 13px; }
+  .pop .act { margin-top: 10px; height: 36px; padding: 0 14px; border-radius: 18px; cursor: pointer; border: 1px solid var(--line-strong); background: rgba(224,138,74,.14); font-size: 13px; }
   .pop.warn h3 svg { color: var(--amber); } .pop.ok h3 svg { color: var(--good); }
 
   /* ----- левая колонка: быстрые разделы ----- */
@@ -180,32 +180,32 @@
   .page { position: absolute; top: calc(18px + env(safe-area-inset-top, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px));
     left: 88px; width: min(760px, calc(100% - 112px)); border-radius: 22px; padding: 22px 26px;
     background: var(--glass-strong); border: 1px solid var(--line); backdrop-filter: blur(18px);
-    box-shadow: 0 30px 90px rgba(2,4,10,.65); display: flex; flex-direction: column; gap: 16px;
+    box-shadow: 0 30px 90px rgba(2,2,2,.65); display: flex; flex-direction: column; gap: 16px;
     transform: translateX(-16px); opacity: 0; transition: transform .4s cubic-bezier(.2,.8,.2,1), opacity .35s; }
   .page.in { transform: none; opacity: 1; }
   .page header { display: flex; align-items: center; justify-content: space-between; }
   .page header h2 { margin: 0; font-family: Unbounded, Manrope, sans-serif; font-weight: 500; font-size: 20px; }
   .page .body { overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
   .search { display: flex; gap: 8px; }
-  .search input { flex: 1; height: 46px; border-radius: 23px; border: 1px solid var(--line); background: rgba(2,4,10,.6); color: var(--text); padding: 0 18px; font: 500 14px Manrope, sans-serif; }
-  .item { padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(120,170,255,.12); display: flex; flex-direction: column; gap: 4px; }
+  .search input { flex: 1; height: 46px; border-radius: 23px; border: 1px solid var(--line); background: rgba(2,2,2,.6); color: var(--text); padding: 0 18px; font: 500 14px Manrope, sans-serif; }
+  .item { padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(255,196,150,.12); display: flex; flex-direction: column; gap: 4px; }
   .item b { font-weight: 600; font-size: 14px; }
   .item small { color: var(--muted); font-size: 12.5px; }
-  .item q { color: #C9D6EE; font-size: 13px; quotes: "«" "»"; }
+  .item q { color: #DCCFC0; font-size: 13px; quotes: "«" "»"; }
   .item .acts { display: flex; gap: 8px; margin-top: 6px; }
   .item .acts button { height: 34px; padding: 0 12px; border-radius: 17px; cursor: pointer; border: 1px solid var(--line); background: transparent; font-size: 12.5px; color: var(--muted); }
   .item .acts button:hover { color: var(--text); border-color: var(--line-strong); }
   .msg { max-width: 78%; padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.45; }
-  .msg.you { align-self: flex-end; background: rgba(74,134,255,.16); border: 1px solid rgba(74,134,255,.3); }
-  .msg.atlas { align-self: flex-start; background: rgba(20,32,58,.7); border: 1px solid rgba(120,170,255,.14); }
-  .fact { display: grid; grid-template-columns: 140px 1fr; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(120,170,255,.12); font-size: 14px; }
+  .msg.you { align-self: flex-end; background: rgba(224,138,74,.16); border: 1px solid rgba(224,138,74,.3); }
+  .msg.atlas { align-self: flex-start; background: rgba(30,22,16,.7); border: 1px solid rgba(255,196,150,.14); }
+  .fact { display: grid; grid-template-columns: 140px 1fr; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,196,150,.12); font-size: 14px; }
   .fact span { color: var(--muted); }
   .fact.old { opacity: .55; text-decoration: line-through; }
 
   .captions { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(48px + env(safe-area-inset-bottom, 0px));
     width: min(820px, calc(100% - 48px)); text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center; }
   .captions .you { font-size: 14.5px; color: var(--muted); min-height: 20px; }
-  .captions .atlas { font-size: clamp(18px, 2.2vw, 24px); line-height: 1.4; font-weight: 500; min-height: 34px; text-shadow: 0 2px 20px rgba(2,4,10,.9); }
+  .captions .atlas { font-size: clamp(18px, 2.2vw, 24px); line-height: 1.4; font-weight: 500; min-height: 34px; text-shadow: 0 2px 20px rgba(2,2,2,.9); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
   @media (max-width: 760px) {
@@ -235,22 +235,22 @@
   /* --- переключатель --- */
   .switch { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13px; color: var(--muted); margin-bottom: 12px; }
   .switch input { appearance: none; -webkit-appearance: none; width: 38px; height: 22px; border-radius: 11px; flex-shrink: 0;
-    background: rgba(120,170,255,.18); position: relative; cursor: pointer; transition: background .2s; margin: 0; }
+    background: rgba(255,196,150,.18); position: relative; cursor: pointer; transition: background .2s; margin: 0; }
   .switch input::after { content: ''; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%;
-    background: #EAF2FF; transition: transform .2s; }
+    background: #F4EDE6; transition: transform .2s; }
   .switch input:checked { background: var(--ion); }
   .switch input:checked::after { transform: translateX(16px); }
 
   /* --- цвета акцента --- */
   .swatches { display: flex; gap: 8px; margin-bottom: 12px; }
   .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
-  .swatch[aria-pressed="true"] { border-color: #FFFFFF; box-shadow: 0 0 0 2px rgba(2,4,10,.6) inset; }
+  .swatch[aria-pressed="true"] { border-color: #FFFFFF; box-shadow: 0 0 0 2px rgba(2,2,2,.6) inset; }
 
   /* --- выпадающий список в стиле интерфейса (вместо системного) --- */
   .dd { position: relative; margin-bottom: 12px; }
   .dd-label { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
   .dd-btn { width: 100%; height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px;
-    cursor: pointer; text-align: left; border: 1px solid var(--line); background: rgba(2,4,10,.7); color: var(--text);
+    cursor: pointer; text-align: left; border: 1px solid var(--line); background: rgba(2,2,2,.7); color: var(--text);
     font: 500 13.5px "Exo 2", Manrope, sans-serif;
     clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px)); }
   .dd-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -258,14 +258,14 @@
   .dd.open .dd-btn { border-color: var(--line-strong); }
   .dd.open .dd-btn svg { transform: rotate(180deg); }
   .dd-list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 6; max-height: 230px; overflow: auto;
-    background: #0A1428; border: 1px solid var(--line-strong); padding: 4px; display: none; box-shadow: 0 16px 40px rgba(2,4,10,.6); }
+    background: #120E0B; border: 1px solid var(--line-strong); padding: 4px; display: none; box-shadow: 0 16px 40px rgba(2,2,2,.6); }
   .dd.open .dd-list { display: block; }
-  .dd-item { padding: 9px 10px; font-size: 13px; cursor: pointer; color: #EAF2FF; }
-  .dd-item:hover, .dd-item.focus { background: rgba(74,134,255,.2); }
-  .dd-item[aria-selected="true"] { background: #1C3A6E; color: #FFFFFF; }
+  .dd-item { padding: 9px 10px; font-size: 13px; cursor: pointer; color: #F4EDE6; }
+  .dd-item:hover, .dd-item.focus { background: rgba(224,138,74,.2); }
+  .dd-item[aria-selected="true"] { background: #4A3424; color: #FFFFFF; }
   .dd-list::-webkit-scrollbar, .page .body::-webkit-scrollbar, .panel::-webkit-scrollbar, .chat-log::-webkit-scrollbar { width: 6px; }
   .dd-list::-webkit-scrollbar-thumb, .page .body::-webkit-scrollbar-thumb, .panel::-webkit-scrollbar-thumb, .chat-log::-webkit-scrollbar-thumb {
-    background: rgba(134,214,255,.25); border-radius: 6px; }
+    background: rgba(255,210,161,.25); border-radius: 6px; }
 
   /* --- страницы разделов --- */
   .page { width: min(820px, calc(100% - 112px)); }
@@ -274,16 +274,16 @@
   .mini-btn { height: 32px; padding: 0 12px; border: 1px solid var(--line); background: transparent; color: var(--muted);
     cursor: pointer; font: 500 12.5px "Exo 2", sans-serif; }
   .mini-btn:hover { color: var(--text); border-color: var(--line-strong); }
-  .pre { white-space: pre-wrap; font-size: 13.5px; line-height: 1.55; color: #C9D6EE; }
+  .pre { white-space: pre-wrap; font-size: 13.5px; line-height: 1.55; color: #DCCFC0; }
   .x-btn { width: 32px; height: 32px; flex-shrink: 0; border: 1px solid var(--line); background: transparent; color: var(--muted);
     cursor: pointer; display: grid; place-items: center; }
   .x-btn:hover { color: var(--text); border-color: var(--line-strong); }
   .tabs { display: flex; gap: 6px; }
   .cmd-row { display: flex; gap: 8px; }
-  .cmd-row input { flex: 1; min-width: 0; height: 46px; border: 1px solid var(--line); background: rgba(2,4,10,.6); color: var(--text);
+  .cmd-row input { flex: 1; min-width: 0; height: 46px; border: 1px solid var(--line); background: rgba(2,2,2,.6); color: var(--text);
     padding: 0 16px; font: 500 14px "Exo 2", sans-serif; outline: none; }
   .cmd-row input:focus { border-color: var(--line-strong); }
-  .btn-accent { height: 46px; padding: 0 18px; border: none; background: var(--ion); color: #02040A; cursor: pointer;
+  .btn-accent { height: 46px; padding: 0 18px; border: none; background: var(--ion); color: #020202; cursor: pointer;
     font: 600 13.5px "Exo 2", sans-serif; clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px)); }
   .btn-accent:hover { filter: brightness(1.1); }
   .btn-ghost { height: 46px; padding: 0 16px; border: 1px solid var(--line); background: transparent; color: var(--text); cursor: pointer;
@@ -302,17 +302,17 @@
   .muted { color: var(--muted); }
   .ok-t { color: var(--good); } .bad-t { color: #fb7185; }
   .mission-form { display: flex; gap: 8px; margin-top: 12px; }
-  .mission-form input { flex: 1; min-width: 0; height: 38px; border: 1px solid var(--line); background: rgba(2,4,10,.6); color: var(--text);
+  .mission-form input { flex: 1; min-width: 0; height: 38px; border: 1px solid var(--line); background: rgba(2,2,2,.6); color: var(--text);
     padding: 0 12px; font: 500 13px "Exo 2", sans-serif; outline: none; }
-  .mission-form button { height: 38px; padding: 0 12px; border: 1px solid var(--line-strong); background: rgba(74,134,255,.14);
+  .mission-form button { height: 38px; padding: 0 12px; border: 1px solid var(--line-strong); background: rgba(224,138,74,.14);
     color: var(--text); cursor: pointer; font: 500 13px "Exo 2", sans-serif; }
 
   /* --- загрузка и выключение --- */
-  #boot-overlay { position: fixed; inset: 0; z-index: 100; background: #02040A; display: flex; align-items: center; justify-content: center;
+  #boot-overlay { position: fixed; inset: 0; z-index: 100; background: #020202; display: flex; align-items: center; justify-content: center;
     transition: opacity 1s ease; }
   #boot-overlay.hide { opacity: 0; pointer-events: none; }
   .boot-title { font-family: Unbounded, sans-serif; font-size: 54px; font-weight: 600; letter-spacing: .3em; padding-left: .3em;
-    color: var(--ion); opacity: 0; animation: boot-in 2.2s ease forwards; text-shadow: 0 0 40px rgba(134,214,255,.45); }
+    color: var(--ion); opacity: 0; animation: boot-in 2.2s ease forwards; text-shadow: 0 0 40px rgba(255,210,161,.45); }
   @keyframes boot-in { 0% { opacity: 0; transform: scale(.88); letter-spacing: .5em; } 60% { opacity: 1; transform: none; letter-spacing: .3em; } 100% { opacity: 1; } }
   .boot-credit { position: fixed; bottom: 40px; right: 48px; font-size: 11px; font-weight: 600; letter-spacing: .14em; color: var(--muted);
     opacity: 0; animation: credit-in 1.5s ease 1.6s forwards; }
@@ -332,13 +332,13 @@
   body[data-theme="light"] .panel, body[data-theme="light"] .page, body[data-theme="light"] .pop,
   body[data-theme="light"] .icon-btn, body[data-theme="light"] .rail button {
     --glass: rgba(236,243,255,.88); --glass-strong: rgba(242,247,255,.95);
-    --text: #0E1A33; --muted: #4A5B7A; --line: rgba(20,60,140,.2); --line-strong: rgba(20,90,200,.4); color: var(--text); }
+    --text: #1A1410; --muted: #6E5E50; --line: rgba(90,55,25,.2); --line-strong: rgba(150,85,35,.4); color: var(--text); }
   body[data-theme="light"] .dd-btn, body[data-theme="light"] .cmd-row input, body[data-theme="light"] .mission-form input,
-  body[data-theme="light"] .search input { background: rgba(255,255,255,.85); color: #0E1A33; }
+  body[data-theme="light"] .search input { background: rgba(255,255,255,.85); color: #1A1410; }
   body[data-theme="light"] .dd-list { background: #F2F6FF; }
-  body[data-theme="light"] .dd-item { color: #0E1A33; }
-  body[data-theme="light"] .dd-item[aria-selected="true"] { background: #CFE0FF; color: #0E1A33; }
-  body[data-theme="light"] .pre, body[data-theme="light"] .item q { color: #22324F; }
+  body[data-theme="light"] .dd-item { color: #1A1410; }
+  body[data-theme="light"] .dd-item[aria-selected="true"] { background: #F2E2CF; color: #1A1410; }
+  body[data-theme="light"] .pre, body[data-theme="light"] .item q { color: #3A2C22; }
   body[data-theme="light"] .msg.atlas { background: rgba(255,255,255,.7); }
 
   /* ===================== Окна: заголовок, кнопки, ручки размера ===================== */
@@ -354,7 +354,7 @@
   .page header .win-ctl { margin-right: 8px; }
   .win-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid transparent; background: transparent;
     color: var(--muted); cursor: pointer; border-radius: 8px; }
-  .win-btn:hover { color: var(--text); border-color: var(--line); background: rgba(120,170,255,.08); }
+  .win-btn:hover { color: var(--text); border-color: var(--line); background: rgba(255,196,150,.08); }
   .win-btn[aria-pressed="true"] { color: var(--ion); border-color: var(--line-strong); }
   .wm.wm-min .win-body, .page.wm.wm-min .body { display: none; }
   .page.wm-min { bottom: auto; }
@@ -384,47 +384,47 @@
   .bootlog.show { opacity: 1; }
   .bootlog.done { opacity: 0; transition: opacity 1.2s ease; }
   .bl-title { font-family: Unbounded, sans-serif; font-size: 10.5px; letter-spacing: .28em; color: var(--ion); margin-bottom: 8px; }
-  .bl-line { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; color: #A2B4D6; padding: 2px 0;
+  .bl-line { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; color: #B9AC9E; padding: 2px 0;
     animation: bl-in .35s ease both; }
   .bl-line.bad { color: #FFB35A; }
   @keyframes bl-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
   .bl-label { white-space: nowrap; }
-  .bl-dots { flex: 1; border-bottom: 1px dotted rgba(162,180,214,.35); transform: translateY(-3px); min-width: 12px; }
-  .bl-val { color: #EAF2FF; white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+  .bl-dots { flex: 1; border-bottom: 1px dotted rgba(200,186,170,.35); transform: translateY(-3px); min-width: 12px; }
+  .bl-val { color: #F4EDE6; white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
   .bl-mark { width: 14px; text-align: center; color: var(--good); }
   .bl-line.bad .bl-mark { color: #FFB35A; }
   .bl-sum { margin-top: 8px; font-size: 12.5px; font-weight: 600; min-height: 18px; }
   .bl-sum.ok { color: var(--good); } .bl-sum.bad { color: #FFB35A; }
-  .bl-skip { margin-top: 10px; font-size: 11px; color: rgba(162,180,214,.55); }
+  .bl-skip { margin-top: 10px; font-size: 11px; color: rgba(200,186,170,.55); }
   .bootlog.done .bl-skip { display: none; }
   .boot-credit { position: fixed; right: 32px; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); z-index: 30; pointer-events: none;
-    font-family: Unbounded, sans-serif; font-size: 11px; letter-spacing: .3em; color: #A2B4D6;
+    font-family: Unbounded, sans-serif; font-size: 11px; letter-spacing: .3em; color: #B9AC9E;
     opacity: 0; transform: translateY(6px); transition: opacity 1.2s ease, transform 1.2s ease; animation: none; }
   .boot-credit.show { opacity: .8; transform: none; }
   @media (max-width: 760px) { .bootlog { width: calc(100% - 56px); bottom: 150px; } }
-  .diff { font-family: Consolas, 'Cascadia Mono', monospace; font-size: 12px; line-height: 1.45; white-space: pre; overflow: auto; max-height: 320px; padding: 10px 12px; margin-top: 6px; background: rgba(2,4,10,.65); border: 1px solid var(--line); }
+  .diff { font-family: Consolas, 'Cascadia Mono', monospace; font-size: 12px; line-height: 1.45; white-space: pre; overflow: auto; max-height: 320px; padding: 10px 12px; margin-top: 6px; background: rgba(2,2,2,.65); border: 1px solid var(--line); }
   .diff .add { color: #7FD9A8; } .diff .del { color: #fb7185; } .diff .hunk { color: var(--muted); }
-  body[data-theme="light"] .diff { background: rgba(255,255,255,.85); color: #0E1A33; }
-  .rt-time { height: 34px; padding: 0 10px; border: 1px solid var(--line); background: rgba(2,4,10,.6); color: var(--text); font: 500 13px "Exo 2", sans-serif; }
-  body[data-theme="light"] .rt-time { background: rgba(255,255,255,.85); color: #0E1A33; }
+  body[data-theme="light"] .diff { background: rgba(255,255,255,.85); color: #1A1410; }
+  .rt-time { height: 34px; padding: 0 10px; border: 1px solid var(--line); background: rgba(2,2,2,.6); color: var(--text); font: 500 13px "Exo 2", sans-serif; }
+  body[data-theme="light"] .rt-time { background: rgba(255,255,255,.85); color: #1A1410; }
   details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-top: 6px; }
   .trace { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: 1; transition: opacity 1.4s ease; z-index: 1; }
   .trace.fade { opacity: 0; }
   .trace .tr-link { stroke: var(--ion); stroke-opacity: .35; stroke-width: 1; stroke-dasharray: 3 4; }
-  .trace .tr-node { fill: rgba(2,4,10,.85); stroke: var(--ion); stroke-width: 1.5; }
+  .trace .tr-node { fill: rgba(2,2,2,.85); stroke: var(--ion); stroke-width: 1.5; }
   .trace .tr-node.run { animation: tr-pulse 1s ease-in-out infinite; }
   .trace .tr-node.ok { fill: var(--ion); }
   .trace .tr-node.fail { stroke: #FFB35A; fill: rgba(255,179,90,.3); }
-  .trace text { font: 500 12.5px "Exo 2", Manrope, sans-serif; fill: #D6E4FF; paint-order: stroke; stroke: rgba(2,4,10,.9); stroke-width: 3px; }
-  .trace text.meta { font-size: 10.5px; fill: #8FA6CF; }
-  .trace text.tr-q { font-size: 13.5px; fill: #EAF2FF; }
-  body[data-theme="light"] .trace text { fill: #0E1A33; stroke: rgba(255,255,255,.9); }
+  .trace text { font: 500 12.5px "Exo 2", Manrope, sans-serif; fill: #F0E4D6; paint-order: stroke; stroke: rgba(2,2,2,.9); stroke-width: 3px; }
+  .trace text.meta { font-size: 10.5px; fill: #A8998A; }
+  .trace text.tr-q { font-size: 13.5px; fill: #F4EDE6; }
+  body[data-theme="light"] .trace text { fill: #1A1410; stroke: rgba(255,255,255,.9); }
   @keyframes tr-pulse { 0%, 100% { r: 6px; stroke-opacity: 1; } 50% { r: 9px; stroke-opacity: .45; } }
   @media (prefers-reduced-motion: reduce) { .trace .tr-node.run { animation: none; } }
   /* ===================== Компактные субтитры ===================== */
   .captions { bottom: calc(26px + env(safe-area-inset-bottom, 0px)); width: fit-content !important;
     max-width: min(620px, calc(100% - 64px)); gap: 3px; padding: 8px 16px 9px; border-radius: 14px;
-    background: rgba(6,10,22,.55); border: 1px solid rgba(134,214,255,.16);
+    background: rgba(6,10,22,.55); border: 1px solid rgba(255,210,161,.16);
     -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
     box-shadow: 0 8px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);
     transition: opacity .35s ease, left .35s ease; }
@@ -435,137 +435,137 @@
   .captions .atlas { font-size: 15px; line-height: 1.45; font-weight: 500; min-height: 0; text-shadow: none;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .captions .you:empty, .captions .atlas:empty { display: none; }
-  body[data-theme="light"] .captions { background: rgba(255,255,255,.72); border-color: rgba(30,60,120,.14);
-    box-shadow: 0 8px 26px rgba(30,60,120,.12); }
+  body[data-theme="light"] .captions { background: rgba(255,255,255,.72); border-color: rgba(70,48,30,.14);
+    box-shadow: 0 8px 26px rgba(70,48,30,.12); }
   .bar-row { display: grid; grid-template-columns: 130px 1fr 90px; gap: 10px; align-items: center; font-size: 13px; }
-  .rp-track { height: 8px; border-radius: 4px; background: rgba(134,214,255,.08); overflow: hidden; }
-  .rp-fill { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #86D6FF, rgba(134,214,255,.45));
-    box-shadow: 0 0 10px rgba(134,214,255,.35); }
+  .rp-track { height: 8px; border-radius: 4px; background: rgba(255,210,161,.08); overflow: hidden; }
+  .rp-fill { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #FFD2A1, rgba(255,210,161,.45));
+    box-shadow: 0 0 10px rgba(255,210,161,.35); }
   /* ===================== Голо-экран ===================== */
   .holo { position: absolute; right: 92px; top: 50%; transform: translateY(-50%); width: 300px; display: flex;
     flex-direction: column; gap: 12px; z-index: 4; pointer-events: none; }
   .hcard { pointer-events: auto; position: relative; padding: 10px 12px 12px; border-radius: 12px; color: var(--text);
-    background: linear-gradient(160deg, rgba(10,22,44,.74), rgba(4,8,18,.68)); border: 1px solid rgba(134,214,255,.22);
-    box-shadow: inset 0 0 0 1px rgba(134,214,255,.04), 0 10px 40px rgba(0,0,0,.45), 0 0 26px rgba(134,214,255,.08);
+    background: linear-gradient(160deg, rgba(22,16,11,.74), rgba(8,6,4,.68)); border: 1px solid rgba(255,210,161,.22);
+    box-shadow: inset 0 0 0 1px rgba(255,210,161,.04), 0 10px 40px rgba(0,0,0,.45), 0 0 26px rgba(255,210,161,.08);
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); cursor: zoom-in; overflow: hidden;
     animation: hc-in .42s cubic-bezier(.2,.8,.2,1) both; }
   .hcard::before { content: ""; position: absolute; inset: 0; pointer-events: none;
-    background: repeating-linear-gradient(0deg, rgba(134,214,255,.035) 0 1px, transparent 1px 3px); }
+    background: repeating-linear-gradient(0deg, rgba(255,210,161,.035) 0 1px, transparent 1px 3px); }
   .hcard::after { content: ""; position: absolute; inset: 3px; pointer-events: none; border-radius: 10px;
-    background: linear-gradient(#86D6FF,#86D6FF) top left/12px 1px, linear-gradient(#86D6FF,#86D6FF) top left/1px 12px,
-      linear-gradient(#86D6FF,#86D6FF) bottom right/12px 1px, linear-gradient(#86D6FF,#86D6FF) bottom right/1px 12px;
+    background: linear-gradient(#FFD2A1,#FFD2A1) top left/12px 1px, linear-gradient(#FFD2A1,#FFD2A1) top left/1px 12px,
+      linear-gradient(#FFD2A1,#FFD2A1) bottom right/12px 1px, linear-gradient(#FFD2A1,#FFD2A1) bottom right/1px 12px;
     background-repeat: no-repeat; opacity: .7; }
-  .hcard:hover, .hcard:focus-visible { border-color: rgba(134,214,255,.45); outline: none; }
+  .hcard:hover, .hcard:focus-visible { border-color: rgba(255,210,161,.45); outline: none; }
   .hcard.out { animation: hc-out .26s ease forwards; }
   @keyframes hc-in { from { opacity: 0; transform: translateX(18px) scale(.96); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
   @keyframes hc-out { to { opacity: 0; transform: translateX(14px) scale(.97); } }
   .hc-head { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 8px; position: relative; z-index: 1; }
   .hc-head b { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .02em; font-weight: 600; }
-  .hc-ico { color: #86D6FF; display: flex; }
+  .hc-ico { color: #FFD2A1; display: flex; }
   .hc-btn { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; cursor: pointer; color: var(--text);
-    border: 1px solid rgba(134,214,255,.18); background: rgba(134,214,255,.06); transition: background .15s; }
-  .hc-btn:hover { background: rgba(134,214,255,.18); }
+    border: 1px solid rgba(255,210,161,.18); background: rgba(255,210,161,.06); transition: background .15s; }
+  .hc-btn:hover { background: rgba(255,210,161,.18); }
   .hc-img { border-radius: 8px; overflow: hidden; height: 168px; background: rgba(0,0,0,.3); }
   .hc-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .hc-cap { margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.45; display: -webkit-box;
     -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .hc-wx { display: flex; align-items: center; gap: 12px; font-size: 13px; }
-  .hc-temp { font: 300 40px/1 "Exo 2", sans-serif; color: #EAF6FF; text-shadow: 0 0 18px rgba(134,214,255,.45); }
+  .hc-temp { font: 300 40px/1 "Exo 2", sans-serif; color: #F7EFE6; text-shadow: 0 0 18px rgba(255,210,161,.45); }
   .hc-wx small, .wx-main small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
   .hc-spark { width: 100%; height: 56px; display: block; margin-top: 6px; }
   .hc-axis { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); }
   .holo-full { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; opacity: 0; pointer-events: auto;
-    background: rgba(2,4,10,.55); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); transition: opacity .2s ease; }
+    background: rgba(2,2,2,.55); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); transition: opacity .2s ease; }
   .holo-full[hidden] { display: none; }
   .holo-full.on { opacity: 1; }
   .hf-panel { width: min(1280px, 88vw); height: min(860px, 84vh); display: flex; flex-direction: column; overflow: hidden;
-    border-radius: 14px; border: 1px solid rgba(134,214,255,.25); color: var(--text);
-    background: linear-gradient(160deg, rgba(8,18,38,.9), rgba(3,6,14,.92));
-    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 40px rgba(134,214,255,.1); transform: scale(.97);
+    border-radius: 14px; border: 1px solid rgba(255,210,161,.25); color: var(--text);
+    background: linear-gradient(160deg, rgba(16,12,9,.9), rgba(3,6,14,.92));
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 40px rgba(255,210,161,.1); transform: scale(.97);
     transition: transform .22s cubic-bezier(.2,.8,.2,1); }
   .holo-full.on .hf-panel { transform: none; }
-  .hf-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-size: 14px; border-bottom: 1px solid rgba(134,214,255,.12); }
+  .hf-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-size: 14px; border-bottom: 1px solid rgba(255,210,161,.12); }
   .hf-head b { white-space: nowrap; font-weight: 600; letter-spacing: .02em; }
   .hf-hint { flex: 1; color: var(--muted); font-size: 11.5px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hf-stage { position: relative; flex: 1; overflow: hidden; cursor: crosshair; touch-action: none; user-select: none;
-    background: radial-gradient(ellipse at center, rgba(134,214,255,.05), transparent 70%); }
+    background: radial-gradient(ellipse at center, rgba(255,210,161,.05), transparent 70%); }
   .hf-stage.pan { cursor: grab; }
   .hf-layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
   .hf-layer img { display: block; width: 100%; height: 100%; -webkit-user-drag: none; }
   .hf-ann { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-  .hf-box { fill: rgba(134,214,255,.06); stroke: #86D6FF; stroke-width: 1.4; }
+  .hf-box { fill: rgba(255,210,161,.06); stroke: #FFD2A1; stroke-width: 1.4; }
   .hf-box.loading { stroke-dasharray: 5 4; animation: hf-dash 1s linear infinite; }
   .hf-box.fail, .hf-lead.fail { stroke: #FFB35A; }
-  .hf-lead { fill: none; stroke: #86D6FF; stroke-width: 1.2; filter: drop-shadow(0 0 4px rgba(134,214,255,.7)); }
+  .hf-lead { fill: none; stroke: #FFD2A1; stroke-width: 1.2; filter: drop-shadow(0 0 4px rgba(255,210,161,.7)); }
   .hf-lead.fresh { stroke-dasharray: 700; stroke-dashoffset: 700; animation: hf-draw .45s ease forwards; }
-  .hf-dot { fill: #EAF6FF; filter: drop-shadow(0 0 4px #86D6FF); }
+  .hf-dot { fill: #F7EFE6; filter: drop-shadow(0 0 4px #FFD2A1); }
   @keyframes hf-draw { to { stroke-dashoffset: 0; } }
   @keyframes hf-dash { to { stroke-dashoffset: -18; } }
   .hf-labels { position: absolute; inset: 0; pointer-events: none; }
   .hf-note { position: absolute; left: 0; top: 0; width: 260px; pointer-events: auto; padding: 8px 10px 9px; border-radius: 8px;
-    background: rgba(4,10,24,.88); border: 1px solid rgba(134,214,255,.35); box-shadow: 0 0 18px rgba(134,214,255,.15);
-    font-size: 12.5px; color: #DDEBFF; animation: hc-in .35s ease both; }
-  .hf-note b { display: block; padding-right: 18px; color: #EAF6FF; font-size: 13px; letter-spacing: .02em; }
-  .hf-note p { margin: 4px 0 0; color: #AFC4E6; line-height: 1.45; }
-  .hf-note.loading b { background: linear-gradient(90deg, #6d8fb3, #EAF6FF, #6d8fb3); background-size: 200% 100%;
+    background: rgba(4,10,24,.88); border: 1px solid rgba(255,210,161,.35); box-shadow: 0 0 18px rgba(255,210,161,.15);
+    font-size: 12.5px; color: #F0E4D6; animation: hc-in .35s ease both; }
+  .hf-note b { display: block; padding-right: 18px; color: #F7EFE6; font-size: 13px; letter-spacing: .02em; }
+  .hf-note p { margin: 4px 0 0; color: #D2C2AE; line-height: 1.45; }
+  .hf-note.loading b { background: linear-gradient(90deg, #8E7F70, #F7EFE6, #8E7F70); background-size: 200% 100%;
     -webkit-background-clip: text; background-clip: text; color: transparent; animation: hf-shim 1.2s linear infinite; }
   .hf-note.fail { border-color: rgba(255,179,90,.5); }
   @keyframes hf-shim { to { background-position: -200% 0; } }
   .hf-x { position: absolute; right: 6px; top: 3px; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 15px; }
-  .hf-x:hover { color: #EAF6FF; }
-  .hf-sel { position: absolute; left: 0; top: 0; border: 1px dashed #EAF6FF; background: rgba(134,214,255,.1);
-    box-shadow: 0 0 0 1px rgba(134,214,255,.3); pointer-events: none; }
-  .hf-foot { padding: 10px 14px; border-top: 1px solid rgba(134,214,255,.12); font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+  .hf-x:hover { color: #F7EFE6; }
+  .hf-sel { position: absolute; left: 0; top: 0; border: 1px dashed #F7EFE6; background: rgba(255,210,161,.1);
+    box-shadow: 0 0 0 1px rgba(255,210,161,.3); pointer-events: none; }
+  .hf-foot { padding: 10px 14px; border-top: 1px solid rgba(255,210,161,.12); font-size: 12.5px; color: var(--muted); line-height: 1.45; }
   .hf-wx { flex: 1; display: flex; flex-direction: column; padding: 14px 18px 18px; gap: 10px; min-height: 0; }
   .wx-read { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px; min-height: 64px; }
   .wx-when { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
   .wx-tag { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; padding: 2px 7px; border-radius: 4px; border: 1px solid; }
-  .wx-tag.now { color: #86D6FF; } .wx-tag.past { color: #8FA6CF; } .wx-tag.fut { color: #FFC478; }
+  .wx-tag.now { color: #FFD2A1; } .wx-tag.past { color: #A8998A; } .wx-tag.fut { color: #FFC478; }
   .wx-main { display: flex; align-items: center; gap: 12px; font-size: 14px; }
-  .wx-meta { display: flex; gap: 18px; font-size: 13px; color: #C9D8F0; }
+  .wx-meta { display: flex; gap: 18px; font-size: 13px; color: #DCCFC0; }
   .wx-chart { flex: 1; width: 100%; min-height: 200px; cursor: ew-resize; touch-action: none; }
-  .wx-range { width: 100%; accent-color: #86D6FF; }
+  .wx-range { width: 100%; accent-color: #FFD2A1; }
   .wx-days { position: relative; height: 16px; font-size: 11px; color: var(--muted); }
   .wx-days span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
   .wx-days span:first-child { transform: none; }
-  body[data-theme="light"] .hcard, body[data-theme="light"] .hf-panel { background: rgba(255,255,255,.9); color: #0E1A33; border-color: rgba(30,60,120,.2); }
-  body[data-theme="light"] .hc-temp { color: #0E1A33; text-shadow: none; }
+  body[data-theme="light"] .hcard, body[data-theme="light"] .hf-panel { background: rgba(255,255,255,.9); color: #1A1410; border-color: rgba(70,48,30,.2); }
+  body[data-theme="light"] .hc-temp { color: #1A1410; text-shadow: none; }
   @media (max-width: 1100px) { .holo { right: 16px; width: 260px; } }
   @media (prefers-reduced-motion: reduce) { .hcard, .hf-note, .hf-lead.fresh { animation: none; stroke-dashoffset: 0; } }
   .hc-strip { display: flex; gap: 6px; margin-top: 8px; position: relative; z-index: 1; }
   .hc-th { width: 46px; height: 34px; padding: 0; border-radius: 5px; overflow: hidden; cursor: pointer; opacity: .6;
-    border: 1px solid rgba(134,214,255,.2); background: rgba(0,0,0,.3); transition: opacity .15s, border-color .15s; flex: none; }
-  .hc-th.on, .hc-th:hover { opacity: 1; border-color: #86D6FF; box-shadow: 0 0 10px rgba(134,214,255,.3); }
+    border: 1px solid rgba(255,210,161,.2); background: rgba(0,0,0,.3); transition: opacity .15s, border-color .15s; flex: none; }
+  .hc-th.on, .hc-th:hover { opacity: 1; border-color: #FFD2A1; box-shadow: 0 0 10px rgba(255,210,161,.3); }
   .hc-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .hf-strip { display: flex; gap: 8px; padding: 8px 14px; border-top: 1px solid rgba(134,214,255,.12); overflow-x: auto; }
+  .hf-strip { display: flex; gap: 8px; padding: 8px 14px; border-top: 1px solid rgba(255,210,161,.12); overflow-x: auto; }
   .hf-strip .hc-th { width: 76px; height: 50px; }
   .hc-graph { width: 100%; height: 150px; display: block; border-radius: 8px;
-    background: radial-gradient(ellipse at center, rgba(134,214,255,.07), transparent 70%); }
+    background: radial-gradient(ellipse at center, rgba(255,210,161,.07), transparent 70%); }
   .gv-wrap { position: relative; flex: 1; min-height: 0; overflow: hidden;
-    background: radial-gradient(ellipse at center, rgba(40,60,120,.18), transparent 75%); }
+    background: radial-gradient(ellipse at center, rgba(80,56,36,.18), transparent 75%); }
   .gv-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; }
   .gv-canvas.panning { cursor: grabbing; }
   .gv-search { position: absolute; left: 14px; top: 12px; width: 240px; height: 32px; padding: 0 10px; border-radius: 8px;
-    border: 1px solid rgba(134,214,255,.25); background: rgba(2,6,16,.78); color: var(--text); font: 13px "Exo 2", sans-serif; outline: none; }
-  .gv-search:focus { border-color: #86D6FF; }
+    border: 1px solid rgba(255,210,161,.25); background: rgba(2,6,16,.78); color: var(--text); font: 13px "Exo 2", sans-serif; outline: none; }
+  .gv-search:focus { border-color: #FFD2A1; }
   .gv-stats { position: absolute; left: 14px; bottom: 12px; font-size: 12px; color: var(--muted); pointer-events: none; }
   .gv-side { position: absolute; right: 12px; top: 12px; bottom: 12px; width: 300px; overflow: auto; padding: 12px; border-radius: 10px;
-    background: rgba(4,10,24,.9); border: 1px solid rgba(134,214,255,.25); display: flex; flex-direction: column; gap: 8px;
+    background: rgba(4,10,24,.9); border: 1px solid rgba(255,210,161,.25); display: flex; flex-direction: column; gap: 8px;
     animation: hc-in .3s ease both; }
   .gv-side[hidden] { display: none; }
   .gv-h { display: flex; align-items: center; gap: 8px; }
-  .gv-h b { flex: 1; font-size: 15px; color: #EAF6FF; }
-  .gv-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 6px 8px; border-radius: 6px; background: rgba(134,214,255,.05); }
+  .gv-h b { flex: 1; font-size: 15px; color: #F7EFE6; }
+  .gv-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 6px 8px; border-radius: 6px; background: rgba(255,210,161,.05); }
   .gv-row span { flex: 1; cursor: pointer; line-height: 1.4; }
-  .gv-row span:hover { color: #EAF6FF; }
-  .gv-row i { color: #86D6FF; font-style: normal; }
+  .gv-row span:hover { color: #F7EFE6; }
+  .gv-row i { color: #FFD2A1; font-style: normal; }
   .gv-forget { border: 1px solid rgba(255,179,90,.35); background: none; color: #FFC478; border-radius: 5px; font-size: 11px;
     padding: 2px 6px; cursor: pointer; flex: none; }
   .gv-forget:hover { background: rgba(255,179,90,.12); }
   /* ===================== Жесты ===================== */
   .gest-pip { position: absolute; left: 92px; bottom: 24px; width: 260px; border-radius: 12px; overflow: hidden; z-index: 6;
-    pointer-events: auto; background: rgba(4,10,22,.82); border: 1px solid rgba(61,255,154,.28);
-    box-shadow: 0 10px 34px rgba(0,0,0,.45), 0 0 20px rgba(61,255,154,.08); -webkit-backdrop-filter: blur(8px);
+    pointer-events: auto; background: rgba(14,10,8,.82); border: 1px solid rgba(255,210,161,.28);
+    box-shadow: 0 10px 34px rgba(0,0,0,.45), 0 0 20px rgba(255,210,161,.08); -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px); animation: hc-in .35s ease both; }
   .gest-pip[hidden] { display: none; }
   .gest-pip video, .gest-pip canvas { display: block; width: 100%; height: 195px; object-fit: cover; }
@@ -574,64 +574,94 @@
   .gest-pip.mini video, .gest-pip.mini canvas { display: none; }
   .gp-top { position: absolute; top: 6px; left: 8px; right: 6px; display: flex; align-items: center; gap: 6px; font-size: 12px; z-index: 2; }
   .gest-pip.mini .gp-top { position: static; padding: 6px 6px 0 8px; }
-  .gp-top b { flex: 1; color: #EAFFF4; text-shadow: 0 1px 4px rgba(0,0,0,.7); font-weight: 600; letter-spacing: .03em; }
-  .gp-top .hc-btn { width: 22px; height: 22px; background: rgba(2,6,14,.55); }
+  .gp-top b { flex: 1; color: #F7EFE6; text-shadow: 0 1px 4px rgba(0,0,0,.7); font-weight: 600; letter-spacing: .03em; }
+  .gp-top .hc-btn { width: 22px; height: 22px; background: rgba(8,6,4,.55); }
   .gp-dot { width: 8px; height: 8px; border-radius: 50%; background: #777; flex: none; }
-  .gp-dot.on { background: #3DFF9A; box-shadow: 0 0 8px #3DFF9A; animation: gp-pulse 2s ease-in-out infinite; }
+  .gp-dot.on { background: #FFD2A1; box-shadow: 0 0 8px #FFD2A1; animation: gp-pulse 2s ease-in-out infinite; }
   .gp-dot.wait { background: #FFC478; } .gp-dot.err { background: #FF6B6B; }
   @keyframes gp-pulse { 50% { opacity: .45; } }
-  .gp-bar { display: flex; align-items: center; gap: 8px; padding: 7px 10px 8px; font-size: 12.5px; color: #D6FFE9; min-height: 24px; }
+  .gp-bar { display: flex; align-items: center; gap: 8px; padding: 7px 10px 8px; font-size: 12.5px; color: #F0E4D6; min-height: 24px; }
   .gp-ring { flex: none; opacity: 0; transition: opacity .2s; }
   .gp-ring circle { transition: stroke-dashoffset .08s linear; }
-  .gp-legend { display: none; padding: 0 12px 10px; font-size: 12px; color: rgba(214,255,233,.7); line-height: 1.5; }
-  .gest-pip.big { left: 50%; top: 50%; bottom: auto; width: min(1000px, 74vw); z-index: 55; border-color: rgba(61,255,154,.42);
-    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 40px rgba(61,255,154,.12); animation: gp-big-in .3s cubic-bezier(.2,.8,.2,1) both; }
+  .gp-legend { display: none; padding: 0 12px 10px; font-size: 12px; color: rgba(240,228,214,.7); line-height: 1.5; }
+  .gest-pip.big { left: 50%; top: 50%; bottom: auto; width: min(1000px, 74vw); z-index: 55; border-color: rgba(255,210,161,.42);
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 40px rgba(255,210,161,.12); animation: gp-big-in .3s cubic-bezier(.2,.8,.2,1) both; }
   .gest-pip.big video, .gest-pip.big canvas { height: min(55.5vw, 750px, 74vh); }
   .gest-pip.big .gp-top { top: 10px; left: 12px; right: 10px; font-size: 14px; }
   .gest-pip.big .gp-top .hc-btn { width: 28px; height: 28px; }
   .gest-pip.big .gp-bar { font-size: 15px; padding: 10px 14px 6px; }
   .gest-pip.big .gp-legend { display: block; }
   .gest-pip.big::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 12px;
-    background: repeating-linear-gradient(0deg, rgba(61,255,154,.04) 0 1px, transparent 1px 3px),
-      radial-gradient(ellipse at center, transparent 55%, rgba(0,8,4,.45)); }
+    background: repeating-linear-gradient(0deg, rgba(255,210,161,.04) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse at center, transparent 55%, rgba(6,4,2,.45)); }
   @keyframes gp-big-in { from { opacity: 0; transform: translate(-50%,-47%) scale(.97); } to { opacity: 1; transform: translate(-50%,-50%); } }
   .gest-flash { position: absolute; left: 50%; top: 42%; transform: translate(-50%,-50%) scale(.6); font-size: 84px; opacity: 0;
-    pointer-events: none; z-index: 7; filter: drop-shadow(0 0 22px rgba(61,255,154,.55)); }
+    pointer-events: none; z-index: 7; filter: drop-shadow(0 0 22px rgba(255,210,161,.55)); }
   .gest-flash.on { animation: g-flash .9s cubic-bezier(.2,.8,.2,1) forwards; }
   @keyframes g-flash { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.6); } 25% { opacity: 1; transform: translate(-50%,-50%) scale(1.05); }
     100% { opacity: 0; transform: translate(-50%,-50%) scale(1.25); } }
   .air-cursor { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 80; pointer-events: none; will-change: transform; }
   .air-cursor[hidden] { display: none; }
-  .air-cursor i { position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; border-radius: 50%; border: 2px solid #3DFF9A;
-    box-shadow: 0 0 14px rgba(61,255,154,.6), inset 0 0 8px rgba(61,255,154,.4); transition: transform .12s, background .12s; }
-  .air-cursor i::after { content: ""; position: absolute; left: 11px; top: 11px; width: 4px; height: 4px; border-radius: 50%; background: #EAFFF4; }
-  .air-cursor.down i { transform: scale(.7); background: rgba(61,255,154,.35); }
+  .air-cursor i { position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; border-radius: 50%; border: 2px solid #FFD2A1;
+    box-shadow: 0 0 14px rgba(255,210,161,.6), inset 0 0 8px rgba(255,210,161,.4); transition: transform .12s, background .12s; }
+  .air-cursor i::after { content: ""; position: absolute; left: 11px; top: 11px; width: 4px; height: 4px; border-radius: 50%; background: #F7EFE6; }
+  .air-cursor.down i { transform: scale(.7); background: rgba(255,210,161,.35); }
   /* ===================== Перемещение и панель возможностей ===================== */
   .gest-pip { cursor: grab; }
   .gest-pip.dragging, .gest-help.dragging, .hcard.dragging { transition: none !important; cursor: grabbing;
-    box-shadow: 0 20px 50px rgba(0,0,0,.55), 0 0 30px rgba(61,255,154,.15); }
+    box-shadow: 0 20px 50px rgba(0,0,0,.55), 0 0 30px rgba(255,210,161,.15); }
   .hcard.moved { position: fixed; z-index: 5; }
   .gest-help { position: fixed; width: 300px; max-height: 72vh; display: flex; flex-direction: column; z-index: 56; border-radius: 12px;
-    background: rgba(4,10,22,.86); border: 1px solid rgba(61,255,154,.25); box-shadow: 0 10px 34px rgba(0,0,0,.45);
+    background: rgba(14,10,8,.86); border: 1px solid rgba(255,210,161,.25); box-shadow: 0 10px 34px rgba(0,0,0,.45);
     -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); color: var(--text); pointer-events: auto; }
   .gest-help[hidden] { display: none; }
-  .gh-head { display: flex; align-items: center; gap: 8px; padding: 9px 10px 9px 12px; cursor: grab; border-bottom: 1px solid rgba(61,255,154,.12); }
-  .gh-head b { flex: 1; font-size: 13px; color: #EAFFF4; letter-spacing: .03em; }
+  .gh-head { display: flex; align-items: center; gap: 8px; padding: 9px 10px 9px 12px; cursor: grab; border-bottom: 1px solid rgba(255,210,161,.12); }
+  .gh-head b { flex: 1; font-size: 13px; color: #F7EFE6; letter-spacing: .03em; }
   .gest-help.collapsed .gh-body { display: none; }
   .gest-help.collapsed .gh-head { border-bottom: 0; }
   .gh-toggle svg { transition: transform .2s; }
   .gest-help.collapsed .gh-toggle svg { transform: rotate(-90deg); }
   .gh-body { overflow: auto; padding: 2px 10px 10px; }
-  .gh-body h5 { margin: 10px 2px 4px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: rgba(157,255,200,.7); font-weight: 600; }
+  .gh-body h5 { margin: 10px 2px 4px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,210,161,.7); font-weight: 600; }
   .gh-row { display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px;
     font-size: 12.5px; transition: background .2s; }
-  .gh-row b { font-weight: 500; color: #DDEBFF; }
+  .gh-row b { font-weight: 500; color: #F0E4D6; }
   .gh-row span:last-child { color: var(--muted); font-size: 12px; text-align: right; }
   .gh-i { font-size: 15px; text-align: center; }
-  .gh-row.live { background: rgba(61,255,154,.12); box-shadow: inset 2px 0 0 #3DFF9A; }
+  .gh-row.live { background: rgba(255,210,161,.12); box-shadow: inset 2px 0 0 #FFD2A1; }
   .gh-row.fired { animation: gh-fire .9s ease; }
-  @keyframes gh-fire { 0% { background: rgba(61,255,154,.45); } 100% { background: transparent; } }
-  .gh-say { font-size: 12px; color: #C9D8F0; padding: 3px 6px; }
+  @keyframes gh-fire { 0% { background: rgba(255,210,161,.45); } 100% { background: transparent; } }
+  .gh-say { font-size: 12px; color: #DCCFC0; padding: 3px 6px; }
+
+  /* ===== Чёрная дыра: тяжёлое, кинематографичное движение ===== */
+  :root { --heavy: cubic-bezier(.16, 1, .3, 1); --heavy-in: cubic-bezier(.7, 0, .84, 0); }
+  .page { transform: translateX(-28px) scale(.985); filter: blur(6px);
+    transition: transform .75s var(--heavy), opacity .55s ease, filter .6s var(--heavy); }
+  .page.in { transform: none; filter: none; }
+  .panel:not([hidden]) { animation: bh-panel-in .65s var(--heavy) both; }
+  @keyframes bh-panel-in { from { opacity: 0; transform: translateY(-10px) scale(.975); filter: blur(5px); } to { opacity: 1; transform: none; filter: none; } }
+  .pop { transform: translateY(-14px) scale(.98); filter: blur(4px);
+    transition: transform .7s var(--heavy), opacity .5s ease, filter .6s var(--heavy); }
+  .pop.in { transform: none; filter: none; }
+  .pop.out { transform: translateY(-10px) scale(.985); filter: blur(4px); transition-duration: .45s; transition-timing-function: var(--heavy-in), ease, ease; }
+  .hcard { animation-duration: .7s; animation-timing-function: var(--heavy); }
+  .icon-btn, .rail button { transition: color .35s ease, border-color .35s ease, transform .5s var(--heavy), background .35s ease; }
+  .icon-btn:active, .rail button:active, .chip:active { transform: scale(.95); transition-duration: .12s; }
+  .rail button span { transition: opacity .35s ease, transform .5s var(--heavy); }
+  .panel::before, .page::before { transform-origin: left; animation: bh-line 1s var(--heavy) .1s both; }
+  @keyframes bh-line { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .state-label { transition: color .9s ease, letter-spacing .9s var(--heavy), opacity .9s ease; }
+  .state-label[data-state="listening"], .state-label[data-state="speaking"] { letter-spacing: .55em; }
+  .reticle { transition: opacity 1.2s ease, transform 1.4s var(--heavy); opacity: .3; }
+  .reticle[data-state="listening"], .reticle[data-state="speaking"] { opacity: .55; }
+  .reticle[data-state="thinking"] { opacity: .45; }
+  .reticle[data-state="listening"] { transform: translate(-50%, -50%) scale(.985); }
+  @keyframes wm-in { 0% { opacity: 0; filter: blur(14px); letter-spacing: 1.1em; } 60% { opacity: 1; filter: blur(0); } 100% { opacity: 1; filter: none; letter-spacing: normal; } }
+  .wordmark.show span { animation-duration: 2.6s !important; animation-timing-function: var(--heavy) !important; }
+  @media (prefers-reduced-motion: reduce) {
+    .page, .pop { filter: none; transform: none; }
+    .panel:not([hidden]), .panel::before, .page::before { animation: none; }
+  }
 </style>
 
 </head>
@@ -657,7 +687,7 @@
   <div class="holo" id="holo"></div>
   <div class="gest-pip" id="gestPip" hidden><video playsinline muted></video><canvas></canvas>
     <div class="gp-top"><span class="gp-dot"></span><b data-i18n="gs_cam">Жесты</b><button class="hc-btn gp-big" data-i18n-aria="gs_big" aria-label="Зеркало во весь экран">⤢</button><button class="hc-btn gp-min" data-i18n-aria="gs_min" aria-label="Свернуть">–</button><button class="hc-btn gp-x" data-i18n-aria="gs_min" aria-label="Свернуть">×</button></div>
-    <div class="gp-bar"><svg class="gp-ring" width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#3DFF9A" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="62.8" stroke-dashoffset="62.8" transform="rotate(-90 12 12)"/></svg><span class="gp-label"></span></div><div class="gp-legend" data-i18n="gs_legend"></div></div>
+    <div class="gp-bar"><svg class="gp-ring" width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#FFD2A1" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="62.8" stroke-dashoffset="62.8" transform="rotate(-90 12 12)"/></svg><span class="gp-label"></span></div><div class="gp-legend" data-i18n="gs_legend"></div></div>
   <div class="gest-flash" id="gestFlash" aria-hidden="true"></div>
   <div class="air-cursor" id="airCursor" hidden aria-hidden="true"><i></i></div>
   <aside class="gest-help" id="gestHelp" hidden><div class="gh-head"><span class="gh-i">✨</span><b data-i18n="gh_title">Что умеет Atlas</b><button class="hc-btn gh-toggle" aria-expanded="true" data-i18n-aria="gh_toggle" aria-label="Свернуть / развернуть"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 4.5l3 3 3-3"/></svg></button></div><div class="gh-body"></div></aside>
@@ -675,8 +705,8 @@
       </g>
       <defs>
         <linearGradient id="sweepGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#86D6FF" stop-opacity="0"/>
-          <stop offset="1" stop-color="#86D6FF" stop-opacity=".22"/>
+          <stop offset="0" stop-color="#FFD2A1" stop-opacity="0"/>
+          <stop offset="1" stop-color="#FFD2A1" stop-opacity=".22"/>
         </linearGradient>
       </defs>
       <g class="r-sweep"><path d="M 0 0 L 0 -93 A 93 93 0 0 1 31.8 -87.4 Z" fill="url(#sweepGrad)"/></g>
@@ -818,275 +848,230 @@
   const small = Math.min(window.innerWidth, window.innerHeight) < 700;
 
   // ===========================================================================
-  // Сцена
+  // Сцена: чёрная дыра (в духе Гаргантюа). Лучи света трассируются по геодезическим
+  // Шварцшильда прямо в шейдере: видны тень, фотонное кольцо, линзированная «арка»
+  // задней части диска над и под тенью и искажённые звёзды фона
   // ===========================================================================
   const canvas = document.getElementById('scene');
   const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(small ? Math.min(window.devicePixelRatio || 1, 2) : 2);   // рисуем в 2× и сжимаем — максимально чётко
-  renderer.setClearColor(0x02040a, 1);
+  renderer.setPixelRatio(small ? Math.min(window.devicePixelRatio || 1, 2) : 2);   // HUD-линии рисуем в 2× — максимально чётко
+  renderer.setClearColor(0x000000, 1);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
   camera.position.set(0, 0, 4.4);
 
   function rng(seed) { let s = seed; return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
-  const rand = rng(20260925);
-  const C = { core: new THREE.Color('#DCEBFF'), nebula: new THREE.Color('#4A86FF'), ion: new THREE.Color('#86D6FF'),
-              violet: new THREE.Color('#8C7CFF'), deep: new THREE.Color('#2F5BE0') };
+  const rand = rng(20261019);
 
-  // --- общий шум для звезды и короны (GLSL) ---
-  const NOISE = [
+  // радиус Шварцшильда в единицах сцены: тень ≈ 2.6 rs
+  const RS = 0.25;
+  const SHADOW = 2.598;
+  // наклон диска: смотрим чуть сверху, лёгкий крен — как в кадре из «Интерстеллара»
+  const DISK_TILT = 0.1, DISK_ROLL = -0.17;
+
+  // Шейдер чёрной дыры. Интегратор leapfrog (2-й порядок, сохраняет орбиты у фотонной сферы),
+  // объёмный диск (луч проходит сквозь слой конечной толщины — мягкая «пушистая» плазма),
+  // гравитационная волна по экрану и накопление кадров (временное сглаживание)
+  const BH_FRAG = [
+    'precision highp float;',
+    'uniform float uTime; uniform vec3 uCam; uniform mat3 uCamRot; uniform float uTanH; uniform float uAspect;',
+    'uniform mat3 uDisk; uniform float uDiskI; uniform float uDiskOut; uniform float uBg; uniform float uAmp;',
+    'uniform float uPhase; uniform float uRing; uniform float uHeat; uniform float uTurb;',
+    'uniform sampler2D tHist; uniform float uBlend; uniform vec2 uJitter; uniform vec3 uWave; uniform vec4 uPlanet;',
+    'varying vec2 vUv;',
     'float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }',
     'float vnoise(vec3 x) { vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);',
     '  return mix(mix(mix(hash(i), hash(i + vec3(1.0, 0.0, 0.0)), f.x), mix(hash(i + vec3(0.0, 1.0, 0.0)), hash(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),',
     '             mix(mix(hash(i + vec3(0.0, 0.0, 1.0)), hash(i + vec3(1.0, 0.0, 1.0)), f.x), mix(hash(i + vec3(0.0, 1.0, 1.0)), hash(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z); }',
-    'float fbm(vec3 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * vnoise(p); p *= 2.03; a *= 0.5; } return s; }'
+    'float fbm(vec3 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.07 + 0.31; a *= 0.5; } return s; }',
+    // звёзды: гауссово пятно в ячейке сферической сетки, разные температуры и мерцание
+    'vec3 starLayer(vec3 d, float sc, float thr, float size) {',
+    '  vec3 p = d * sc; vec3 c = floor(p); vec3 f = fract(p);',
+    '  float h = hash(c);',
+    '  if (h < thr) return vec3(0.0);',
+    '  vec3 j = vec3(hash(c + 1.37), hash(c + 2.71), hash(c + 5.13)) * 0.7 + 0.15;',
+    '  vec3 df = f - j;',
+    '  float b = exp(-dot(df, df) / (size * size)) * (0.3 + 1.6 * pow(hash(c + 9.1), 7.0));',
+    '  float tw = 0.82 + 0.18 * sin(uTime * (0.6 + 2.0 * hash(c + 4.4)) + h * 40.0);',
+    '  float tk = hash(c + 7.7);',
+    '  vec3 tint = tk < 0.5 ? mix(vec3(1.0, 0.78, 0.6), vec3(1.0, 0.93, 0.85), tk * 2.0) : mix(vec3(1.0, 0.95, 0.9), vec3(0.8, 0.87, 1.0), tk * 2.0 - 1.0);',
+    '  return tint * b * tw;',
+    '}',
+    'vec3 background(vec3 d) {',
+    '  vec3 s = starLayer(d, 64.0, 0.9, 0.09) * 0.9 + starLayer(d, 140.0, 0.93, 0.1) * 0.5 + starLayer(d, 28.0, 0.985, 0.07) * 2.2;',
+    '  vec3 bn = normalize(vec3(0.35, 0.9, -0.25));',
+    '  float band = exp(-pow(dot(d, bn) / 0.3, 2.0));',
+    '  float dust = fbm(d * 3.2 + 4.0) * fbm(d * 7.0 - 2.0);',
+    '  float lanes = smoothstep(0.35, 0.6, fbm(d * 5.0 + 11.0));',
+    '  vec3 milky = vec3(0.6, 0.47, 0.38) * band * (0.2 + dust * 1.5) * (1.0 - lanes * 0.6) * 0.06;',
+    '  return (s * (0.6 + band * 0.6) + milky) * uBg;',
+    '}',
+    'float halfH(float r) { return 0.07 + 0.045 * r; }',
+    // плотность плазмы: тонкие кольцевые волокна (как в арке у Гаргантюа), рваные сгустки и зерно,
+    // всё закручено кеплеровским сдвигом и крупным вихревым смещением
+    'float density(vec3 q) {',
+    '  float r = length(q.xz);',
+    '  float rin = 2.6;',
+    '  if (r < rin * 0.9 || r > uDiskOut) return 0.0;',
+    '  float ang = atan(q.z, q.x);',
+    '  float ph = ang + uPhase * pow(r, -1.5) * 3.0;',
+    '  vec2 cs = vec2(cos(ph), sin(ph));',
+    '  float warp = fbm(vec3(r * 0.85, cs * 2.4) + 3.1);',
+    '  float ph2 = ph + (warp - 0.5) * 1.3;',
+    '  vec2 c2 = vec2(cos(ph2), sin(ph2));',
+    '  float fib = fbm(vec3(r * 3.4 + warp * 2.2, c2 * 1.05) + vec3(0.0, 0.0, uTime * 0.015 * uTurb));',
+    '  float clump = fbm(vec3(r * 1.7, c2 * 7.5) + 7.0);',
+    '  float gran = vnoise(vec3(r * 7.5, c2 * 24.0) + 1.7);',
+    '  float dd = smoothstep(0.3, 0.95, fib * 0.48 + clump * 0.6 + gran * 0.2);',
+    '  float hz = q.y / halfH(r);',
+    '  dd *= exp(-hz * hz * 1.4);',
+    '  float inner = smoothstep(rin * 0.9, rin * 1.15, r);',
+    '  float outer = 1.0 - smoothstep(uDiskOut * 0.28, uDiskOut, r);',
+    '  return dd * inner * outer;',
+    '}',
+    // тёмные пылевые прожилки: гасят свечение, но добавляют непрозрачности — бурый «дым» как в кадре
+    'float dustAt(vec3 q) {',
+    '  float r = length(q.xz);',
+    '  float ph = atan(q.z, q.x) + uPhase * pow(r, -1.5) * 3.0;',
+    '  return smoothstep(0.48, 0.74, fbm(vec3(r * 2.1, cos(ph) * 5.5, sin(ph) * 5.5) + 19.0)) * smoothstep(3.2, 6.0, r);',
+    '}',
+    'vec4 diskSlab(vec3 hitW, vec3 velW) {',
+    '  vec3 q = hitW * uDisk;',
+    '  vec3 dq = normalize(velW) * uDisk;',
+    '  float r = length(q.xz);',
+    '  if (r < 2.3 || r > uDiskOut) return vec4(0.0);',
+    '  float L = min(2.0 * halfH(r) / max(abs(dq.y), 0.035), 3.6);',
+    '  float dn = density(q - dq * L * 0.3) + density(q) * 1.4 + density(q + dq * L * 0.3);',
+    '  dn /= 3.4;',
+    '  float dust = dustAt(q);',
+    '  float tau = dn * (L * 1.15 + 0.45) * 1.8 + dust * 0.22 * L;',
+    '  float alpha = clamp(1.0 - exp(-tau), 0.0, 0.975);',
+    '  float rin = 2.6;',
+    '  float prof = pow(rin / r, 1.2);',
+    '  vec3 vdir = normalize(vec3(q.z, 0.0, -q.x));',
+    '  vec3 vw = uDisk * vdir;',
+    '  float beta = min(0.6, sqrt(0.5 / max(r - 1.0, 0.3)));',
+    '  float gam = inversesqrt(1.0 - beta * beta);',
+    '  float D = 1.0 / (gam * (1.0 - beta * dot(vw, -normalize(velW))));',
+    '  float beam = mix(1.0, pow(D, 2.4), 0.5);',
+    '  float grav = sqrt(max(1.0 - 1.0 / r, 0.0));',
+    '  float heat = prof * beam * grav * uHeat;',
+    '  vec3 c = mix(vec3(0.24, 0.11, 0.05), vec3(0.86, 0.5, 0.27), smoothstep(0.0, 0.35, heat));',
+    '  c = mix(c, vec3(1.0, 0.82, 0.63), smoothstep(0.3, 0.9, heat));',
+    '  c = mix(c, vec3(1.0, 0.95, 0.9), smoothstep(0.85, 1.8, heat));',
+    '  float I = heat * (0.5 + dn * 1.3) * 2.7 * uDiskI * (1.0 - dust * 0.72);',
+    '  float edge = exp(-pow((r - rin * 1.02) / 0.35, 2.0)) * 0.7;',      // горячий внутренний край
+    '  return vec4(c * I * (1.0 + edge), alpha);',
+    '}',
+    'void main() {',
+    '  vec2 ndc = vUv * 2.0 - 1.0 + uJitter;',
+    // гравитационная волна: кольцо искажения расходится от центра
+    '  if (uWave.y > 0.001) {',
+    '    vec2 pa = vec2(ndc.x * uAspect, ndc.y);',
+    '    float d = length(pa);',
+    '    float x = (d - uWave.x) / uWave.z;',
+    '    float rip = exp(-x * x) * sin(x * 2.6) * uWave.y;',
+    '    ndc += (pa / max(d, 1e-3)) * rip * 0.03 * vec2(1.0 / uAspect, 1.0);',
+    '  }',
+    '  vec3 rd = normalize(uCamRot * normalize(vec3(ndc.x * uTanH * uAspect, ndc.y * uTanH, -1.0)));',
+    '  vec3 pos = uCam; vec3 vel = rd;',
+    '  vec3 hh = cross(pos, vel); float h2 = dot(hh, hh);',
+    '  vec3 col = vec3(0.0); float A = 0.0;',
+    '  vec3 n = uDisk[1];',
+    '  float rEsc = max(uDiskOut * 1.3, 30.0);',
+    '  float minR = 1e5;',
+    '  bool escaped = false; float crossN = 0.0;',
+    '  float r2 = dot(pos, pos);',
+    '  vec3 acc = -1.5 * h2 * pos / (r2 * r2 * sqrt(r2));',
+    '  for (int i = 0; i < 300; i++) {',
+    '    r2 = dot(pos, pos); float r = sqrt(r2);',
+    '    minR = min(minR, r);',
+    '    if (r < 1.0) break;',
+    '    if (r > rEsc && dot(pos, vel) > 0.0) { escaped = true; break; }',
+    '    if (A > 0.985) break;',
+    '    float dt = clamp(0.06 * r, 0.02, 4.0) * (r > rEsc ? 6.0 : 1.0);',
+    '    vec3 vh = vel + 0.5 * dt * acc;',
+    '    vec3 np = pos + dt * vh;',
+    '    float nr2 = dot(np, np);',
+    '    vec3 nacc = -1.5 * h2 * np / (nr2 * nr2 * sqrt(nr2));',
+    '    vec3 nv = vh + 0.5 * dt * nacc;',
+    '    float s0 = dot(pos, n), s1 = dot(np, n);',
+    '    if (s0 * s1 < 0.0) {',
+    '      vec3 hit = mix(pos, np, s0 / (s0 - s1));',
+    '      vec4 dk = diskSlab(hit, vh);',
+    '      dk.a *= crossN < 1.5 ? 1.0 : 0.45;',
+    '      crossN += 1.0;',
+    '      col += (1.0 - A) * dk.rgb * dk.a;',
+    '      A += (1.0 - A) * dk.a;',
+    '    }',
+    '    if (uPlanet.w > 0.0) {',
+    '      vec3 sd = np - pos; vec3 m = pos - uPlanet.xyz;',
+    '      float qa = dot(sd, sd), qb = dot(m, sd), qc = dot(m, m) - uPlanet.w * uPlanet.w;',
+    '      float disc = qb * qb - qa * qc;',
+    '      if (disc > 0.0) {',
+    '        float tt = (-qb - sqrt(disc)) / qa;',
+    '        if (tt >= 0.0 && tt <= 1.0) {',
+    '          vec3 hp = pos + sd * tt; vec3 nrm = normalize(hp - uPlanet.xyz);',
+    '          float lit = max(dot(nrm, normalize(-hp)), 0.0);',
+    '          float rim = pow(1.0 - max(dot(nrm, -normalize(sd)), 0.0), 3.0);',
+    '          vec3 pc = vec3(0.3, 0.28, 0.26) * (0.05 + lit * 1.8 * uDiskI) + vec3(1.0, 0.84, 0.66) * rim * (0.25 + lit * 1.2) * uDiskI;',
+    '          col += (1.0 - A) * pc; A = 1.0; break;',
+    '        }',
+    '      }',
+    '    }',
+    '    pos = np; vel = nv; acc = nacc;',
+    '  }',
+    '  if (escaped && A < 0.985) col += (1.0 - A) * background(normalize(vel));',
+    '  float ring = exp(-pow((minR - 1.53) / 0.06, 2.0)) * (escaped ? 1.0 : 0.0);',
+    '  col += vec3(1.0, 0.93, 0.84) * ring * uRing * 1.1 * (1.0 - A * 0.5);',
+    '  vec3 prev = texture2D(tHist, vUv).rgb;',
+    '  gl_FragColor = vec4(mix(prev, col, uBlend), 1.0);',
+    '}'
   ].join('\n');
 
-  // --- галактика: балдж, диск с рукавами, звёздные скопления, пыль, гало ---
-  function gauss() { const u = Math.max(rand(), 1e-6), v = rand(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.2831853 * v); }
-  const R = 2.6, LANES = [0.72, 1.12, 1.55];
-  const N = small ? 18000 : 42000;
-  const CREAM = new THREE.Color('#EEF4FF'), WARM = new THREE.Color('#D8E2FF'), LAV = new THREE.Color('#C8C2FF'),
-        PERI = new THREE.Color('#8E9DFF'), BLUE = new THREE.Color('#5E7DFF'), KNOT = new THREE.Color('#E6A8FF'),
-        YOUNG = new THREE.Color('#C6DCFF'), GIANT = new THREE.Color('#FFB27A'), RED = new THREE.Color('#FF8E6E'), GLOB = new THREE.Color('#FFE2B0');
-  const P = [], CO = [], SZ = [], PH = [];
-  const tmp = new THREE.Color();
-  function add(x, y, z, c, s) { P.push(x, y, z); CO.push(c.r, c.g, c.b); SZ.push(s); PH.push(rand()); }
-  function armAngle(r, arm) { return arm + r * 2.2; }
-
-  // балдж: тёплое плотное ядро со старыми оранжевыми звёздами
-  for (let i = 0; i < N * 0.16; i++) {
-    const r = Math.abs(gauss()) * 0.26, th = rand() * Math.PI * 2, ph = Math.acos(2 * rand() - 1);
-    const k = rand();
-    tmp.copy(k < 0.07 ? GIANT : k < 0.1 ? RED : CREAM).lerp(WARM, rand() * 0.6).multiplyScalar(0.85);
-    add(r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph) * 0.7, r * Math.sin(ph) * Math.sin(th), tmp, 0.9 + rand() * 0.9);
-  }
-  // диск: гладкий, половина звёзд в двух рукавах; молодые голубые звёзды — в рукавах
-  for (let i = 0; i < N * 0.7; i++) {
-    let r;
-    do { r = 0.18 + (-Math.log(1 - rand() * 0.97)) * 0.62; }
-    while (r > R || LANES.some(function (l) { return Math.abs(r - l) < 0.05; }) && rand() < 0.7);
-    const inArm = rand() < 0.5;
-    const arm = rand() < 0.5 ? 0 : Math.PI;
-    const a = inArm ? armAngle(r, arm) + gauss() * 0.26 : rand() * Math.PI * 2;
-    const t = Math.min(1, r / R);
-    const k = rand();
-    if (inArm && k < 0.06) tmp.copy(YOUNG);
-    else if (k < 0.035) tmp.copy(GIANT);
-    else if (t < 0.22) tmp.copy(WARM).lerp(LAV, t / 0.22);
-    else if (t < 0.55) tmp.copy(LAV).lerp(PERI, (t - 0.22) / 0.33);
-    else tmp.copy(PERI).lerp(BLUE, (t - 0.55) / 0.45);
-    tmp.multiplyScalar(0.78 + rand() * 0.27);
-    const big = inArm && k < 0.06 ? 2.4 + rand() * 1.4 : rand() < 0.04 ? 2.2 + rand() : 0.8 + rand() * 1.0;
-    add(Math.cos(a) * r, gauss() * 0.028 * (1.3 - r / R), Math.sin(a) * r, tmp, big);
-  }
-  // звёздные «ясли»: тугие розовые и голубые скопления вдоль рукавов
-  for (let c = 0; c < (small ? 35 : 70); c++) {
-    const r = 0.6 + rand() * 1.7, arm = rand() < 0.5 ? 0 : Math.PI, a = armAngle(r, arm) + gauss() * 0.1;
-    const cx = Math.cos(a) * r, cz = Math.sin(a) * r;
-    const col = rand() < 0.6 ? KNOT : YOUNG;
-    for (let j = 0; j < 20; j++) add(cx + gauss() * 0.028, gauss() * 0.01, cz + gauss() * 0.028, col, 1.1 + rand() * 1.1);
-  }
-  // шаровые скопления в гало: маленькие жёлтые клубки
-  for (let c = 0; c < 14; c++) {
-    const r = 1.1 + rand() * 1.7, th = rand() * Math.PI * 2, ph = Math.acos(2 * rand() - 1);
-    const cx = r * Math.sin(ph) * Math.cos(th), cy = r * Math.cos(ph) * 0.55, cz = r * Math.sin(ph) * Math.sin(th);
-    for (let j = 0; j < 26; j++) add(cx + gauss() * 0.02, cy + gauss() * 0.02, cz + gauss() * 0.02, GLOB, 0.9 + rand() * 0.6);
-  }
-  // гало: редкая пыль звёзд
-  for (let i = 0; i < N * 0.06; i++) {
-    const r = 0.9 + rand() * 2.6, th = rand() * Math.PI * 2, ph = Math.acos(2 * rand() - 1);
-    tmp.copy(rand() < 0.5 ? PERI : BLUE).multiplyScalar(0.6);
-    add(r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph) * 0.45, r * Math.sin(ph) * Math.sin(th), tmp, 0.8 + rand() * 0.9);
-  }
-
-  // микрозвёзды: тончайшая «зернистость» диска между яркими звёздами
-  for (let i = 0; i < N * 0.25; i++) {
-    const r = 0.2 + (-Math.log(1 - rand() * 0.97)) * 0.7;
-    if (r > R) continue;
-    const a = rand() < 0.4 ? armAngle(r, rand() < 0.5 ? 0 : Math.PI) + gauss() * 0.35 : rand() * Math.PI * 2;
-    const t = Math.min(1, r / R);
-    tmp.copy(t < 0.3 ? LAV : t < 0.6 ? PERI : BLUE).lerp(CREAM, Math.max(0, 0.3 - t)).multiplyScalar(0.5 + rand() * 0.2);
-    add(Math.cos(a) * r, gauss() * 0.03 * (1.3 - t), Math.sin(a) * r, tmp, 0.5 + rand() * 0.35);
-  }
-
-  function pointsGeo(pos, col, size, phase) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute('aColor', new THREE.Float32BufferAttribute(col, 3));
-    g.setAttribute('aSize', new THREE.Float32BufferAttribute(size, 1));
-    g.setAttribute('aPhase', new THREE.Float32BufferAttribute(phase, 1));
-    return g;
-  }
-  const uniforms = { uGather: { value: 1 }, uUnfold: { value: 1 }, uTime: { value: 0 }, uRot: { value: 0 }, uSpread: { value: 1 }, uAmp: { value: 0 }, uBright: { value: 0.5 }, uPixel: { value: renderer.getPixelRatio() } };
-  // общий вершинный шейдер: внутренние звёзды обходят центр быстрее внешних
-  const GALAXY_VS = [
-    'attribute float aSize; attribute vec3 aColor; attribute float aPhase;',
-    'uniform float uTime; uniform float uRot; uniform float uSpread; uniform float uAmp; uniform float uPixel; uniform float uBright;',
-    'uniform float uGather; uniform float uUnfold;',
-    'varying vec3 vColor; varying float vAlpha;',
-    'void main() {',
-    '  vec3 p = position;',
-    '  float rxz = length(p.xz);',
-    '  float ang = uRot * (0.5 / (0.3 + rxz));',
-    '  float cs = cos(ang), sn = sin(ang);',
-    '  p.xz = mat2(cs, -sn, sn, cs) * p.xz;',
-    '  float ia = 1.0;',
-    '  if (uUnfold < 0.999) {',                                          // заставка: сбор в точку и раскрытие
-    '    vec3 dir = normalize(vec3(sin(aPhase * 91.7 + 1.3), cos(aPhase * 53.3), sin(aPhase * 27.1 + 2.1)) + vec3(0.001));',
-    '    vec3 far = dir * (5.0 + fract(aPhase * 7.13) * 5.0);',
-    '    float tw = (1.0 - uUnfold) * 4.0 / (0.3 + rxz);',
-    '    float c2 = cos(tw), s2 = sin(tw);',
-    '    vec3 q = p; q.xz = mat2(c2, -s2, s2, c2) * q.xz;',
-    '    if (uUnfold > 0.0) { p = q * uUnfold; }',
-    '    else { p = mix(far, vec3(0.0), uGather); ia = smoothstep(0.0, 0.25, uGather) * (1.0 - 0.85 * smoothstep(0.7, 1.0, uGather)); }',
-    '  }',
-    '  float r = length(p);',
-    '  float pulse = 1.0 + uAmp * 0.1 * (0.55 + 0.45 * sin(aPhase * 13.0 + uTime * 6.0)) * smoothstep(0.3, 1.4, r);',
-    '  p *= uSpread * pulse;',
-    '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
-    '  gl_Position = projectionMatrix * mv;',
-    '  gl_PointSize = max(1.2, aSize * uPixel * (18.0 / -mv.z));',
-    '  float tw = 0.8 + 0.2 * sin(uTime * 1.5 + aPhase * 40.0);',
-    '  vColor = aColor;',
-    '  vAlpha = ia * tw * uBright * clamp(1.25 - r * 0.18, 0.3, 1.0) * mix(0.45, 1.0, smoothstep(0.0, 0.5, r)) * mix(0.55, 1.0, smoothstep(-6.8, -3.2, mv.z));',
-    '}'].join('\n');
-  const galaxyPoints = new THREE.Points(pointsGeo(P, CO, SZ, PH), new THREE.ShaderMaterial({
-    uniforms: uniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    vertexShader: GALAXY_VS,
-    fragmentShader: [
-      'varying vec3 vColor; varying float vAlpha;',
-      'void main() {',
-      '  float d = length(gl_PointCoord - 0.5);',
-      '  if (d > 0.5) discard;',
-      '  float a = pow(1.0 - d * 2.0, 2.2) + smoothstep(0.16, 0.0, d) * 0.35;',
-      '  gl_FragColor = vec4(vColor, min(a, 1.0) * vAlpha);',
-      '}'].join('\n')
-  }));
-  galaxyPoints.renderOrder = 1;
-
-  // пыль: тёмные мягкие частицы по внутренней кромке рукавов и дугами на пылевых кольцах.
-  // Тот же вершинный шейдер — пыль вращается вместе с рукавами
-  const DP = [], DC = [], DS = [], DPh = [], DUST = new THREE.Color(0.012, 0.02, 0.05);
-  for (let i = 0; i < (small ? 2600 : 5200); i++) {
-    let r, a;
-    if (rand() < 0.6) {
-      r = 0.35 + Math.pow(rand(), 1.1) * 1.9;
-      a = armAngle(r, rand() < 0.5 ? 0 : Math.PI) - 0.24 + gauss() * 0.06;
-    } else {
-      const l = LANES[Math.floor(rand() * LANES.length)];
-      r = l + gauss() * 0.018; a = rand() * Math.PI * 2;
-      if (Math.sin(a * 2.0 + l * 4.0) < -0.3) continue;       // дуги, а не сплошные кольца
-    }
-    DP.push(Math.cos(a) * r, gauss() * 0.012, Math.sin(a) * r);
-    DC.push(DUST.r, DUST.g, DUST.b); DS.push(3.5 + rand() * 3.5); DPh.push(rand());
-  }
-  const dustUniforms = Object.assign({}, uniforms, { uDust: { value: 0.22 } });
-  const dustPoints = new THREE.Points(pointsGeo(DP, DC, DS, DPh), new THREE.ShaderMaterial({
-    uniforms: dustUniforms, transparent: true, depthWrite: false, blending: THREE.NormalBlending,
-    vertexShader: GALAXY_VS,
-    fragmentShader: [
-      'uniform float uDust; varying vec3 vColor; varying float vAlpha;',
-      'void main() {',
-      '  float d = length(gl_PointCoord - 0.5);',
-      '  if (d > 0.5) discard;',
-      '  gl_FragColor = vec4(vColor, pow(1.0 - d * 2.0, 1.2) * uDust);',
-      '}'].join('\n')
-  }));
-  dustPoints.renderOrder = 2;
-
-  const galaxy = new THREE.Group();          // наклон и разворот диска, как у Андромеды
-  galaxy.rotation.x = 0.92;
-  galaxy.rotation.z = -0.38;
-  galaxy.add(galaxyPoints);
-  galaxy.add(dustPoints);
-
-  // мягкое сияние диска
-  const haze = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 5.6), new THREE.MeshBasicMaterial({
-    map: radialTexture([[0, 'rgba(225,238,255,0.6)'], [0.12, 'rgba(210,215,255,0.4)'], [0.3, 'rgba(200,195,255,0.2)'],
-                        [0.6, 'rgba(120,140,255,0.07)'], [1, 'rgba(60,80,200,0)']]),
-    transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  haze.rotation.x = -Math.PI / 2;
-  galaxy.add(haze);
-
-  // газовые туманности: розовые области звездообразования и голубые отражательные облака
-  function cloudTexture(rgb) {
-    const c = document.createElement('canvas'); c.width = c.height = 256;
-    const g = c.getContext('2d');
-    for (let i = 0; i < 22; i++) {
-      const x = 128 + gauss() * 34, y = 128 + gauss() * 34, r = 30 + rand() * 60;
-      const gr = g.createRadialGradient(x, y, 0, x, y, r);
-      gr.addColorStop(0, 'rgba(' + rgb + ',' + (0.08 + rand() * 0.1).toFixed(2) + ')'); gr.addColorStop(1, 'rgba(' + rgb + ',0)');
-      g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
-    }
-    const t = new THREE.CanvasTexture(c); return t;
-  }
-  const pinkCloud = cloudTexture('255,120,205'), blueCloud = cloudTexture('120,175,255');
-  const clouds = [];
-  for (let i = 0; i < (small ? 16 : 34); i++) {
-    const r = 0.55 + rand() * 1.8, arm = rand() < 0.5 ? 0 : Math.PI;
-    const pink = rand() < 0.55;
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: pink ? pinkCloud : blueCloud, transparent: true,
-      opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
-    sp.userData = { r: r, a: armAngle(r, arm) + gauss() * 0.14, base: pink ? 0.34 : 0.24 };
-    sp.material.rotation = rand() * Math.PI * 2;
-    sp.scale.setScalar(0.22 + rand() * 0.34);
-    galaxy.add(sp); clouds.push(sp);
-  }
-
-  const orb = new THREE.Group();
-  orb.add(galaxy);
-  scene.add(orb);
-
-  // --- далёкие звёзды разных оттенков ---
-  const stars = (function () {
-    const M = 2200, p = new Float32Array(M * 3), c = new Float32Array(M * 3);
-    const tints = [new THREE.Color('#DDE6FF'), new THREE.Color('#B9CCFF'), new THREE.Color('#FFE6C8'), new THREE.Color('#FFFFFF')];
-    for (let i = 0; i < M; i++) {
-      const r = 9 + rand() * 8, th = rand() * Math.PI * 2, ph = Math.acos(2 * rand() - 1);
-      p[i * 3] = r * Math.sin(ph) * Math.cos(th); p[i * 3 + 1] = r * Math.sin(ph) * Math.sin(th); p[i * 3 + 2] = r * Math.cos(ph);
-      const tc = tints[Math.floor(rand() * tints.length)].clone().multiplyScalar(0.5 + rand() * 0.5);
-      c[i * 3] = tc.r; c[i * 3 + 1] = tc.g; c[i * 3 + 2] = tc.b;
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(p, 3));
-    g.setAttribute('color', new THREE.BufferAttribute(c, 3));
-    const s = new THREE.Points(g, new THREE.PointsMaterial({ size: 0.035, vertexColors: true, transparent: true, opacity: 0.8, depthWrite: false }));
-    scene.add(s); return s;
+  const bhUniforms = {
+    uTime: { value: 0 }, uCam: { value: new THREE.Vector3() }, uCamRot: { value: new THREE.Matrix3() },
+    uTanH: { value: Math.tan(27.5 * Math.PI / 180) }, uAspect: { value: 1 },
+    uDisk: { value: new THREE.Matrix3() }, uDiskI: { value: 1 }, uDiskOut: { value: 15 }, uBg: { value: 1 },
+    uAmp: { value: 0 }, uPhase: { value: 0 }, uRing: { value: 0.3 }, uHeat: { value: 1 }, uTurb: { value: 1 },
+    tHist: { value: null }, uBlend: { value: 1 }, uJitter: { value: new THREE.Vector2() }, uWave: { value: new THREE.Vector3(0, 0, 0.12) },
+    uPlanet: { value: new THREE.Vector4(0, 0, 0, 0) }
+  };
+  (function diskBasis() {
+    const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(DISK_TILT, 0, DISK_ROLL, 'ZXY'));
+    const e = m.elements;                                  // столбцы: x, нормаль y, z
+    bhUniforms.uDisk.value.set(e[0], e[4], e[8], e[1], e[5], e[9], e[2], e[6], e[10]);
   })();
-
-  // --- яркие звёзды переднего плана с лучиками, как на снимке ---
-  function spikeTexture() {
-    const c = document.createElement('canvas'); c.width = c.height = 128;
-    const g = c.getContext('2d');
-    const rg = g.createRadialGradient(64, 64, 0, 64, 64, 18);
-    rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = rg; g.fillRect(0, 0, 128, 128);
-    [[0, 64, 128, 64], [64, 0, 64, 128]].forEach(function (l) {
-      const lg = g.createLinearGradient(l[0], l[1], l[2], l[3]);
-      lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.5, 'rgba(255,255,255,0.9)'); lg.addColorStop(1, 'rgba(255,255,255,0)');
-      g.fillStyle = lg;
-      if (l[1] === l[3]) g.fillRect(0, 63, 128, 2); else g.fillRect(63, 0, 2, 128);
-    });
-    return new THREE.CanvasTexture(c);
+  const bhScene = new THREE.Scene();
+  const bhCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  bhScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+    uniforms: bhUniforms, depthTest: false, depthWrite: false,
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+    fragmentShader: BH_FRAG
+  })));
+  // два буфера по очереди: новый кадр смешивается с накопленным — чёткие тонкие кольца и звёзды без «лесенки»
+  const bhFloat = renderer.capabilities.isWebGL2 || renderer.extensions.get('OES_texture_half_float');
+  function bhTarget() {
+    return new THREE.WebGLRenderTarget(4, 4, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+      format: THREE.RGBAFormat, type: bhFloat ? THREE.HalfFloatType : THREE.UnsignedByteType, depthBuffer: false, stencilBuffer: false });
   }
-  const spikeTex = spikeTexture();
-  const glints = [];
-  for (let i = 0; i < 12; i++) {
-    const m = new THREE.SpriteMaterial({ map: spikeTex, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false,
-      color: new THREE.Color(['#FFFFFF', '#DCE6FF', '#FFE8CC'][i % 3]) });
-    const s = new THREE.Sprite(m);
-    s.position.set((rand() - 0.5) * 11, (rand() - 0.5) * 6.5, -1.5 - rand() * 2);
-    if (Math.hypot(s.position.x, s.position.y) < 2.4) s.position.x += s.position.x < 0 ? -2.4 : 2.4;   // не поверх центра
-    s.scale.setScalar(0.12 + rand() * 0.16);
-    s.userData.ph = rand() * 10;
-    scene.add(s); glints.push(s);
-  }
+  const bhRTs = [bhTarget(), bhTarget()];
+  const bhTAA = { i: 0, frame: 0, reset: true, lastCam: new THREE.Vector3() };
+  const bhQuality = { scale: small ? 0.7 : 1.0 };
+  const bgMat = new THREE.ShaderMaterial({
+    uniforms: { tBH: { value: bhRTs[0].texture } }, depthTest: false, depthWrite: false,
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.999, 1.0); }',
+    fragmentShader: 'uniform sampler2D tBH; varying vec2 vUv; void main() { gl_FragColor = vec4(texture2D(tBH, vUv).rgb, 1.0); }'
+  });
+  const bg = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bgMat);
+  bg.frustumCulled = false; bg.renderOrder = -10;
+  scene.add(bg);
+  function halton(i, b) { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; }
 
-  // --- голографические кольца (в духе «реактора» Джарвиса), всегда лицом к зрителю ---
+  // --- голографические кольца прицела (в духе Джарвиса), лежат вокруг тени ---
   const hud = new THREE.Group();
   scene.add(hud);
-  const ION = 0x86d6ff;
+  const ION = 0xFFD2A1;
   function lineMat(op) { return new THREE.LineBasicMaterial({ color: ION, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false }); }
   function arc(r, a0, a1, seg) {
     const pts = [];
@@ -1095,181 +1080,52 @@
   }
   const rings = [];
   function addRing(obj, base, spin) { obj.userData.base = base; obj.userData.spin = spin; hud.add(obj); rings.push(obj); return obj; }
-  (function containment() {
-    const pts = [], SEG = 28;
-    for (let i = 0; i < SEG; i++) {
-      const a0 = i / SEG * Math.PI * 2, a1 = a0 + Math.PI * 2 / SEG * 0.62, r = 0.27;
-      for (let j = 0; j < 6; j++) {
-        const u0 = a0 + (a1 - a0) * j / 6, u1 = a0 + (a1 - a0) * (j + 1) / 6;
-        pts.push(Math.cos(u0) * r, Math.sin(u0) * r, 0, Math.cos(u1) * r, Math.sin(u1) * r, 0);
-      }
-    }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    addRing(new THREE.LineSegments(g, lineMat(0.4)), 0.4, 0.22);
-  })();
-  addRing(new THREE.Line(arc(0.36, 0, Math.PI * 2, 128), lineMat(0.2)), 0.2, 0);
+  const HR = RS * SHADOW;                                   // радиус тени — от него строится прицел
   (function ticks() {
     const pts = [];
-    for (let i = 0; i < 72; i++) {
-      const a = i / 72 * Math.PI * 2, long = i % 6 === 0;
-      const r0 = 0.405, r1 = long ? 0.45 : 0.425;
+    for (let i = 0; i < 120; i++) {
+      const a = i / 120 * Math.PI * 2, long = i % 10 === 0;
+      const r0 = HR * 1.62, r1 = long ? HR * 1.7 : HR * 1.65;
       pts.push(Math.cos(a) * r0, Math.sin(a) * r0, 0, Math.cos(a) * r1, Math.sin(a) * r1, 0);
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    addRing(new THREE.LineSegments(g, lineMat(0.22)), 0.22, 0.04);
+    addRing(new THREE.LineSegments(g, lineMat(0.2)), 0.2, 0.025);
   })();
-  addRing(new THREE.Line(arc(0.72, 0.2, 1.5, 64), lineMat(0.3)), 0.3, 0.12);
-  addRing(new THREE.Line(arc(0.76, 2.4, 3.3, 48), lineMat(0.24)), 0.24, -0.08);
-  addRing(new THREE.Line(arc(0.8, 4.1, 5.6, 64), lineMat(0.18)), 0.18, 0.06);
+  addRing(new THREE.Line(arc(HR * 1.86, 0.25, 1.35, 64), lineMat(0.32)), 0.32, 0.09);
+  addRing(new THREE.Line(arc(HR * 1.9, 2.5, 3.2, 48), lineMat(0.24)), 0.24, -0.06);
+  addRing(new THREE.Line(arc(HR * 1.94, 4.05, 5.5, 64), lineMat(0.18)), 0.18, 0.05);
   (function dashed() {
-    const l = new THREE.Line(arc(1.02, 0, Math.PI * 2, 256), new THREE.LineDashedMaterial({ color: ION, dashSize: 0.018, gapSize: 0.034, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const l = new THREE.Line(arc(HR * 2.35, 0, Math.PI * 2, 256), new THREE.LineDashedMaterial({ color: ION, dashSize: 0.016, gapSize: 0.04, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false }));
     l.computeLineDistances();
-    addRing(l, 0.12, -0.02);
+    addRing(l, 0.1, -0.015);
   })();
 
-  // Круговой эквалайзер голоса: при речи лучи вокруг ядра «дышат» голосом
-  const EQ = 128;
+  // Круговой эквалайзер голоса: тонкие лучи сразу за фотонным кольцом «дышат» голосом
+  const EQ = 160;
   const eqPos = new Float32Array(EQ * 6);
   const eqGeo = new THREE.BufferGeometry(); eqGeo.setAttribute('position', new THREE.BufferAttribute(eqPos, 3));
   const eq = new THREE.LineSegments(eqGeo, lineMat(0.5));
   hud.add(eq);
+  const sparks = [];                                       // в прежней сцене были спутники-искры; оставлено для совместимости
 
-  // --- звезда в центре: живая фотосфера, корона с протуберанцами, лучи ---
-  function radialTexture(stops) {
-    const c = document.createElement('canvas'); c.width = c.height = 512;
-    const g = c.getContext('2d'), gr = g.createRadialGradient(256, 256, 0, 256, 256, 256);
-    stops.forEach(function (s) { gr.addColorStop(s[0], s[1]); });
-    g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
-    return new THREE.CanvasTexture(c);
-  }
-  const halo = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: radialTexture([[0, 'rgba(170,210,255,0.45)'], [0.3, 'rgba(150,160,255,0.12)'], [1, 'rgba(40,70,180,0)']]),
-    transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false }));
-  scene.add(halo);
-
-  const STAR_R = 0.3;
-  const starUniforms = { uTime: { value: 0 }, uBright: { value: 0.85 }, uFlare: { value: 0 }, uFlareDir: { value: new THREE.Vector3(0, 0, 1) } };
-  const star = new THREE.Mesh(new THREE.SphereGeometry(STAR_R, 128, 96), new THREE.ShaderMaterial({
-    uniforms: starUniforms,
-    vertexShader: [
-      'varying vec3 vN; varying vec3 vV; varying vec3 vP;',
-      'void main() {',
-      '  vP = position;',
-      '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
-      '  vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);',
-      '  gl_Position = projectionMatrix * mv;',
-      '}'].join('\n'),
-    fragmentShader: NOISE + '\n' + [
-      'uniform float uTime; uniform float uBright; uniform float uFlare; uniform vec3 uFlareDir;',
-      'varying vec3 vN; varying vec3 vV; varying vec3 vP;',
-      'void main() {',
-      '  vec3 d = normalize(vP);',
-      '  float big  = fbm(d * 3.0 + vec3(0.0, uTime * 0.04, uTime * 0.02));',          // крупные «материки» плазмы
-      '  float gran = fbm(d * 14.0 + vec3(uTime * 0.12, -uTime * 0.08, 0.0));',         // грануляция
-      '  float veins = abs(vnoise(d * 30.0 + uTime * 0.3) * 2.0 - 1.0);',               // тёмные прожилки между гранулами
-      '  float h = big * 0.55 + gran * 0.45 - veins * 0.1;',
-      '  float mu = clamp(dot(vN, vV), 0.0, 1.0);',
-      '  float limb = pow(mu, 0.5);',                                                     // потемнение к краю диска
-      '  vec3 deep = vec3(0.08, 0.16, 0.55), amber = vec3(0.2, 0.45, 1.0), gold = vec3(0.55, 0.8, 1.0), white = vec3(0.9, 0.96, 1.0);',
-      '  vec3 c = mix(deep, amber, smoothstep(0.25, 0.5, h));',
-      '  c = mix(c, gold, smoothstep(0.45, 0.65, h));',
-      '  c = mix(c, white, smoothstep(0.6, 0.82, h) * limb);',
-      '  float spotN = fbm(d * 4.0 + vec3(11.0, 3.0, uTime * 0.01));',                   // солнечные пятна: полутень и тёмная тень
-      '  c = mix(c, c * 0.45, smoothstep(0.66, 0.74, spotN) * 0.8);',
-      '  c = mix(c, c * 0.18, smoothstep(0.73, 0.79, spotN));',
-      '  c += smoothstep(0.55, 0.63, gran) * (1.0 - limb) * vec3(0.6, 0.85, 1.0) * 0.22;',   // яркие факелы у края диска
-      '  c *= (0.3 + 0.85 * limb) * uBright;',
-      '  c += vec3(0.85, 0.95, 1.0) * pow(max(dot(d, uFlareDir), 0.0), 60.0) * uFlare * 1.6;',   // вспышка на поверхности
-      '  gl_FragColor = vec4(c, 1.0);',
-      '}'].join('\n')
-  }));
-  scene.add(star);
-
-  // Корона: плоскость, всегда повёрнутая к зрителю; тонкие изменчивые лучи-протуберанцы
-  const coronaUniforms = { uTime: { value: 0 }, uInt: { value: 0.4 }, uAmp: { value: 0 }, uFlare: { value: 0 }, uFlareAng: { value: 0 } };
-  const corona = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 2.7), new THREE.ShaderMaterial({
-    uniforms: coronaUniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: NOISE + '\n' + [
-      'uniform float uTime; uniform float uInt; uniform float uAmp; uniform float uFlare; uniform float uFlareAng; varying vec2 vUv;',
-      'void main() {',
-      '  vec2 p = vUv * 2.0 - 1.0; float r = length(p); if (r > 1.0) discard;',
-      '  float a = atan(p.y, p.x);',
-      '  float rs = 0.222;',                                                   // радиус звезды в координатах плоскости
-      '  float x = max(r - rs, 0.0);',
-      '  float streak = fbm(vec3(cos(a) * 3.0, sin(a) * 3.0, uTime * 0.12 - x * 2.0));',
-      '  float fine   = fbm(vec3(cos(a) * 9.0, sin(a) * 9.0, uTime * 0.2 - x * 4.0));',
-      '  float rays = pow(streak * 0.7 + fine * 0.3, 3.0) * 2.6;',
-      '  float I = exp(-x * 14.0) * 0.8 + exp(-x * 4.2) * 0.3 + rays * exp(-x * 3.2) * (0.45 + uAmp * 0.8);',
-      '  I *= uInt * smoothstep(1.0, 0.7, r) * mix(0.18, 1.0, smoothstep(rs * 0.85, rs * 1.02, r));',
-      '  vec3 hot = vec3(0.86, 0.94, 1.0), warm = vec3(0.42, 0.68, 1.0), lav = vec3(0.6, 0.55, 1.0);',
-      '  vec3 col = mix(hot, warm, smoothstep(0.0, 0.12, x));',
-      '  col = mix(col, lav, smoothstep(0.15, 0.6, x));',
-      '  float prom = pow(fbm(vec3(cos(a) * 7.0, sin(a) * 7.0, uTime * 0.05)), 5.0) * 9.0;',        // протуберанцы у края
-      '  float loops = prom * exp(-x * 16.0) * smoothstep(0.0, 0.01, x);',
-      '  float chromo = exp(-x * 70.0) * smoothstep(0.0, 0.004, x);',                              // тонкая красноватая хромосфера
-      '  float da = abs(atan(sin(a - uFlareAng), cos(a - uFlareAng)));',
-      '  float flare = uFlare * exp(-da * da / 0.04) * exp(-x * 5.0) * 1.4;',                      // выброс вспышки в корону
-      '  vec3 halpha = vec3(0.45, 0.72, 1.0);',     // плазменные протуберанцы голубой звезды
-      '  gl_FragColor = vec4(col * clamp(I, 0.0, 1.0) + halpha * (loops + chromo) * uInt + vec3(0.85, 0.95, 1.0) * flare, 1.0);',
-      '}'].join('\n')
-  }));
-  scene.add(corona);
-
-  // Лёгкие дифракционные лучи — «кинематографичная» звезда, но очень деликатно
-  const spikes = new THREE.Sprite(new THREE.SpriteMaterial({ map: spikeTex, transparent: true, opacity: 0.08,
-    blending: THREE.AdditiveBlending, depthWrite: false, color: new THREE.Color('#D6E8FF') }));
-  spikes.material.rotation = 0.3;
-  scene.add(spikes);
-
-  // --- метеоры: редкие падающие звёзды на дальнем плане ---
-  const meteorGeo = new THREE.BufferGeometry();
-  meteorGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-  meteorGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array([1, 1, 1, 0, 0, 0]), 3));
-  const meteor = new THREE.Line(meteorGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-  scene.add(meteor);
-  const met = { active: false, next: 4 + Math.random() * 6, t: 0, x: 0, y: 0, dx: 0, dy: 0 };
-
-  // --- пылинки у самой камеры: мягкие размытые точки дают глубину ---
+  // --- пылинки у самой камеры: мягкие тёплые точки дают глубину ---
   const moteTex = (function () {
     const c = document.createElement('canvas'); c.width = c.height = 128;
     const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gr.addColorStop(0, 'rgba(200,220,255,0.9)'); gr.addColorStop(0.4, 'rgba(160,190,255,0.25)'); gr.addColorStop(1, 'rgba(120,160,255,0)');
+    gr.addColorStop(0, 'rgba(255,226,196,0.9)'); gr.addColorStop(0.4, 'rgba(255,196,150,0.22)'); gr.addColorStop(1, 'rgba(255,170,120,0)');
     g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
     return new THREE.CanvasTexture(c);
   })();
-  const MOTES = small ? 30 : 60, motePos = new Float32Array(MOTES * 3), moteVel = [];
+  const MOTES = small ? 24 : 48, motePos = new Float32Array(MOTES * 3), moteVel = [];
   for (let i = 0; i < MOTES; i++) {
-    motePos[i * 3] = (Math.random() - 0.5) * 6; motePos[i * 3 + 1] = (Math.random() - 0.5) * 3.6; motePos[i * 3 + 2] = 1.2 + Math.random() * 2;
-    moteVel.push([(Math.random() - 0.5) * 0.03, 0.01 + Math.random() * 0.025]);
+    motePos[i * 3] = (rand() - 0.5) * 6; motePos[i * 3 + 1] = (rand() - 0.5) * 3.6; motePos[i * 3 + 2] = 1.2 + rand() * 2;
+    moteVel.push([(rand() - 0.5) * 0.03, 0.008 + rand() * 0.02]);
   }
   const moteGeo = new THREE.BufferGeometry();
   moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
-  const motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ map: moteTex, size: 0.09, transparent: true, opacity: 0.16,
+  const motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ map: moteTex, size: 0.08, transparent: true, opacity: 0.1,
     blending: THREE.AdditiveBlending, depthWrite: false }));
   scene.add(motes);
-
-  // --- спутники-искры: три огонька на наклонных орбитах вокруг звезды, со шлейфом ---
-  const sparks = [];
-  [[0.62, 0.9, 0.35, 0.55], [0.78, -0.6, 1.2, 0.38], [0.95, 0.25, -0.9, 0.27]].forEach(function (o, i) {
-    const TRAIL = 36;
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL * 3), 3));
-    const colors = new Float32Array(TRAIL * 3);
-    for (let j = 0; j < TRAIL; j++) { const f = Math.pow(1 - j / TRAIL, 2); colors[j * 3] = 0.55 * f; colors[j * 3 + 1] = 0.85 * f; colors[j * 3 + 2] = 1.0 * f; }
-    g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    const line = new THREE.Line(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
-    const head = new THREE.Sprite(new THREE.SpriteMaterial({ map: spikeTex, color: new THREE.Color('#BFE3FF'), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
-    head.scale.setScalar(0.07);
-    scene.add(line); scene.add(head);
-    sparks.push({ r: o[0], tiltX: o[1], tiltZ: o[2], speed: o[3], phase: i * 2.1, line: line, head: head, TRAIL: TRAIL });
-  });
-  const sparkEuler = new THREE.Euler(), sparkV = new THREE.Vector3();
-  function sparkPos(sp, ang, out) {
-    out.set(Math.cos(ang) * sp.r, 0, Math.sin(ang) * sp.r);
-    sparkEuler.set(sp.tiltX, 0, sp.tiltZ);
-    return out.applyEuler(sparkEuler);
-  }
 
   // --- звуковой дизайн: синтез прямо в браузере, без файлов ---
   const audio = {
@@ -1440,7 +1296,7 @@
   // --- солнечные вспышки: редкое яркое событие на звезде ---
   const flare = { active: false, t: 0, next: 10 + Math.random() * 15 };
 
-  // --- заставка: после минуты тишины камера медленно облетает галактику ---
+  // --- заставка: после минуты тишины камера медленно облетает чёрную дыру ---
   const SAVER_AFTER = 180;
   const saverState = { v: 0, ang: 0, forced: false, forcedAt: 0, last: performance.now() };
   ['pointermove', 'pointerdown', 'keydown', 'wheel'].forEach(function (ev) {
@@ -1459,9 +1315,9 @@
   // Состояния
   // ===========================================================================
   const STATES = {
-    idle:      { spread: 1.0,  core: 0.85, bright: 0.34, glow: 0.22, rings: 0.32, rot: 1.0, arcSpin: 1,   label: 'ожидание' },
+    idle:      { spread: 1.0,  core: 0.8,  bright: 0.45, glow: 0.25, rings: 0.3,  rot: 1.0, arcSpin: 1,   label: 'ожидание' },
     listening: { spread: 0.86, core: 1.0,  bright: 0.8,  glow: 0.6,  rings: 1.0,  rot: 1.5, arcSpin: 1.6, label: 'слушаю' },
-    thinking:  { spread: 0.95, core: 0.8,  bright: 0.58, glow: 0.4,  rings: 0.85, rot: 2.6, arcSpin: 7,   label: 'думаю' },
+    thinking:  { spread: 0.95, core: 0.8,  bright: 0.58, glow: 0.4,  rings: 0.85, rot: 2.6, arcSpin: 3,   label: 'думаю' },
     speaking:  { spread: 1.03, core: 1.0,  bright: 0.9,  glow: 0.75, rings: 1.0,  rot: 1.2, arcSpin: 1.3, label: 'говорю' }
   };
   let state = 'idle', dimTarget = 1;
@@ -1552,199 +1408,177 @@
   function resize() {
     const w = window.innerWidth, h = window.innerHeight;
     renderer.setSize(w, h, false);
-    uniforms.uPixel.value = renderer.getPixelRatio();
     if (composer) {
       if (composer.setPixelRatio) composer.setPixelRatio(renderer.getPixelRatio());
       composer.setSize(w, h);
     }
+    const q = bhQuality.scale * Math.min(window.devicePixelRatio || 1, 1.5);
+    const bw = Math.max(4, Math.round(w * q)), bh = Math.max(4, Math.round(h * q));
+    bhRTs.forEach(function (rt) { rt.setSize(bw, bh); });
+    bhTAA.w = bw; bhTAA.h = bh; bhTAA.reset = true;
     camera.aspect = w / h;
-    camera.userData.baseZ = w / h < 0.8 ? 5.6 : 4.4;
+    camera.userData.baseZ = w / h < 0.8 ? 7.0 : 5.5;
     camera.updateProjectionMatrix();
   }
   window.addEventListener('resize', resize);
   resize();
 
   const clock = new THREE.Clock();
-  const perf = { frames: 0, start: 0, tuned: small };
-  function frame() {
-    if (!perf.tuned) {
-      if (perf.frames === 20) perf.start = performance.now();
-      if (perf.frames === 140) {
-        const fps = 120000 / (performance.now() - perf.start);
-        if (fps < 45) { renderer.setPixelRatio(1.5); resize(); }
-        perf.tuned = true;
+  // автоподстройка качества: если кадров мало, считаем чёрную дыру в меньшем буфере
+  const perf = { frames: 0, start: 0, checks: 0 };
+  function tunePerf() {
+    perf.frames++;
+    if (perf.frames === 30) perf.start = performance.now();
+    if (perf.frames === 150) {
+      const fps = 120000 / (performance.now() - perf.start);
+      perf.checks++;
+      if (fps < 52 && bhQuality.scale > 0.45) {
+        bhQuality.scale = Math.max(0.45, bhQuality.scale * (fps < 30 ? 0.65 : 0.82));
+        if (fps < 35 && renderer.getPixelRatio() > 1.25) renderer.setPixelRatio(1.25);
+        resize();
+        if (perf.checks < 5) perf.frames = 0;
       }
-      perf.frames++;
     }
+  }
+  // «вес» сцены: переходы с инерцией, волна и захват прицела при смене состояния
+  const bhfx = { prev: 'idle', wave: -1, waveAmp: 0, waveDur: 1.8, lock: 0, spinV: 1 };
+  function gravWave(amp, dur) { bhfx.wave = 0; bhfx.waveAmp = amp; bhfx.waveDur = dur || 1.8; }
+  const planetV = new THREE.Vector3();
+  function smoothstep01(x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }
+  function frame() {
+    tunePerf();
     const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
     intro.lastFrame = performance.now();
     updateIntro(dt);
     const I = intro;
-    uniforms.uGather.value = I.gather; uniforms.uUnfold.value = I.unfold;
-    const tg = STATES[state], k = 1 - Math.pow(0.002, dt);
+    const tg = STATES[state];
+    const k = 1 - Math.pow(0.035, dt);                      // ≈1 с на переход — тяжело и плавно
     ['spread', 'core', 'bright', 'glow', 'rings', 'rot', 'arcSpin'].forEach(function (key) { cur[key] += (tg[key] - cur[key]) * k; });
     cur.dim += (dimTarget - cur.dim) * k;
     const lvl = voiceLevel(t);
-    cur.amp += (lvl - cur.amp) * Math.min(1, dt * (lvl > cur.amp ? 18 : 4));
-
+    cur.amp += (lvl - cur.amp) * Math.min(1, dt * (lvl > cur.amp ? 14 : 3.5));
+    const amp = reduceMotion ? cur.amp * 0.3 : cur.amp;
     const speed = reduceMotion ? 0.2 : 1;
-    const breathe = reduceMotion ? 0 : Math.sin(t * (state === 'thinking' ? 2.2 : 0.8)) * 0.03;
-    uniforms.uTime.value = t;
-    uniforms.uSpread.value = cur.spread + breathe * 0.5;
-    uniforms.uAmp.value = reduceMotion ? cur.amp * 0.3 : cur.amp;
-    uniforms.uBright.value = cur.bright * cur.dim;
+    const breathe = reduceMotion ? 0 : Math.sin(t * (state === 'thinking' ? 1.6 : 0.55)) * 0.5 + 0.5;
 
-    uniforms.uRot.value += dt * 0.22 * cur.rot * speed;
-    haze.rotation.z = -uniforms.uRot.value * 0.45;
-    clouds.forEach(function (c) {                          // та же скорость, что у звёзд на этом радиусе
-      const A = c.userData.a - uniforms.uRot.value * (0.5 / (0.3 + c.userData.r));
-      const rr = c.userData.r * uniforms.uSpread.value;
-      c.position.set(Math.cos(A) * rr, 0, Math.sin(A) * rr);
-      c.material.opacity = c.userData.base * (0.45 + cur.bright * 0.55) * cur.dim * I.unfold;
-    });
-    glints.forEach(function (s) { s.material.opacity = (0.35 + 0.25 * Math.sin(t * 1.3 + s.userData.ph)) * cur.dim * I.bg; });
-    stars.material.opacity = 0.8 * I.bg;
-    orb.rotation.x = Math.sin(t * 0.06) * 0.06;
-    orb.rotation.y = Math.sin(t * 0.045) * 0.08;
-    stars.rotation.y += dt * 0.004 * speed;
+    if (state !== bhfx.prev) {
+      if (state === 'listening') { gravWave(1, 1.9); bhfx.lock = 1; }
+      else if (state === 'speaking' && bhfx.prev !== 'speaking') { gravWave(0.45, 1.6); bhfx.lock = Math.max(bhfx.lock, 0.4); }
+      bhfx.prev = state;
+    }
+    if (!reduceMotion && I.mode === 'intro' && I.flash > 0.95 && bhfx.wave < 0) gravWave(1.5, 2.6);
+    if (bhfx.wave >= 0) { bhfx.wave += dt / bhfx.waveDur; if (bhfx.wave >= 1) bhfx.wave = -1; }
+    bhfx.lock *= Math.exp(-dt * 2.2);
 
-    // кольца
-    const ringVis = cur.rings * cur.dim * I.rings;
+    // масса растёт в заставке (линзирование «включается»), в финале дыра схлопывается
+    const mass = Math.max(0.004, I.mode === 'outro' ? Math.min(1, I.star) : I.gather);
+    const rsW = RS * mass;
+
+    // камера: наезд в заставке, отъезд в финале, медленный дрейф и мягкий параллакс
+    const it = (I.elapsed || 0) / (I.scale || 1);
+    let push = 0, lift = 0;
+    if (I.active && I.mode === 'intro') { const p = 1 - easeIO(seg(it, 0.0, 6.4)); push = p * 1.35; lift = p * 0.7; }
+    else if (I.mode === 'outro') { const p = easeIO(seg(it, 0.2, 2.9)); push = p * 0.5; lift = p * 0.15; }
+    const quiet = (performance.now() - saverState.last) / 1000;
+    const saverOn = saverState.forced || (state === 'idle' && quiet > SAVER_AFTER && page.hidden && !openPanel);
+    if (saverOn) {
+      saverState.v += (1 - saverState.v) * Math.min(1, dt * 0.4);
+      saverState.ang += dt * 0.035 * speed;
+    } else {
+      saverState.ang = Math.atan2(Math.sin(saverState.ang), Math.cos(saverState.ang));
+      saverState.ang *= Math.pow(0.12, dt);
+      if (Math.abs(saverState.ang) < 0.3) saverState.v += (0 - saverState.v) * Math.min(1, dt * 1.0);
+    }
+    document.body.classList.toggle('saver', saverState.v > 0.35);
+    const sv = saverState.v, baseZ = (camera.userData.baseZ || 4.4) * (1 + push), oR = baseZ * 1.1;
+    par.x += (mx * 0.18 - par.x) * Math.min(1, dt * 1.2);
+    par.y += (-my * 0.12 - par.y) * Math.min(1, dt * 1.2);
+    const drift = reduceMotion ? 0 : 1;
+    const dAng = Math.sin(t * 0.031) * 0.07 * drift, dLift = Math.sin(t * 0.023 + 1.3) * 0.06 * drift;
+    const zoom = 1 - bhfx.lock * 0.012 - amp * 0.008;          // лёгкий «вдох» камеры при пробуждении и речи
+    camera.position.set(
+      (par.x + Math.sin(dAng) * baseZ) * (1 - sv) + Math.sin(saverState.ang) * oR * sv,
+      (par.y + dLift + lift) * (1 - sv) + (0.35 + 0.3 * Math.sin(t * 0.05)) * sv,
+      (Math.cos(dAng) * baseZ * zoom) * (1 - sv) + Math.cos(saverState.ang) * oR * sv);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
+
+    // чёрная дыра
+    const U = bhUniforms;
+    U.uTime.value = t;
+    U.uCam.value.copy(camera.position).multiplyScalar(1 / rsW);
+    U.uCamRot.value.setFromMatrix4(camera.matrixWorld);
+    U.uAspect.value = camera.aspect;
+    U.uTanH.value = Math.tan(camera.fov * Math.PI / 360);
+    const spinT = state === 'thinking' ? 2.4 : state === 'speaking' ? 1.3 : 1;
+    bhfx.spinV += (spinT - bhfx.spinV) * (1 - Math.pow(0.25, dt));   // у диска есть инерция: разгон и торможение
+    U.uPhase.value += dt * 0.5 * bhfx.spinV * cur.rot * speed * (1 + amp * 0.35);
+    U.uTurb.value += ((state === 'thinking' ? 3 : 1) - U.uTurb.value) * k;
+    U.uDiskOut.value = 2.7 + 19.3 * I.unfold;
+    U.uDiskI.value = (0.66 + cur.bright * 0.3 + amp * 0.22 + breathe * 0.04 + bhfx.lock * 0.12) * (0.55 + cur.dim * 0.45) * Math.min(1, I.unfold * 1.6) + I.flash * 1.1;
+    U.uHeat.value = 0.9 + cur.core * 0.12 + amp * 0.12;
+    U.uRing.value = ((0.42 + cur.glow * 0.3 + amp * 0.85 + bhfx.lock * 0.5) * cur.dim * Math.min(1, I.star) + I.flash * 2.2) * (mass > 0.05 ? 1 : 0);
+    U.uBg.value = I.bg * (0.65 + cur.dim * 0.35);
+    // планета на наклонной орбите — даёт почувствовать масштаб дыры (как планета Миллер)
+    const pa = 2.2 + Math.sin(t * 0.011) * 0.33, pr = 12.5, inc = 0.36;   // дрейфует над диском и никогда не входит в него
+    planetV.set(Math.cos(pa) * pr, Math.sin(pa) * pr * Math.sin(inc), Math.sin(pa) * pr * Math.cos(inc)).applyMatrix3(U.uDisk.value);
+    U.uPlanet.value.set(planetV.x, planetV.y, planetV.z, 0.36 * smoothstep01((I.unfold - 0.5) / 0.5));
+    if (bhfx.wave >= 0) {
+      const w = bhfx.wave;
+      U.uWave.value.set(0.05 + w * 1.9, bhfx.waveAmp * Math.pow(1 - w, 1.6) * smoothstep01(w * 6), 0.1 + w * 0.12);
+    } else U.uWave.value.y = 0;
+
+    // временное сглаживание: субпиксельный сдвиг + смешивание с прошлым кадром
+    const camMove = camera.position.distanceTo(bhTAA.lastCam);
+    bhTAA.lastCam.copy(camera.position);
+    bhTAA.frame = (bhTAA.frame + 1) % 16;
+    const jx = (halton(bhTAA.frame + 1, 2) - 0.5) * 2 / bhTAA.w, jy = (halton(bhTAA.frame + 1, 3) - 0.5) * 2 / bhTAA.h;
+    U.uJitter.value.set(reduceMotion ? 0 : jx, reduceMotion ? 0 : jy);
+    let blend = 0.2 + Math.min(0.6, camMove * 35) + (bhfx.wave >= 0 ? 0.3 : 0) + (I.active ? 0.3 : 0);
+    if (bhTAA.reset) { blend = 1; bhTAA.reset = false; }
+    U.uBlend.value = Math.min(1, blend);
+    const src = bhRTs[bhTAA.i], dst = bhRTs[1 - bhTAA.i];
+    U.tHist.value = src.texture;
+    renderer.setRenderTarget(dst);
+    renderer.render(bhScene, bhCam);
+    renderer.setRenderTarget(null);
+    bgMat.uniforms.tBH.value = dst.texture;
+    bhTAA.i = 1 - bhTAA.i;
+
+    // кольца прицела: при пробуждении «захватывают» цель — сходятся из чуть большего радиуса
+    const ringVis = cur.rings * cur.dim * I.rings * (1 - sv);
     rings.forEach(function (r) {
       r.rotation.z += dt * r.userData.spin * cur.arcSpin * speed;
-      r.material.opacity = r.userData.base * ringVis;
+      r.material.opacity = r.userData.base * ringVis * (1 + bhfx.lock * 0.8);
     });
-    hud.scale.setScalar(1.36 + cur.amp * 0.05);
-    hud.rotation.x = -my * 0.25; hud.rotation.y = mx * 0.35;
+    hud.position.set(0, 0, 0);
+    hud.quaternion.copy(camera.quaternion);
+    const intoRings = I.active ? 1 + (1 - I.rings) * 0.25 : 1;
+    hud.scale.setScalar(Math.max(0.001, mass) * (1 + amp * 0.02 + bhfx.lock * 0.07) * intoRings);
 
-    // эквалайзер
-    const eqAmp = state === 'speaking' ? cur.amp : state === 'listening' ? cur.amp * 0.8 : 0;
+    // эквалайзер — сразу за фотонным кольцом, плавные «волны» голоса
+    const eqAmp = state === 'speaking' ? amp : state === 'listening' ? amp * 0.8 : 0;
     for (let i = 0; i < EQ; i++) {
-      const a = i / EQ * Math.PI * 2 + t * 0.05;
-      const f = Math.abs(Math.sin(i * 0.9 + t * 8.5) * Math.sin(i * 0.37 - t * 3.9)) * 0.7 + Math.abs(Math.sin(i * 2.3 + t * 5)) * 0.3;
-      const r0 = 0.52, len = 0.006 + eqAmp * (0.04 + 0.14 * f);
+      const a = i / EQ * Math.PI * 2 + t * 0.03;
+      const f = Math.abs(Math.sin(i * 0.21 + t * 3.2) * Math.sin(i * 0.083 - t * 1.7)) * 0.75 + Math.abs(Math.sin(i * 0.53 + t * 2.1)) * 0.25;
+      const r0 = HR * 1.3, len = HR * (0.008 + eqAmp * (0.05 + 0.2 * f));
       const ca = Math.cos(a), sa = Math.sin(a), o = i * 6;
       eqPos[o] = ca * r0; eqPos[o + 1] = sa * r0; eqPos[o + 2] = 0;
       eqPos[o + 3] = ca * (r0 + len); eqPos[o + 4] = sa * (r0 + len); eqPos[o + 5] = 0;
     }
     eqGeo.attributes.position.needsUpdate = true;
-    eq.material.opacity = (0.18 + eqAmp * 0.6) * ringVis;
+    eq.material.opacity = (0.08 + eqAmp * 0.5) * ringVis;
 
-    // звезда
-    const g = (cur.glow + cur.amp * 0.2) * cur.dim;
-    const c = cur.core * (1 + cur.amp * 0.05) * (1 + breathe * 0.4);
-    cur.spin += ((state === 'thinking' ? 3 : 1) - cur.spin) * k;
-    cur.phase += dt * cur.spin * speed;                    // плазма течёт быстрее, когда Atlas думает
-    star.scale.setScalar(Math.max(0.0001, c * I.star));
-    star.visible = I.star > 0.001;
-    starUniforms.uTime.value = cur.phase;
-    const life = 1 + 0.07 * Math.sin(t * 0.7) + 0.03 * Math.sin(t * 2.3);        // звезда «дышит» и в тишине
-    starUniforms.uBright.value = (0.72 + g * 0.5) * life * (0.6 + cur.dim * 0.4);
-    corona.quaternion.copy(camera.quaternion);
-    corona.scale.setScalar(c * (1 + cur.amp * 0.12) * Math.max(0.25, I.star));
-    coronaUniforms.uTime.value = cur.phase;
-    coronaUniforms.uAmp.value = reduceMotion ? cur.amp * 0.3 : cur.amp;
-    coronaUniforms.uInt.value = (0.32 + g * 0.45) * life * cur.dim * Math.min(1, I.star * 1.2) + I.flash * 0.9;
-    spikes.scale.setScalar(2.3 * c * (1 + cur.amp * 0.2));
-    spikes.material.opacity = (0.04 + g * 0.08) * cur.dim * I.star + I.flash * 0.25;
-    halo.scale.setScalar(2.8 * (0.95 + g * 0.12)); halo.material.opacity = ((composer ? 0.015 : 0.03) + g * (composer ? 0.03 : 0.06)) * I.star + I.flash * 0.35;
-    haze.material.opacity = (0.1 + g * 0.1) * I.unfold;
-    haze.scale.setScalar(uniforms.uSpread.value);
-    dustUniforms.uDust.value = 0.24 * (0.5 + cur.dim * 0.5) * I.unfold;
-
-    // спутники-искры: ярче и быстрее, когда Atlas активен
-    sparks.forEach(function (sp) {
-      sp.phase += dt * sp.speed * (0.6 + cur.glow * 0.8) * speed;
-      const pos = sp.line.geometry.attributes.position.array;
-      for (let j = 0; j < sp.TRAIL; j++) {
-        sparkPos(sp, sp.phase - j * 0.035, sparkV);
-        pos[j * 3] = sparkV.x; pos[j * 3 + 1] = sparkV.y; pos[j * 3 + 2] = sparkV.z;
-      }
-      sp.line.geometry.attributes.position.needsUpdate = true;
-      sparkPos(sp, sp.phase, sparkV);
-      sp.head.position.copy(sparkV);
-      const vis = (0.35 + cur.glow * 0.65) * cur.dim * (1 - saverState.v * 0.5) * I.rings;
-      sp.line.material.opacity = 0.7 * vis;
-      sp.head.material.opacity = 0.9 * vis;
-    });
-
-    // надпись ATLAS привязана к центру звезды и масштабируется вместе с ней
+    // надпись ATLAS — в самой тени, масштабируется вместе с ней
     const vw = window.innerWidth, vh = window.innerHeight;
     wmProj.set(0, 0, 0).project(camera);
     const sx = (wmProj.x + 1) / 2 * vw, sy = (1 - wmProj.y) / 2 * vh;
-    const rPx = STAR_R * star.scale.x * (vh / 2) / (Math.tan(camera.fov * Math.PI / 360) * camera.position.length());
+    const rPx = HR * mass * (vh / 2) / (Math.tan(camera.fov * Math.PI / 360) * camera.position.length());
     starScreen.x = sx; starScreen.y = sy; starScreen.r = rPx;
-    const fontPx = Math.max(10, rPx * 0.3);
+    const fontPx = Math.max(10, rPx * 0.27);
     if (Math.abs(fontPx - wmFont) > 0.5) { wordmarkEl.style.fontSize = fontPx.toFixed(1) + 'px'; wmFont = fontPx; }
-    wordmarkEl.style.transform = 'translate(' + sx.toFixed(1) + 'px,' + sy.toFixed(1) + 'px) translate(-50%, -50%)';
-
-    // надпись ATLAS «дышит» с голосом, изредка — короткий голографический сбой
+    wordmarkEl.style.transform = 'translate(' + sx.toFixed(1) + 'px,' + (sy - rPx * 0.34).toFixed(1) + 'px) translate(-50%, -50%)';   // в тёмной верхней половине тени, над диском
     wordmarkEl.style.setProperty('--amp', cur.amp.toFixed(3));
-    if (!reduceMotion && Math.random() < dt * 0.08) {
-      wordmarkEl.classList.add('glitch');
-      setTimeout(function () { wordmarkEl.classList.remove('glitch'); }, 90);
-    }
-
-    // солнечная вспышка: быстрое нарастание, медленное угасание
-    flare.next -= dt;
-    if (!flare.active && flare.next <= 0 && !reduceMotion) {
-      flare.active = true; flare.t = 0;
-      const th = Math.random() * Math.PI * 2, zz = 0.55 + Math.random() * 0.35, q = Math.sqrt(1 - zz * zz);
-      starUniforms.uFlareDir.value.set(Math.cos(th) * q, Math.sin(th) * q, zz);
-      coronaUniforms.uFlareAng.value = th;
-    }
-    let fl = 0;
-    if (flare.active) {
-      flare.t += dt;
-      fl = flare.t < 0.3 ? flare.t / 0.3 : Math.exp(-(flare.t - 0.3) * 1.3);
-      if (flare.t > 4.5) { flare.active = false; flare.next = 15 + Math.random() * 20; }
-    }
-    starUniforms.uFlare.value = fl * cur.dim;
-    coronaUniforms.uFlare.value = fl * cur.dim;
-
-    // заставка
-    const quiet = (performance.now() - saverState.last) / 1000;
-    const saverOn = saverState.forced || (state === 'idle' && quiet > SAVER_AFTER && page.hidden && !openPanel);
-    if (saverOn) {
-      saverState.v += (1 - saverState.v) * Math.min(1, dt * 0.6);
-      saverState.ang += dt * 0.05 * speed;
-    } else {
-      saverState.ang = Math.atan2(Math.sin(saverState.ang), Math.cos(saverState.ang));
-      saverState.ang *= Math.pow(0.08, dt);                       // сначала мягко возвращаем угол
-      if (Math.abs(saverState.ang) < 0.3) saverState.v += (0 - saverState.v) * Math.min(1, dt * 1.5);
-    }
-    document.body.classList.toggle('saver', saverState.v > 0.35);
-    const sv = saverState.v, baseZ = camera.userData.baseZ || 4.4, oR = baseZ * 1.15;
-    par.x += (mx * 0.3 - par.x) * 0.03;
-    par.y += (-my * 0.2 - par.y) * 0.03;
-    camera.position.set(
-      par.x * (1 - sv) + Math.sin(saverState.ang) * oR * sv,
-      par.y * (1 - sv) + 0.9 * Math.sin(t * 0.04) * sv,
-      baseZ * (1 - sv) + Math.cos(saverState.ang) * oR * sv);
-    rings.forEach(function (r) { r.material.opacity *= (1 - sv); });
-    eq.material.opacity *= (1 - sv);
-    camera.lookAt(0, 0, 0);
-    // метеор
-    met.next -= dt;
-    if (!met.active && met.next <= 0 && !reduceMotion && !I.active) {
-      met.active = true; met.t = 0;
-      met.x = (Math.random() - 0.3) * 8; met.y = 2 + Math.random() * 1.5;
-      const ang = -0.5 - Math.random() * 0.5;
-      met.dx = Math.cos(ang) * 5.5; met.dy = Math.sin(ang) * 5.5;
-    }
-    if (met.active) {
-      met.t += dt;
-      const life = 0.9, k2 = met.t / life;
-      const hx = met.x + met.dx * met.t, hy = met.y + met.dy * met.t;
-      const mp = meteorGeo.attributes.position.array;
-      mp[0] = hx; mp[1] = hy; mp[2] = -4;
-      mp[3] = hx - met.dx * 0.16; mp[4] = hy - met.dy * 0.16; mp[5] = -4;
-      meteorGeo.attributes.position.needsUpdate = true;
-      const b = Math.sin(Math.min(1, k2) * Math.PI) * 0.9 * cur.dim;
-      const mc = meteorGeo.attributes.color.array; mc[0] = mc[1] = b; mc[2] = b * 1.05;
-      meteorGeo.attributes.color.needsUpdate = true;
-      if (met.t > life) { met.active = false; met.next = 7 + Math.random() * 10; mc[0] = mc[1] = mc[2] = 0; meteorGeo.attributes.color.needsUpdate = true; }
-    }
 
     // пылинки
     for (let i = 0; i < MOTES; i++) {
@@ -1752,12 +1586,12 @@
       if (motePos[i * 3 + 1] > 1.9) { motePos[i * 3 + 1] = -1.9; motePos[i * 3] = (Math.random() - 0.5) * 6; }
     }
     moteGeo.attributes.position.needsUpdate = true;
-    motes.material.opacity = (0.12 + g * 0.08) * I.bg;
+    motes.material.opacity = (0.06 + cur.glow * 0.05) * I.bg;
     if (finalPass) finalPass.uniforms.uTime.value = t;
 
-    if (bloom) bloom.strength = (0.26 + g * 0.42) * (0.5 + cur.dim * 0.5) + I.flash * 1.6;
-    cur.exposure += ((state === 'idle' ? 0.88 : 1.0) - cur.exposure) * k;
-    if (finalPass) finalPass.uniforms.uExposure.value = (cur.exposure * cur.dim * 0.35 + cur.exposure * 0.65) * (1 + I.flash * 1.2);
+    if (bloom) bloom.strength = (0.3 + cur.glow * 0.2 + amp * 0.18 + bhfx.lock * 0.15) * (0.5 + cur.dim * 0.5) + I.flash * 1.3;
+    cur.exposure += ((state === 'idle' ? 1.0 : 1.08) - cur.exposure) * k;
+    if (finalPass) finalPass.uniforms.uExposure.value = (cur.exposure * cur.dim * 0.35 + cur.exposure * 0.65) * (1 + I.flash * 0.8);
     if (composer) composer.render(); else renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
@@ -1901,7 +1735,7 @@
       set_mic: 'Microphone', set_speaker: 'Speaker', set_voice: 'Voice',
       set_always: 'Respond without saying "Atlas"', set_accent: 'Accent color',
       set_fx: 'Sound & effects', fx_sfx: 'Interface sounds', fx_amb: 'Space ambience', fx_saver: 'Show screensaver',
-      saver_hint: 'The screensaver starts on its own after three quiet minutes: the camera slowly orbits the galaxy. Move the mouse or press a key to come back.',
+      saver_hint: 'The screensaver starts on its own after three quiet minutes: the camera slowly orbits the black hole. Move the mouse or press a key to come back.',
       hotkeys: 'F9 — talk, F8 — stop, F10 — hide window, Esc — close panel.',
       nav_chat: 'Chat', nav_files: 'Files', nav_memory: 'Memory', nav_notes: 'Notes & day',
       nav_tools: 'Tools', nav_journal: 'Activity log', nav_projects: 'Projects', close: 'Close section',
@@ -2149,11 +1983,15 @@
   // ===========================================================================
   // Настройки
   // ===========================================================================
-  const ACCENTS = ['#86D6FF', '#22D3EE', '#34D399', '#FB7185', '#FBBF24', '#A78BFA'];
-  let theme = 'dark', accent = '#86D6FF', audioOpts = null, localPrefAt = -1e9;
+  const ACCENTS = ['#FFD2A1', '#FF9E5E', '#F4EDE6', '#86D6FF', '#FB7185', '#A78BFA'];
+  // старое значение по умолчанию из Python (#86D6FF) = новый тёплый акцент чёрной дыры
+  function accNorm(c) { c = String(c || ''); return c.toLowerCase() === '#86d6ff' && !accent86 ? '#FFD2A1' : c; }
+  let accent86 = false;
+  let theme = 'dark', accent = '#FFD2A1', audioOpts = null, localPrefAt = -1e9;
   function applyTheme(th) { theme = th === 'light' ? 'light' : 'dark'; document.body.dataset.theme = theme; }
   function applyAccent(c) {
     if (!c) return;
+    c = accNorm(c);
     accent = c;
     document.documentElement.style.setProperty('--ion', c);
     const col = new THREE.Color(c);
@@ -2167,7 +2005,7 @@
     ACCENTS.forEach(function (c) {
       const b = el('button', 'swatch');
       b.style.background = c; b.dataset.color = c; b.setAttribute('aria-label', c);
-      b.addEventListener('click', function () { localPrefAt = performance.now(); applyAccent(c); call('set_accent', c).catch(console.log); });
+      b.addEventListener('click', function () { localPrefAt = performance.now(); accent86 = c.toLowerCase() === '#86d6ff'; applyAccent(c); call('set_accent', c).catch(console.log); });
       box.appendChild(b);
     });
   })();
@@ -2341,7 +2179,7 @@
   let lastSys = null;
   function gaugeSvg(v, color) {
     const dash = (Math.max(0, Math.min(100, v)) / 100 * 138.2).toFixed(1);
-    return '<svg width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="22" fill="none" stroke="rgba(120,170,255,0.15)" stroke-width="4"/>' +
+    return '<svg width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,196,150,0.15)" stroke-width="4"/>' +
       '<circle cx="28" cy="28" r="22" fill="none" stroke="' + color + '" stroke-width="4" stroke-linecap="round" stroke-dasharray="' + dash + ' 138.2" transform="rotate(-90 28 28)"/></svg>';
   }
   function renderGauges() {
@@ -3027,13 +2865,13 @@
     const lo = Math.min.apply(null, T) - 1, hi = Math.max.apply(null, T) + 1;
     const X = function (i) { return i / (n - 1) * w; }, Y = function (v) { return hgt - 4 - (v - lo) / (hi - lo) * (hgt - 10); };
     const ni = wxIndexNow(it);
-    g.fillStyle = 'rgba(134,214,255,.06)'; g.fillRect(0, 0, X(ni), hgt);
+    g.fillStyle = 'rgba(255,210,161,.06)'; g.fillRect(0, 0, X(ni), hgt);
     const grad = g.createLinearGradient(0, 0, w, 0);
-    grad.addColorStop(0, 'rgba(134,214,255,.45)'); grad.addColorStop(ni / (n - 1), '#86D6FF'); grad.addColorStop(1, 'rgba(255,196,120,.9)');
+    grad.addColorStop(0, 'rgba(255,210,161,.45)'); grad.addColorStop(ni / (n - 1), '#FFD2A1'); grad.addColorStop(1, 'rgba(255,196,120,.9)');
     g.strokeStyle = grad; g.lineWidth = 1.6; g.beginPath();
     T.forEach(function (v, i) { i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); }); g.stroke();
     g.strokeStyle = 'rgba(255,255,255,.55)'; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(X(ni), 0); g.lineTo(X(ni), hgt); g.stroke(); g.setLineDash([]);
-    g.fillStyle = '#EAF6FF'; g.beginPath(); g.arc(X(ni), Y(T[ni]), 2.6, 0, 7); g.fill();
+    g.fillStyle = '#F7EFE6'; g.beginPath(); g.arc(X(ni), Y(T[ni]), 2.6, 0, 7); g.fill();
   }
 
   // ======================================================================
@@ -3259,11 +3097,11 @@
       const list = rings[d], R = d * Math.min(w, h * 1.6) * 0.16;
       list.forEach(function (id, i) { const a = i / list.length * Math.PI * 2 + d * 0.7; pos.set(id, [w / 2 + Math.cos(a) * R * 1.5, h / 2 + Math.sin(a) * R * 0.82]); });
     });
-    g.strokeStyle = 'rgba(134,214,255,.18)'; g.lineWidth = 0.8;
+    g.strokeStyle = 'rgba(255,210,161,.18)'; g.lineWidth = 0.8;
     it.edges.forEach(function (e) { const a = pos.get(e.s), b = pos.get(e.t); if (a && b) { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); } });
     it.nodes.forEach(function (n) {
       const p = pos.get(n.id), r = n.user ? 4.5 : 2;
-      g.fillStyle = n.user ? '#FFE6A8' : (D.depth.get(n.id) === 1 ? '#86D6FF' : '#8E9CFF');
+      g.fillStyle = n.user ? '#FFE6A8' : (D.depth.get(n.id) === 1 ? '#FFD2A1' : '#D9A06A');
       g.shadowColor = g.fillStyle; g.shadowBlur = n.user ? 14 : 6;
       g.beginPath(); g.arc(p[0], p[1], r, 0, 7); g.fill();
     });
@@ -3330,14 +3168,14 @@
     function neighbors(n) { const s = new Set(); E.forEach(function (e) { if (e.s === n) s.add(e.t); if (e.t === n) s.add(e.s); }); return s; }
     function draw() {
       const S = size(), g = cv.getContext('2d'); g.setTransform(S.dpr, 0, 0, S.dpr, 0, 0); g.clearRect(0, 0, S.w, S.h);
-      stars.forEach(function (st) { g.fillStyle = 'rgba(200,220,255,' + (0.15 + st[3] * 0.35) + ')'; g.fillRect(st[0] * S.w, st[1] * S.h, st[2], st[2]); });
+      stars.forEach(function (st) { g.fillStyle = 'rgba(255,228,200,' + (0.15 + st[3] * 0.35) + ')'; g.fillRect(st[0] * S.w, st[1] * S.h, st[2], st[2]); });
       const focusSet = sel ? neighbors(sel) : null;
       E.forEach(function (e) {
         const a = W2S(e.s), b = W2S(e.t), on = sel && (e.s === sel || e.t === sel);
-        g.strokeStyle = on ? 'rgba(134,214,255,.85)' : (sel ? 'rgba(134,214,255,.06)' : 'rgba(134,214,255,.2)');
+        g.strokeStyle = on ? 'rgba(255,210,161,.85)' : (sel ? 'rgba(255,210,161,.06)' : 'rgba(255,210,161,.2)');
         g.lineWidth = on ? 1.6 : 1; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
         if (on || (V.s > 1.4 && !sel)) {
-          g.fillStyle = on ? 'rgba(234,246,255,.9)' : 'rgba(170,190,230,.55)'; g.font = '500 11px "Exo 2", sans-serif'; g.textAlign = 'center';
+          g.fillStyle = on ? 'rgba(247,239,230,.9)' : 'rgba(220,200,180,.55)'; g.font = '500 11px "Exo 2", sans-serif'; g.textAlign = 'center';
           g.fillText(relName(e.rel), (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - 4);
         }
       });
@@ -3349,11 +3187,11 @@
         glow.addColorStop(0, 'rgba(' + col + ',' + (dim ? 0.15 : 0.55) + ')'); glow.addColorStop(1, 'rgba(' + col + ',0)');
         g.fillStyle = glow; g.beginPath(); g.arc(p[0], p[1], r * 3.2, 0, 7); g.fill();
         g.fillStyle = 'rgba(' + col + ',' + (dim ? 0.3 : 1) + ')'; g.beginPath(); g.arc(p[0], p[1], r, 0, 7); g.fill();
-        if (hit || n === sel) { g.strokeStyle = hit ? '#FFC478' : '#EAF6FF'; g.lineWidth = 1.5; g.beginPath(); g.arc(p[0], p[1], r + 5, 0, 7); g.stroke(); }
+        if (hit || n === sel) { g.strokeStyle = hit ? '#FFC478' : '#F7EFE6'; g.lineWidth = 1.5; g.beginPath(); g.arc(p[0], p[1], r + 5, 0, 7); g.stroke(); }
         if (!dim && (n.user || n === hover || n === sel || hit || n.deg >= 3 || V.s > 1.1 || (sel && focusSet.has(n)))) {
           g.font = (n.user ? '600 14px' : '500 12px') + ' "Exo 2", sans-serif'; g.textAlign = 'center';
-          g.lineWidth = 3; g.strokeStyle = 'rgba(2,4,10,.85)'; g.strokeText(n.label, p[0], p[1] + r + 14);
-          g.fillStyle = n.user ? '#FFE6A8' : '#D6E4FF'; g.fillText(n.label, p[0], p[1] + r + 14);
+          g.lineWidth = 3; g.strokeStyle = 'rgba(2,2,2,.85)'; g.strokeText(n.label, p[0], p[1] + r + 14);
+          g.fillStyle = n.user ? '#FFE6A8' : '#F0E4D6'; g.fillText(n.label, p[0], p[1] + r + 14);
         }
       });
     }
@@ -3481,20 +3319,20 @@
         const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, hgt);
         const T = H.t, F = H.feels, lo = Math.min.apply(null, T.concat(F)) - 2, hi = Math.max.apply(null, T.concat(F)) + 2;
         const pad = 26, X = function (i) { return i / (n - 1) * w; }, Y = function (v) { return pad + (1 - (v - lo) / (hi - lo)) * (hgt - pad * 2); };
-        g.fillStyle = 'rgba(134,214,255,.05)'; g.fillRect(0, 0, X(ni), hgt);
-        g.strokeStyle = 'rgba(134,214,255,.08)'; g.lineWidth = 1;
+        g.fillStyle = 'rgba(255,210,161,.05)'; g.fillRect(0, 0, X(ni), hgt);
+        g.strokeStyle = 'rgba(255,210,161,.08)'; g.lineWidth = 1;
         dayIdx.forEach(function (i) { g.beginPath(); g.moveTo(X(i), 0); g.lineTo(X(i), hgt); g.stroke(); });
-        H.pp.forEach(function (p, i) { if (p) { g.fillStyle = 'rgba(110,160,255,' + (0.12 + p / 260) + ')'; const bh = p / 100 * (hgt * 0.32); g.fillRect(X(i) - 1, hgt - bh, 2.2, bh); } });
+        H.pp.forEach(function (p, i) { if (p) { g.fillStyle = 'rgba(230,160,100,' + (0.12 + p / 260) + ')'; const bh = p / 100 * (hgt * 0.32); g.fillRect(X(i) - 1, hgt - bh, 2.2, bh); } });
         g.setLineDash([3, 4]); g.strokeStyle = 'rgba(255,255,255,.25)'; g.beginPath();
         F.forEach(function (v, i) { i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); }); g.stroke(); g.setLineDash([]);
         const grad = g.createLinearGradient(0, 0, w, 0);
-        grad.addColorStop(0, 'rgba(134,214,255,.55)'); grad.addColorStop(ni / (n - 1), '#86D6FF'); grad.addColorStop(1, 'rgba(255,196,120,.95)');
-        g.strokeStyle = grad; g.lineWidth = 2.2; g.shadowColor = 'rgba(134,214,255,.6)'; g.shadowBlur = 8; g.beginPath();
+        grad.addColorStop(0, 'rgba(255,210,161,.55)'); grad.addColorStop(ni / (n - 1), '#FFD2A1'); grad.addColorStop(1, 'rgba(255,196,120,.95)');
+        g.strokeStyle = grad; g.lineWidth = 2.2; g.shadowColor = 'rgba(255,210,161,.6)'; g.shadowBlur = 8; g.beginPath();
         T.forEach(function (v, i) { i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); }); g.stroke(); g.shadowBlur = 0;
         g.strokeStyle = 'rgba(255,255,255,.45)'; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(X(ni), 0); g.lineTo(X(ni), hgt); g.stroke(); g.setLineDash([]);
-        g.strokeStyle = '#EAF6FF'; g.lineWidth = 1; g.beginPath(); g.moveTo(X(idx), 0); g.lineTo(X(idx), hgt); g.stroke();
-        g.fillStyle = '#EAF6FF'; g.beginPath(); g.arc(X(idx), Y(T[idx]), 4.5, 0, 7); g.fill();
-        g.fillStyle = 'rgba(234,246,255,.9)'; g.font = '600 12px "Exo 2", sans-serif'; g.textAlign = X(idx) > w - 40 ? 'right' : 'left';
+        g.strokeStyle = '#F7EFE6'; g.lineWidth = 1; g.beginPath(); g.moveTo(X(idx), 0); g.lineTo(X(idx), hgt); g.stroke();
+        g.fillStyle = '#F7EFE6'; g.beginPath(); g.arc(X(idx), Y(T[idx]), 4.5, 0, 7); g.fill();
+        g.fillStyle = 'rgba(247,239,230,.9)'; g.font = '600 12px "Exo 2", sans-serif'; g.textAlign = X(idx) > w - 40 ? 'right' : 'left';
         g.fillText(Math.round(T[idx]) + '°', X(idx) + (X(idx) > w - 40 ? -8 : 8), Y(T[idx]) - 8);
       });
     }
@@ -3875,27 +3713,27 @@
       const pts = L.map(P), isMain = i === main;
       const tr = GEST.trails[i]; tr.push(pts[8]); if (tr.length > 22) tr.shift();
       for (let j = 1; j < tr.length; j++) {
-        c.strokeStyle = 'rgba(61,255,154,' + (j / tr.length * 0.55) + ')'; c.lineWidth = 1.5 * k * j / tr.length + 0.5;
+        c.strokeStyle = 'rgba(255,210,161,' + (j / tr.length * 0.55) + ')'; c.lineWidth = 1.5 * k * j / tr.length + 0.5;
         c.beginPath(); c.moveTo(tr[j - 1][0], tr[j - 1][1]); c.lineTo(tr[j][0], tr[j][1]); c.stroke();
       }
-      c.lineCap = 'round'; c.shadowColor = '#3DFF9A'; c.shadowBlur = 8 * k;
-      c.strokeStyle = isMain ? 'rgba(61,255,154,.92)' : 'rgba(61,255,154,.6)'; c.lineWidth = 2.6 * k;
+      c.lineCap = 'round'; c.shadowColor = '#FFD2A1'; c.shadowBlur = 8 * k;
+      c.strokeStyle = isMain ? 'rgba(255,210,161,.92)' : 'rgba(255,210,161,.6)'; c.lineWidth = 2.6 * k;
       BONES.forEach(function (b) { const a = pts[b[0]], z = pts[b[1]]; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(z[0], z[1]); c.stroke(); });
       c.shadowBlur = 0;
       pts.forEach(function (q, j) {
         const tip = j === 4 || j === 8 || j === 12 || j === 16 || j === 20;
-        c.fillStyle = tip ? '#EAFFF4' : '#3DFF9A'; c.beginPath(); c.arc(q[0], q[1], (tip ? 3.6 : 2.4) * k, 0, 7); c.fill();
+        c.fillStyle = tip ? '#F7EFE6' : '#FFD2A1'; c.beginPath(); c.arc(q[0], q[1], (tip ? 3.6 : 2.4) * k, 0, 7); c.fill();
       });
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
       pts.forEach(function (q) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); });
       const pad = 14 * k; x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
       const cl = Math.min(22 * k, (x1 - x0) / 4);
-      c.strokeStyle = 'rgba(134,255,190,.85)'; c.lineWidth = 1.6 * k;
+      c.strokeStyle = 'rgba(255,214,170,.85)'; c.lineWidth = 1.6 * k;
       [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]].forEach(function (q) {
         c.beginPath(); c.moveTo(q[0] + cl * q[2], q[1]); c.lineTo(q[0], q[1]); c.lineTo(q[0], q[1] + cl * q[3]); c.stroke();
       });
       const pc = [(pts[0][0] + pts[5][0] + pts[17][0]) / 3, (pts[0][1] + pts[5][1] + pts[17][1]) / 3];
-      c.strokeStyle = 'rgba(234,255,244,.7)'; c.lineWidth = 1 * k;
+      c.strokeStyle = 'rgba(247,239,230,.7)'; c.lineWidth = 1 * k;
       c.beginPath(); c.arc(pc[0], pc[1], 6 * k, 0, 7); c.moveTo(pc[0] - 11 * k, pc[1]); c.lineTo(pc[0] - 3 * k, pc[1]);
       c.moveTo(pc[0] + 3 * k, pc[1]); c.lineTo(pc[0] + 11 * k, pc[1]); c.stroke();
       const g = isMain ? GEST.lastG : gs[i];
@@ -3904,16 +3742,16 @@
       const fs = Math.round(Math.min(15, 10.5 * k)), bh = fs + 7;
       c.font = '600 ' + fs + 'px "Exo 2", sans-serif'; c.textBaseline = 'bottom';
       const tw = c.measureText(tag).width + 14, ty = Math.max(bh + 2, y0 - 4);
-      c.fillStyle = 'rgba(2,14,8,.72)'; c.fillRect(x0, ty - bh, tw, bh);
-      c.fillStyle = '#3DFF9A'; c.fillRect(x0, ty - bh, 2, bh);
-      c.fillStyle = '#9DFFC8'; c.fillText(tag, x0 + 8, ty - 3);
+      c.fillStyle = 'rgba(8,6,4,.72)'; c.fillRect(x0, ty - bh, tw, bh);
+      c.fillStyle = '#FFD2A1'; c.fillRect(x0, ty - bh, 2, bh);
+      c.fillStyle = '#FFD9B0'; c.fillText(tag, x0 + 8, ty - 3);
       if (isMain && GEST.states && gPip.classList.contains('big')) {           // какие пальцы Atlas считает прямыми
         const names = (I18N[lang] || {}).gs_fingers || 'Б У С Б М';
         const lab = names.split(' '), cx0 = x0 + tw + 10, cy0 = ty - bh / 2;
         GEST.states.forEach(function (v, j) {
-          const col = v === 1 ? '#3DFF9A' : v === 0 ? '#FF6B6B' : '#FFC478';
+          const col = v === 1 ? '#FFD2A1' : v === 0 ? '#FF6B6B' : '#FFC478';
           c.fillStyle = col; c.beginPath(); c.arc(cx0 + j * 18, cy0, 4, 0, 7); c.fill();
-          c.fillStyle = 'rgba(214,255,233,.8)'; c.font = '600 9px "Exo 2", sans-serif'; c.textAlign = 'center';
+          c.fillStyle = 'rgba(240,228,214,.8)'; c.font = '600 9px "Exo 2", sans-serif'; c.textAlign = 'center';
           c.fillText(lab[j] || '', cx0 + j * 18, cy0 + 15); c.textAlign = 'left';
         });
       }
@@ -4611,7 +4449,7 @@
       // только что выбрали в настройках — не даём опросу, отправленному раньше, вернуть старое значение
       const prefSettled = performance.now() - localPrefAt > 1500;
       if (prefSettled && s.theme && s.theme !== theme) applyTheme(s.theme);
-      if (prefSettled && s.accent_color && String(s.accent_color).toLowerCase() !== accent.toLowerCase()) {
+      if (prefSettled && s.accent_color && accNorm(s.accent_color).toLowerCase() !== accent.toLowerCase()) {
         applyAccent(ACCENTS.find(function (a) { return a.toLowerCase() === String(s.accent_color).toLowerCase(); }) || s.accent_color);
       }
       if (s.language && s.language !== lang) setUiLang(s.language);     // язык могли сменить голосом
