@@ -17,6 +17,7 @@
 import json
 import os
 import re
+import sys
 import threading
 import time
 
@@ -172,21 +173,14 @@ class UI:
         """Строки текста в окне: {"ru": [...], "en": [...]}, строка = {text, x, y, w, h} в пикселях экрана."""
         from PIL import ImageGrab
         self._dpi()
-        img = ImageGrab.grab(bbox=tuple(rect), all_screens=True)
+        l, t, r, b = rect
+        l, t = max(0, int(l)), max(0, int(t))              # развёрнутое окно: рамка (-8,-8,…) — минусы ломают захват
         try:
-            from winocr import recognize_pil_sync
-        except ImportError:
+            img = ImageGrab.grab(bbox=(l, t, int(r), int(b)), all_screens=True)
+        except Exception as e:
+            print(f"[мессенджеры] снимок экрана не вышел: {e}")
             return {"ru": [], "en": []}
-        from file_search import _ocr_lock
-        out = {}
-        for lang in ("ru", "en"):
-            try:
-                with _ocr_lock:
-                    res = recognize_pil_sync(img, lang)
-            except Exception:
-                res = {}
-            out[lang] = _lines(res, rect[0], rect[1])
-        return out
+        return _ocr_in_subprocess(img, l, t)
 
     def click(self, x: int, y: int) -> None:
         from ctypes import wintypes as wt
@@ -239,6 +233,44 @@ def _lines(res, ox: int, oy: int) -> list:
         y2 = max(b["y"] + b["height"] for b in boxes)
         out.append({"text": ln["text"].strip(), "x": ox + x1, "y": oy + y1, "w": x2 - x1, "h": y2 - y1})
     return out
+
+
+_ocr_dead = {"since": 0.0}          # winocr рухнул недавно — не дёргаем его каждую секунду
+
+
+def _ocr_in_subprocess(img, ox: int, oy: int, timeout: float = 25.0) -> dict:
+    """winocr в отдельном процессе: если он падает/виснет — умирает процесс, а не Atlas."""
+    import subprocess
+    import tempfile
+    if time.time() - _ocr_dead["since"] < 120:            # только что падал — 2 минуты не трогаем
+        return {"ru": [], "en": []}
+    tmp = os.path.join(tempfile.gettempdir(), f"atlas_ocr_{os.getpid()}_{threading.get_ident()}.png")
+    try:
+        img.save(tmp)
+        from file_search import _ocr_lock
+        with _ocr_lock:
+            p = subprocess.run([sys.executable, "-m", "core._ocr_worker", tmp, "ru,en"],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               timeout=timeout, cwd=ROOT)
+        if p.returncode != 0 or not (p.stdout or "").strip():
+            _ocr_dead["since"] = time.time()
+            print(f"[мессенджеры] распознавание окна не работает (winocr упал, код {p.returncode}) — "
+                  f"читать чаты не могу, отправлять могу")
+            return {"ru": [], "en": []}
+        data = json.loads(p.stdout)
+        return {lang: [dict(ln, x=ln["x"] + ox, y=ln["y"] + oy) for ln in data.get(lang, [])] for lang in ("ru", "en")}
+    except subprocess.TimeoutExpired:
+        _ocr_dead["since"] = time.time()
+        print("[мессенджеры] распознавание окна зависло — пропускаю")
+        return {"ru": [], "en": []}
+    except Exception as e:
+        print(f"[мессенджеры] распознавание: {e}")
+        return {"ru": [], "en": []}
+    finally:
+        try:
+            os.remove(tmp)
+        except Exception:
+            pass
 
 
 _ui = None
@@ -393,13 +425,27 @@ def open_chat(app: str, contact: str, ui=None) -> dict:
                 ui.keys(a.get("web_keys") if web else a.get("keys", "ctrl+f"))
         ui.sleep(0.3)
     ui.paste(query)
+    saw_text = False
     for wait in (1.2, 1.5):
         ui.sleep(wait)
         rect, rg, lines = look()
+        if lines.get("ru") or lines.get("en"):
+            saw_text = True
         if click_in_list(lines, rg, query):
             return verify()
-    ui.keys("esc")
-    return {"ok": False, "why": "notfound", "hwnd": hwnd}
+    if saw_text:                                            # распознавание работает, а чат не нашёлся — не открываем наугад
+        ui.keys("esc")
+        return {"ok": False, "why": "notfound", "hwnd": hwnd}
+    # OCR ничего не вернул (распознавание окна мертво на этом Python) — открываем верхний результат поиска
+    # с клавиатуры. Без проверки по экрану: send() покажет «не уверен, что это тот чат — глянь», и ждёт «да».
+    ui.keys("down")
+    ui.sleep(0.35)
+    ui.keys("enter")
+    ui.sleep(0.6)
+    v = verify()
+    if v.get("verified"):
+        return v
+    return {"ok": True, "hwnd": hwnd, "web": web, "verified": False, "name": contact, "why": "unverified"}
 
 
 def read_chat(hwnd: int, web: bool = False, ui=None, rect=None, lines=None) -> list:
@@ -655,6 +701,18 @@ def _no_chat(r: dict, app: str, contact: str, ru: bool) -> str:
             else f"Couldn't find “{contact}” in {name}. Say the name as saved, or open the chat and say “reply here”.")
 
 
+_NOMINAL = {"маме": "Мама", "мамы": "Мама", "маму": "Мама", "мам": "Мама", "папе": "Папа", "папы": "Папа",
+            "папу": "Папа", "бате": "Батя", "брату": "Брат", "брата": "Брат", "сестре": "Сестра", "сестры": "Сестра",
+            "сестру": "Сестра", "жене": "Жена", "жены": "Жена", "жену": "Жена", "мужу": "Муж", "сыну": "Сын",
+            "дочери": "Дочь", "дочке": "Дочка", "бабушке": "Бабушка", "дедушке": "Дедушка", "другу": "Друг",
+            "подруге": "Подруга", "подругу": "Подруга"}
+
+
+def _nominal(name: str) -> str:
+    """«маме» → «Мама» только для показа/озвучки; на поиск в мессенджере не влияет (там stems)."""
+    return _NOMINAL.get((name or "").strip().lower(), name)
+
+
 def _default_app():
     d = (os.getenv("ATLAS_DEFAULT_MESSENGER") or "").lower().strip()
     if not d:
@@ -708,6 +766,7 @@ def prepare(app, contact, gist: str, exact: str = None, ru: bool = True, ui=None
         conv = read_chat(r["hwnd"], r.get("web", False), ui)
         _remember(contact, app)
     name = re.sub(r"\s+(?:онлайн|online|был\w*|печатает|typing|last seen).*$", "", r["name"], flags=re.I).strip()
+    name = _nominal(name)                                    # «маме» → «Мама» для ответа вслух (чат не распознан)
     try:
         text = exact or draft(gist, conv, name, app, ru, ask, shop=bool(contact and is_shop(contact)))
     except Exception as e:
@@ -860,19 +919,37 @@ if __name__ == "__main__":            # python -m core.messengers check telegram
         pass
     app = (sys.argv[2] if len(sys.argv) > 2 else "telegram").lower()
     ui = _get_ui()
-    w = find_window(app, ui.windows())
+    wins = ui.windows()
+    w = find_window(app, wins)
     if not w:
         print(f"Окно {APPS[app]['name']} не найдено — открой его и запусти ещё раз.")
+        print("--- все видимые окна (app «заголовок»): ---")
+        for x in wins:
+            print(f"  {x['app']:<22} «{x['title']}»")
         sys.exit(1)
-    ui.activate(w["hwnd"])
-    time.sleep(0.6)
-    rect = ui.rect(w["hwnd"])
-    lines = ui.ocr(rect)
+    print(f"окно: {w['app']} «{w['title']}»{' (браузер)' if w.get('web') else ''}", flush=True)
+    try:
+        ui.activate(w["hwnd"])
+        time.sleep(0.6)
+        rect = ui.rect(w["hwnd"])
+        print(f"рамка окна: {rect}", flush=True)
+    except Exception as e:
+        print(f"[ошибка] активация/рамка: {e!r}", flush=True)
+        sys.exit(1)
+    try:
+        print("распознаю окно (OCR)…", flush=True)
+        lines = ui.ocr(rect)
+    except Exception as e:
+        print(f"[ошибка] OCR (winocr): {e!r}", flush=True)
+        print("  → распознавание текста окна не работает (нет winocr?) — отправка возможна, чтение чатов нет.", flush=True)
+        sys.exit(1)
     rg = _regions(rect, w.get("web", False))
-    print(f"окно: {w['app']} «{w['title']}» {rect}{' (браузер)' if w.get('web') else ''}")
-    print(f"строк OCR: ru {len(lines.get('ru') or [])}, en {len(lines.get('en') or [])}")
+    print(f"строк OCR: ru {len(lines.get('ru') or [])}, en {len(lines.get('en') or [])}", flush=True)
     use = lines.get("ru") or lines.get("en") or []
-    print("список чатов:", [ln["text"] for ln in use if _cx(ln) < rg["list_x"] and ln["y"] > rg["top"]][:12])
-    print("заголовок чата:", [ln["text"] for ln in _header(use, rg)])
-    for who, t in read_chat(w["hwnd"], w.get("web", False), ui, rect, lines)[-8:]:
-        print(f"  {'я' if who == 'me' else 'он(а)'}: {t}")
+    print("список чатов:", [ln["text"] for ln in use if _cx(ln) < rg["list_x"] and ln["y"] > rg["top"]][:12], flush=True)
+    print("заголовок чата:", [ln["text"] for ln in _header(use, rg)], flush=True)
+    try:
+        for who, t in read_chat(w["hwnd"], w.get("web", False), ui, rect, lines)[-8:]:
+            print(f"  {'я' if who == 'me' else 'он(а)'}: {t}", flush=True)
+    except Exception as e:
+        print(f"[ошибка] чтение переписки: {e!r}", flush=True)

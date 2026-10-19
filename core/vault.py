@@ -198,9 +198,12 @@ def load(path: str = None) -> int:
             if v:
                 os.environ[name] = v
                 n += 1
-            else:
-                print(f"[ключи] {name}: в .env стоит {PLACEHOLDER}, но в хранилище Windows значения нет")
-                os.environ[name] = ""             # пусто, а не «@vault»: dotenv потом не перезапишет
+            elif os.environ.get(name) in (None, PLACEHOLDER):
+                # значения в хранилище нет: оставляем заглушку, а не "" — openai 3.x падает при создании клиента
+                # с пустым ключом (и ломает тесты/CLI). В реальном запуске на этой машине все ключи есть.
+                if os.getenv("ATLAS_TESTING") != "1":
+                    print(f"[ключи] {name}: в .env стоит {PLACEHOLDER}, но в хранилище Windows значения нет")
+                os.environ[name] = PLACEHOLDER
     _refresh_redaction()
     if n:
         print(f"[ключи] из хранилища Windows: {n}")

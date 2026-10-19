@@ -1,0 +1,154 @@
+[
+ {
+  "area": "ключи",
+  "name": ".env: обязательные и полезные ключи",
+  "status": "ok",
+  "detail": "есть: GROQ + CEREBRAS, GEMINI, FISH, ELEVENLABS; язык речи: ru",
+  "tip": "",
+  "seconds": 0.0
+ },
+ {
+  "area": "библиотеки",
+  "name": "версии ключевых пакетов",
+  "status": "ok",
+  "detail": "Python 3.14.2; openai 3.13.0, groq 1.7.0, playwright, webview, vosk, sounddevice 0.5.6…",
+  "tip": "",
+  "seconds": 8.33
+ },
+ {
+  "area": "модели",
+  "name": "Groq · gpt-oss-120b",
+  "status": "warn",
+  "detail": "ответ за 3.49 с",
+  "tip": "медленно — возможно, перегрузка у Groq",
+  "seconds": 3.67
+ },
+ {
+  "area": "модели",
+  "name": "Cerebras · gpt-oss-120b",
+  "status": "ok",
+  "detail": "ответ за 0.33 с",
+  "tip": "",
+  "seconds": 0.33
+ },
+ {
+  "area": "модели",
+  "name": "Gemini (запасная)",
+  "status": "fail",
+  "detail": "InternalServerError: Error code: 503 - [{'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try agai",
+  "tip": "",
+  "seconds": 1.3
+ },
+ {
+  "area": "речь",
+  "name": "распознавание (Whisper в Groq)",
+  "status": "ok",
+  "detail": "ответ за 0.91 с",
+  "tip": "",
+  "seconds": 0.92
+ },
+ {
+  "area": "речь",
+  "name": "Vosk: модель слова «Атлас»",
+  "status": "ok",
+  "detail": "найдена: models\\vosk-model-small-ru-0.22",
+  "tip": "",
+  "seconds": 0.02
+ },
+ {
+  "area": "речь",
+  "name": "голоса озвучки (настройки)",
+  "status": "ok",
+  "detail": "Fish, ElevenLabs; русских голосов Fish: 4",
+  "tip": "",
+  "seconds": 0.0
+ },
+ {
+  "area": "устройства",
+  "name": "микрофон и динамики",
+  "status": "ok",
+  "detail": "вход: Микрофон (Trust USB microphone | выход: Динамики (HyperX Cloud Alpha S",
+  "tip": "",
+  "seconds": 0.0
+ },
+ {
+  "area": "устройства",
+  "name": "камера (для жестов и «посмотри»)",
+  "status": "skip",
+  "detail": "запусти с --devices",
+  "tip": "",
+  "seconds": 0.0
+ },
+ {
+  "area": "сервисы",
+  "name": "погода (Open-Meteo)",
+  "status": "ok",
+  "detail": "код 200, 1.06 с",
+  "tip": "",
+  "seconds": 1.07
+ },
+ {
+  "area": "сервисы",
+  "name": "картинки: Википедия",
+  "status": "ok",
+  "detail": "код 200, 0.73 с",
+  "tip": "",
+  "seconds": 0.73
+ },
+ {
+  "area": "сервисы",
+  "name": "картинки: Openverse",
+  "status": "fail",
+  "detail": "ReadTimeout: The read operation timed out",
+  "tip": "",
+  "seconds": 12.35
+ },
+ {
+  "area": "сервисы",
+  "name": "жесты: модель MediaPipe",
+  "status": "ok",
+  "detail": "код 200, 0.35 с",
+  "tip": "",
+  "seconds": 0.35
+ },
+ {
+  "area": "браузер",
+  "name": "Playwright: запуск Chromium",
+  "status": "ok",
+  "detail": "запуск и страница за 5.8 с",
+  "tip": "",
+  "seconds": 5.9
+ },
+ {
+  "area": "программы",
+  "name": "управление окнами Windows",
+  "status": "ok",
+  "detail": "видно окон: 9",
+  "tip": "",
+  "seconds": 0.17
+ },
+ {
+  "area": "память",
+  "name": "база memory.db",
+  "status": "ok",
+  "detail": "0.6 МБ; реплик 700, эпизодов 9, фактов 9, карточек 32",
+  "tip": "",
+  "seconds": 0.03
+ },
+ {
+  "area": "навыки",
+  "name": "реестр навыков и выученные",
+  "status": "ok",
+  "detail": "навыков в реестре: 84; выучено самим Atlas: 1",
+  "tip": "",
+  "seconds": 1.62
+ },
+ {
+  "area": "система",
+  "name": "свободное место на диске",
+  "status": "ok",
+  "detail": "свободно 77 ГБ",
+  "tip": "",
+  "seconds": 0.0
+ }
+]

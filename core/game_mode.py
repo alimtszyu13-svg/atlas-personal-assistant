@@ -299,7 +299,8 @@ def stop(env=None, ru: bool = True) -> str:
 _ON = re.compile(r"^(?:атлас[,\s]+)?(?:включи|запусти|активируй|врубай|давай|turn on|start|enable)?\s*"
                  r"(?:игровой режим|режим игры|game mode|gaming mode)\b|^(?:атлас[,\s]+)?(?:я\s+)?(?:буду|иду)\s+играть\s*$", re.I)
 _OFF = re.compile(r"(?:выключи|отключи|останови|заверши|turn off|stop|disable)\s+(?:игровой режим|режим игры|game mode)|"
-                  r"(?:я\s+)?наигрался|поиграл(?:и)?(?:\s+всё|\s+все)?$|game over", re.I)
+                  r"(?:я\s+)?наигрался|поиграл(?:и)?(?:\s+всё|\s+все)?$|(?:я\s+)?(?:закончил|доиграл)\w*(?:\s+игр\w*)?$|"
+                  r"game over|done gaming", re.I)
 
 
 def intent(text: str):

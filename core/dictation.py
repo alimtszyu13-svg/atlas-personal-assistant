@@ -16,7 +16,7 @@ import re
 from core import win_input
 
 START = re.compile(
-    r"(?:пиши|печатай|записывай|набирай)\s+(?:за\s+мной|под\s+диктовку|что\s+я\s+говорю)|"
+    r"(?:пиши|печатай|записывай|набирай)\s+(?:за\s+мной|под\s+(?:мою\s+)?диктовку|что\s+я\s+говорю)|"
     r"(?:режим|начни|начать|включи)\s+диктовк|^диктовка$|^диктуй$|"
     r"\b(?:dictation\s+mode|start\s+dictation|type\s+what\s+i\s+say|take\s+dictation)\b")
 

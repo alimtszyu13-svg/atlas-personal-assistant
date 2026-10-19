@@ -159,7 +159,7 @@ def _openverse_lookup(query: str):
     """Запасной источник: Openverse — открытая база свободно лицензированных фото, без ключа."""
     import httpx
     try:
-        r = httpx.get("https://api.openverse.org/v1/images/", headers=UA, timeout=15, follow_redirects=True,
+        r = httpx.get("https://api.openverse.org/v1/images/", headers=UA, timeout=6, follow_redirects=True,
                       params={"q": query, "page_size": 5, "mature": "false"})
         for it in _json(r, "Openverse").get("results", []):
             url = it.get("url") or it.get("thumbnail")

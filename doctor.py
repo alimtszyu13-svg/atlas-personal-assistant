@@ -21,6 +21,11 @@ import time
 ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(ROOT)
 sys.path.insert(0, ROOT)
+for _s in (sys.stdout, sys.stderr):                      # ✓/✗ и кириллица в файл/перенаправление — всегда UTF-8
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 try:
     from core import vault                       # ключи из хранилища Windows (KEY=@vault) — раньше .env
     vault.load()

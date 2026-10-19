@@ -1329,6 +1329,7 @@ class SpeechStream:
         self.play_t.start()
 
     FIRST_MIN_CHARS = 12    # первая фраза — короче: «Готово, сэр.» звучит сразу, пока модель пишет дальше
+    FIRST_HARD_CAP = 48     # первую фразу не тянем дольше: обрыв по пробелу — звук пойдёт раньше
 
     def feed(self, delta: str) -> None:
         """Новый кусок текста от модели."""
@@ -1336,11 +1337,20 @@ class SpeechStream:
             _mark("first_token")
         self.buf += delta
         while True:
-            lim = self.FIRST_MIN_CHARS if not self.spoken_any else self.MIN_CHARS
-            m = re.search(r"[.!?\u2026](?=\s)", self.buf[lim:])
-            if not m:
+            first = not self.spoken_any
+            lim = self.FIRST_MIN_CHARS if first else self.MIN_CHARS
+            # \u043f\u0435\u0440\u0432\u0443\u044e \u0444\u0440\u0430\u0437\u0443 \u0440\u0435\u0436\u0435\u043c \u0438 \u043f\u043e \u0437\u0430\u043f\u044f\u0442\u043e\u0439/\u0434\u0432\u043e\u0435\u0442\u043e\u0447\u0438\u044e/\u0442\u0438\u0440\u0435 \u2014 \u0437\u0432\u0443\u043a \u043d\u0430\u0447\u0438\u043d\u0430\u0435\u0442\u0441\u044f \u0440\u0430\u043d\u044c\u0448\u0435, \u043f\u043e\u043a\u0430 \u043c\u043e\u0434\u0435\u043b\u044c \u043f\u0438\u0448\u0435\u0442 \u043e\u0441\u0442\u0430\u0442\u043e\u043a
+            pat = r"[.!?\u2026,;:\u2014\u2013](?=\s)" if first else r"[.!?\u2026](?=\s)"
+            m = re.search(pat, self.buf[lim:])
+            if m:
+                cut = lim + m.end()
+            elif first and len(self.buf) > self.FIRST_HARD_CAP:
+                sp = self.buf.rfind(" ", lim, self.FIRST_HARD_CAP)
+                if sp <= 0:
+                    break
+                cut = sp + 1
+            else:
                 break
-            cut = lim + m.end()
             self._push(self.buf[:cut])
             self.buf = self.buf[cut:]
 

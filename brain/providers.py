@@ -28,6 +28,11 @@ from core import llm_gateway
 from brain.state import TaskCancelled, _check_cancel
 
 load_dotenv()
+try:
+    from core import vault                         # ключи из хранилища Windows (KEY=@vault) — и для CLI-скриптов
+    vault.load()                                   # (evals, doctor, core.* проверки): без этого был Invalid API Key
+except Exception as _e:
+    print(f"[ключи] {_e}")
 
 # =============================================================================
 # Клиенты

@@ -10,6 +10,12 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+for _s in (sys.stdout, sys.stderr):                      # ✓/✗ и кириллица в файл/перенаправление — всегда UTF-8
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 
 def main() -> int:
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1", ATLAS_TESTING="1")

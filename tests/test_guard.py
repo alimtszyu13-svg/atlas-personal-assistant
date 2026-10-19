@@ -89,11 +89,12 @@ def vault_migrate_load_restore():
     assert back == ["GROQ_API_KEY", "GOOGLE_TOKEN_JSON"]
     rows = {n: v for _l, n, v in V.read_env(env) if n}
     assert rows["GROQ_API_KEY"] == FAKE_GROQ and rows["GOOGLE_TOKEN_JSON"] == FAKE_JSON
-    # в хранилище значения нет — пусто, а не «@vault» (иначе модель получила бы ключ «@vault»)
+    # значения в хранилище нет — оставляем заглушку «@vault», а не "" (openai 3.x падает на пустом ключе при
+    # создании клиента). Заглушка безвредна: на реальном запросе будет понятная ошибка «неверный ключ».
     with open(env, "w", encoding="utf-8") as f:
         f.write("CEREBRAS_API_KEY=@vault\n")
     V.load(env)
-    assert os.environ.get("CEREBRAS_API_KEY") == ""
+    assert os.environ.get("CEREBRAS_API_KEY") == V.PLACEHOLDER
     os.environ.pop("CEREBRAS_API_KEY", None)
 
 

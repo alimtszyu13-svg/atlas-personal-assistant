@@ -28,8 +28,8 @@ import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LEARNED = os.path.join(ROOT, "atlas_route_examples.json")
 DATA = os.path.join(ROOT, "evals", "routing.tsv")
-THRESHOLD = 0.62
-MARGIN = 0.04
+THRESHOLD = 0.56
+MARGIN = 0.03
 K = 5
 _s = {"labels": None, "texts": None, "mat": None, "embed": None, "dirty": True}
 _lock = threading.Lock()
