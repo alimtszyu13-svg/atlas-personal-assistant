@@ -51,7 +51,8 @@ APP_MAP = {
     # --- общение ---
     "спотифай": ("start spotify", "Spotify.exe"),
     "телеграм": ("start telegram", "Telegram.exe"),
-    "whatsapp": ("start whatsapp", "WhatsApp.exe"),
+    "whatsapp": ('start "" whatsapp:', "WhatsApp.Root.exe"),
+    "ватсап": ('start "" whatsapp:', "WhatsApp.Root.exe"),
     "zoom":     ("start zoom", "Zoom.exe"),
     "дискорд": ('start "" "%LocalAppData%\\Discord\\Update.exe" --processStart Discord.exe', "Discord.exe"),
     "discord": ('start "" "%LocalAppData%\\Discord\\Update.exe" --processStart Discord.exe', "Discord.exe"),

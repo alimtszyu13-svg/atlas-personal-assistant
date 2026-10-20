@@ -82,6 +82,7 @@ def _exec_steps(steps: list, cancellable: bool = True):
         res, ok, _ms = tools._run_one_tool(name, dict(args))
         ok = ok and not tools._TRACE_FAIL.search(str(res)[:220])
         _note_action(name, args, ok)
+        print(f"[план] {i}. {name} → {'OK' if ok else 'НЕТ'}: {' '.join(str(res).split())[:200]}")
         lines.append(f"{i}. {name} → {'OK' if ok else 'FAILED'}: {str(res)[:300]}")
         if not ok:
             return False, lines
@@ -448,6 +449,8 @@ def _brain_ask(question: str, speech=None) -> str:
                     schema = tool_router.add_group(schema, tools.TOOLS_SCHEMA, g)
                 rs = str(result)
                 ok = success and not tools._TRACE_FAIL.search(rs[:220])
+                if n != "execute_plan":
+                    print(f"[мозг] ← {n}: {' '.join(rs.split())[:200]}")
                 _note_action(n, a, ok)
                 turn["failures"] = 0 if ok else turn["failures"] + 1
                 threading.Thread(target=log_task, args=(n, a, result, success, ms), daemon=True).start()

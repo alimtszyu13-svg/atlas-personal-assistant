@@ -252,7 +252,8 @@ def load_registry_skills() -> None:
 # =============================================================================
 _TRACE_FAIL = re.compile(r"something went wrong|не найден|not found|has been closed|не смог|couldn'?t|"
                          r"failed|ошибк|error|отказываюсь|не удалось|не открыт|нет элемента|not open|"
-                         r"no element|недоступ|unavailable|blocked|не уверен|похоже, не то|not sure", re.I)
+                         r"no element|недоступ|unavailable|blocked|не уверен|похоже, не то|not sure|not sent|не отправ|"
+                         r"draft ready", re.I)
 _trace_lock = threading.Lock()
 
 

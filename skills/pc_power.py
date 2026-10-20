@@ -119,12 +119,12 @@ def snip_screen_text(action: str = "copy") -> str:
        params={"app": "telegram | whatsapp | instagram | discord | current", "contact": "who, in the user's words",
                "message": "what to say (gist) or the exact text", "exact": "true if the text is dictated word for word"})
 def send_message(app: str, contact: str = "", message: str = "", exact: bool = False) -> str:
-    return messengers.tool_prepare(app, contact, message, bool(exact))
+    return messengers.tool_send_message(app, contact, message, bool(exact))
 
 
 @skill("pc_power", description="Sends the drafted messenger message after the user said yes (after send_message).")
 def confirm_message_send() -> str:
-    return messengers.send()
+    return messengers.tool_confirm()
 
 
 @skill("pc_power", read_only=True,

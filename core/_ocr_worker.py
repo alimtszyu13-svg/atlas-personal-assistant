@@ -29,7 +29,41 @@ def _lines(res) -> list:
     return out
 
 
-LIMIT = 1280     # Windows OCR падает на больших снимках — уменьшаем, координаты возвращаем в исходный масштаб
+LIMIT = 1280     # Windows OCR падает на больших снимках — режем на куски (уменьшать нельзя: мелкий шрифт превращается в кашу)
+OVERLAP = 120    # куски перекрываются, чтобы строка на стыке целиком попала хотя бы в один
+
+
+def _starts(size: int) -> list:
+    if size <= LIMIT:
+        return [0]
+    step = LIMIT - OVERLAP
+    out = list(range(0, size - LIMIT, step)) + [size - LIMIT]
+    return sorted(set(out))
+
+
+def _dedupe(lines: list) -> list:
+    """Одна и та же строка из двух перекрывающихся кусков — оставляем более длинный вариант."""
+    out = []
+    for ln in sorted(lines, key=lambda l: -len(l["text"])):
+        cy = ln["y"] + ln["h"] / 2
+        dup = next((o for o in out if abs((o["y"] + o["h"] / 2) - cy) < max(6, ln["h"] * 0.6)
+                    and ln["x"] < o["x"] + o["w"] and o["x"] < ln["x"] + ln["w"]), None)
+        if dup is None:
+            out.append(ln)
+    return sorted(out, key=lambda l: (l["y"], l["x"]))
+
+
+def recognize(img, lang: str, rec) -> list:
+    w, h = img.size
+    found = []
+    for x0 in _starts(w):
+        for y0 in _starts(h):
+            tile = img.crop((x0, y0, min(w, x0 + LIMIT), min(h, y0 + LIMIT)))
+            for ln in _lines(rec(tile, lang)):
+                ln["x"] += x0
+                ln["y"] += y0
+                found.append(ln)
+    return _dedupe(found) if (w > LIMIT or h > LIMIT) else found
 
 
 def main() -> None:
@@ -38,20 +72,10 @@ def main() -> None:
     from PIL import Image
     from winocr import recognize_pil_sync                 # может жёстко упасть — тогда процесс просто умрёт
     img = Image.open(path).convert("RGB")
-    w, h = img.size
-    scale = 1.0
-    if max(w, h) > LIMIT:
-        scale = LIMIT / max(w, h)
-        img = img.resize((max(1, int(w * scale)), max(1, int(h * scale))))
     out = {}
     for lang in langs:
         try:
-            lines = _lines(recognize_pil_sync(img, lang))
-            if scale != 1.0:
-                for ln in lines:
-                    ln["x"], ln["y"] = int(ln["x"] / scale), int(ln["y"] / scale)
-                    ln["w"], ln["h"] = int(ln["w"] / scale), int(ln["h"] / scale)
-            out[lang] = lines
+            out[lang] = recognize(img, lang, recognize_pil_sync)
         except Exception:
             out[lang] = []
     sys.stdout.write(json.dumps(out, ensure_ascii=False))

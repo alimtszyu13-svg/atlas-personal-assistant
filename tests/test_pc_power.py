@@ -590,15 +590,15 @@ def messengers_reply_confirm_send():
         asked.append(user)
         return "«Мам, опоздаю минут на 10»" if "Change it" not in user else "мам опоздаю на 10 мин"
     said = M.handle("ответь маме в телеграме, что опоздаю на 10 минут", ui=ui, ask=ask)
-    assert said == "Напишу Мама ❤ в Telegram: «Мам, опоздаю минут на 10». Отправить?", said
+    assert said == "Пишу в Telegram, чат «Мама ❤»: «Мам, опоздаю минут на 10». Отправить?", said
     assert ("click", 145, 130) in ui.log and ui.open == "Мама ❤", ui.log          # чат был виден в списке
     assert "Мама ❤: Ты где?" in asked[0] and "Я: щас буду" in asked[0] and "Мама ❤: Купи хлеб" in asked[0], asked[0]
     assert not ui.sent, "без «да» — не отправляем"
     assert M.intent("да", last="что-то другое") is None
     said = M.handle("сделай короче", last=said, ui=ui, ask=ask)
-    assert said.endswith("«мам опоздаю на 10 мин». Отправить?"), said
+    assert said.endswith("«Мам опоздаю на 10 мин». Отправить?"), said
     out = M.handle("да", last=said, ui=ui)
-    assert ui.sent == [("Мама ❤", "мам опоздаю на 10 мин")] and out == "Отправил.", (ui.sent, out)
+    assert ui.sent == [("Мама ❤", "Мам опоздаю на 10 мин")] and out == "Отправил.", (ui.sent, out)
     assert M.handle("да", last=said, ui=ui) is None, "черновик уже отправлен"
     assert M.known_app("маму") == "telegram"
     assert M.intent("напиши маме что я дома")[1] == "telegram", "мама — в Телеграме, запомнили"
@@ -621,14 +621,14 @@ def messengers_search_exact_cancel_here_read():
     ui.ocr = ocr_first_three
     said = M.handle("напиши Алиму в телеграме: да, буду", ui=ui, ask=lambda *a, **k: 1 / 0)
     assert ("paste", "алим") in ui.log and ui.open == "Алим Сыдыков", ui.log
-    assert said == "Напишу Алим Сыдыков в Telegram: «да, буду». Отправить?", said
+    assert said == "Пишу в Telegram, чат «Алим Сыдыков»: «Да, буду». Отправить?", said
     assert M.handle("нет", last=said, ui=ui) == "Не отправляю." and not ui.sent
     said = M.handle("напиши Бекзату в телеграме что привет", ui=FakeTG(), ask=lambda *a, **k: "привет")
     assert said.startswith("Не нашёл чат «Бекзату»"), said
     ui = FakeTG()
     ui.open = "Дана"
     said = M.handle("ответь ей, что согласна", ui=ui, ask=lambda s, u, max_tokens=0: "согласна!")
-    assert said == "Напишу Дана в Telegram: «согласна!». Отправить?", said
+    assert said == "Пишу в Telegram, чат «Дана»: «Согласна!». Отправить?", said
     assert M.handle("ответь на это", ui=FakeTG(top=False)) is None, "не в мессенджере — не наше"
     out = M.handle("что написала мама в телеграме", ui=FakeTG(),
                    ask=lambda s, u, max_tokens=0: "Мама спрашивает, где ты, и просит купить хлеб.")
@@ -662,7 +662,7 @@ def messengers_pick_app_when_none_named():
 
     # 1) мессенджер открыт (Telegram) → сразу пишем туда, Блокнот не трогаем
     said = M.handle("напиши маме что скоро буду", ui=FakeTG(), ask=lambda s, u, max_tokens=0: "«Скоро буду»")
-    assert said == "Напишу Мама ❤ в Telegram: «Скоро буду». Отправить?", said
+    assert said == "Пишу в Telegram, чат «Мама ❤»: «Скоро буду». Отправить?", said
 
     # 2) мессенджера нет и контакт незнаком → Atlas спрашивает, какой, и запоминает намерение
     M = _fresh_messengers()                                  # забываем «мам→telegram» из шага 1
@@ -671,7 +671,7 @@ def messengers_pick_app_when_none_named():
     assert M._s["pending"]["need_app"] and M._s["pending"]["gist"] == "скоро буду"
     # 3) отвечаем «в телеграме» → продолжает в Telegram
     out = M.handle("в телеграме", last=q, ui=FakeTG(), ask=lambda s, u, max_tokens=0: "«Скоро буду»")
-    assert out == "Напишу Мама ❤ в Telegram: «Скоро буду». Отправить?", out
+    assert out == "Пишу в Telegram, чат «Мама ❤»: «Скоро буду». Отправить?", out
     # 4) по умолчанию из .env — без вопроса
     M._s.update(pending=None, said=None)
     os.environ["ATLAS_DEFAULT_MESSENGER"] = "whatsapp"
@@ -692,6 +692,205 @@ def whatsapp_store_window_found_by_title():
     assert W.find({"app": "word"}, wins) is None, "не хватаем лишнее по заголовку"
     fw = M.find_window("whatsapp", wins)
     assert fw and fw["hwnd"] == 1 and fw["web"] is False, "мессенджеры: то же окно, не как веб"
+
+
+
+@test
+def messengers_never_write_to_someone_elses_mom():
+    """«Напиши маме» не открывает «Маму Данияра», даже если её чат выше в списке."""
+    M = _fresh_messengers()
+    chats = {"Мама Данияра": [("them", "Даник дома?")], "Мама ❤": [("them", "Купи хлеб")], "Дана": [("them", "Привет")]}
+    ui = FakeTG(chats=dict(chats))
+    said = M.handle("напиши маме в телеграме что скоро буду", ui=ui, ask=lambda s, u, max_tokens=0: "«Скоро буду»")
+    assert ui.open == "Мама ❤" and said == "Пишу в Telegram, чат «Мама ❤»: «Скоро буду». Отправить?", (ui.open, said)
+    # мамы в списке нет совсем — только мама друга: не открываем, спрашиваем
+    M = _fresh_messengers()
+    ui = FakeTG(chats={"Мама Данияра": [("them", "Даник дома?")], "Дана": [("them", "Привет")]})
+    said = M.handle("напиши маме в телеграме что скоро буду", ui=ui, ask=lambda *a, **k: 1 / 0)
+    assert ui.open is None and "«Мама Данияра»" in said and "не мама" in said, (ui.open, said)
+    assert not ui.sent
+    # «маме Данияра» — тогда это и есть нужный чат
+    M = _fresh_messengers()
+    ui = FakeTG(chats=dict(chats))
+    said = M.handle("напиши маме Данияра в телеграме что Даник у нас", ui=ui, ask=lambda s, u, max_tokens=0: "Даник у нас")
+    assert ui.open == "Мама Данияра", (ui.open, said)
+
+
+@test
+def messengers_ambiguous_name_asks_which():
+    M = _fresh_messengers()
+    ui = FakeTG(chats={"Алим Сыдыков": [("them", "Завтра в 7?")], "Алим Касымов": [("them", "ок")]})
+    said = M.handle("напиши Алиму в телеграме что буду в 7", ui=ui, ask=lambda s, u, max_tokens=0: "Буду в 7")
+    assert ui.open is None and "«Алим Сыдыков»" in said and "«Алим Касымов»" in said, said
+    out = M.handle("второму", last=said, ui=ui, ask=lambda s, u, max_tokens=0: "Буду в 7")
+    assert ui.open == "Алим Касымов" and out.startswith("Пишу в Telegram, чат «Алим Касымов»"), (ui.open, out)
+    M.handle("да", last=out, ui=ui)
+    assert ui.sent == [("Алим Касымов", "Буду в 7")], ui.sent
+    assert M.known_title("Алиму", "telegram") == "Алим Касымов", "подтвердил — запомнили, кто такой «Алим»"
+
+
+@test
+def messengers_teach_how_contact_is_saved():
+    M = _fresh_messengers()
+    out = M.handle("запомни, что мама у меня в телеграме записана как Мамуля")
+    assert out == "Запомнил: мама в Telegram — это «Мамуля».", out
+    ui = FakeTG(chats={"Мама Данияра": [("them", "?")], "Мамуля": [("them", "Ты где?")]})
+    said = M.handle("напиши маме в телеграме что скоро буду", ui=ui, ask=lambda s, u, max_tokens=0: "Скоро буду")
+    assert ui.open == "Мамуля" and "«Мамуля»" in said, (ui.open, said)
+
+
+@test
+def messengers_send_checks_the_chat_again():
+    """Пока думал над «да», в окне открыли другой чат — не вставляем текст туда."""
+    M = _fresh_messengers()
+    ui = FakeTG()
+    said = M.handle("напиши маме в телеграме что скоро буду", ui=ui, ask=lambda s, u, max_tokens=0: "Скоро буду")
+    ui.open = "Дана"
+    out = M.handle("да", last=said, ui=ui)
+    assert not ui.sent and "другой чат" in out, (ui.sent, out)
+
+
+@test
+def messengers_write_literate():
+    """Текст сообщения: типографика без модели и корректор, который не переписывает смысл."""
+    M = _fresh_messengers()
+    assert M._tidy("мам ,опоздаю на 10 минут - автобус сломался...", True) == "Мам, опоздаю на 10 минут — автобус сломался…"
+    assert M._tidy('скинь "Дюну" плиз!!!', True) == "Скинь «Дюну» плиз!"
+    assert M._tidy("ok see you at 7", False) == "Ok see you at 7"
+    fixed = lambda s, u, max_tokens=0: "Мам, опоздаю минут на 10, автобус сломался"
+    assert M._polish("мам опоздаю минут на 10 автобус сломался", True, fixed) == "Мам, опоздаю минут на 10, автобус сломался"
+    rewrote = lambda s, u, max_tokens=0: "Дорогая мама! Сообщаю, что из-за поломки транспорта я задержусь."
+    assert M._polish("мам опоздаю минут на 10", True, rewrote) == "мам опоздаю минут на 10", "переписал смысл — не берём"
+    assert M._polish("мам опоздаю", True, lambda *a, **k: 1 / 0) == "мам опоздаю", "корректор упал — текст как был"
+    # в живой работе (без ask из теста) черновик проходит корректор
+    import core.quick_llm as Q
+    calls, orig = [], Q.ask
+    Q.ask = lambda s, u, max_tokens=0, **k: calls.append(s) or ("Алим, привет! Во сколько завтра тренировка?"
+                                                               if "proofreader" in s else "алим привет во сколько завтра тренировка")
+    try:
+        out = M.draft("спроси во сколько завтра тренировка", [], "Алим", "telegram", True)
+    finally:
+        Q.ask = orig
+    assert out == "Алим, привет! Во сколько завтра тренировка?" and any("proofreader" in c for c in calls), (out, calls)
+    assert "запятой" in calls[0] and "Never copy the user's typos" in calls[0], "правила грамотности — в запросе"
+
+
+@test
+def not_found_then_i_opened_it_myself():
+    """Лог 20.10: «напиши маме «тест 1»» — чат не нашёлся; «Чат открыт. Пиши тест 1.» ушло в общий мозг,
+    тот напечатал и соврал «отправлен». Теперь — в открытый чат, с «Отправить?», и запоминаем, как записана мама."""
+    M = _fresh_messengers()
+    ui = FakeTG(chats={"Ана Сыдыкова": [("them", "?")], "Дана": [("them", "Привет")]})
+    out = M.handle("напиши маме в телеграме «тест 1»", ui=ui)
+    assert "открыл" in out and "«Мама»" in out, out
+    ui.open, ui.query = "Ана Сыдыкова", None                        # открыл сам
+    out = M.handle("Чат открыт. Пиши тест 1.", last=out, ui=ui)
+    assert out.startswith("Пишу в Telegram, в открытый чат «Ана Сыдыкова»:") and "ест 1" in out, out
+    M.handle("да", last=out, ui=ui)
+    assert ui.sent and ui.sent[-1][0] == "Ана Сыдыкова", ui.sent
+    assert M.known_title("маме", "telegram") == "Ана Сыдыкова", "в следующий раз найдёт сам"
+    ui.open = None
+    out = M.handle("напиши маме в телеграме «тест 2»", ui=ui)
+    assert "«Ана Сыдыкова»" in out and "Отправить?" in out, out
+    M._remember("маме", "telegram", "Мама старая запись")         # запомненное имя устарело — ищем заново, не глохнем
+    ui.open = None
+    out = M.handle("напиши маме в телеграме «тест 3»", ui=ui)
+    assert "открыл" in out, out
+    for phrase in ("открыл", "готово", "я открыл, напиши: буду в 7"):
+        assert M.intent(phrase, last=out)[0] == "here", phrase
+    assert M.intent("я открыл, напиши: буду в 7", last=out) == ("here", "буду в 7")
+
+
+
+@test
+def write_to_myself_and_yes_after_brain_rephrase():
+    """Лог 20.10 20:16: «напиши мне самому привет» ушло в заметки; «отправляй» после пересказа мозгом не сработало."""
+    M = _fresh_messengers()
+    ui = FakeTG(app="WhatsApp.Root", title="WhatsApp",
+                chats={"+996 707 050 809 (вы)": [("me", "старое")], "Мама ❤": [("them", "?")]})
+    assert M.intent("Напиши мне самому привет.") == ("reply", None, "себе", "привет", None)
+    out = M.handle("напиши мне самому в ватсап «Привет»", ui=ui)
+    assert out == "Пишу в WhatsApp, чат «+996 707 050 809 (вы)»: «Привет». Отправить?", out
+    brain_said = "Надо подтвердить отправку сообщения. Скажите «да» или «нет»."
+    assert M.intent("Отправляй.", last=brain_said) == ("send",), "мозг пересказал вопрос — «да» всё равно наше"
+    assert M.intent("Отправляй.", last="Погода: +5, ясно.") is None
+    M.handle("Отправляй.", last=brain_said, ui=ui)
+    assert ui.sent == [("+996 707 050 809 (вы)", "Привет")], ui.sent
+    assert M.known_app("мне самому") == "whatsapp" and M.known_app("вы") == "whatsapp"
+
+
+@test
+def message_tools_never_claim_sent():
+    M = _fresh_messengers()
+    import re as _re
+    import types
+    tsrc = open(os.path.join(ROOT, "brain", "tools.py"), encoding="utf-8").read()
+    expr = tsrc[tsrc.index("_TRACE_FAIL = ") + len("_TRACE_FAIL = "):tsrc.index("_trace_lock")]
+    T = types.SimpleNamespace(_TRACE_FAIL=eval(expr, {"re": _re}))      # тот же признак неудачи, что видит мозг
+    src = open(os.path.join(ROOT, "skills", "pc_power.py"), encoding="utf-8").read()
+    assert "messengers.tool_send_message(" in src and "messengers.tool_confirm()" in src
+    orig = M.tool_prepare, M.send
+    try:
+        M.tool_prepare = lambda *a: "Не нашёл чат «вы» в WhatsApp. Скажи, как контакт записан."
+        r = M.tool_send_message("whatsapp", "вы", "Привет")
+        assert r.startswith("NOT SENT") and T._TRACE_FAIL.search(r[:220]), r
+        M.tool_prepare = lambda *a: (M._s.update(pending={"created": __import__("time").time(), "ru": True})
+                                     or "Пишу в WhatsApp, чат «Вы»: «Привет». Отправить?")
+        r = M.tool_send_message("whatsapp", "вы", "Привет")
+        assert r.startswith("DRAFT READY — NOT SENT YET") and T._TRACE_FAIL.search(r[:220]), \
+            "черновик в плане — не «всё готово»: done_message «отправлено» не прозвучит"
+        for said, start in (("Отправил.", "SENT"), ("Вставил и нажал Enter — проверь, что ушло.", "PROBABLY SENT"),
+                            ("Не получилось переключиться на WhatsApp — не отправил.", "NOT SENT")):
+            M.send = lambda ui=None, s=said: s
+            assert M.tool_confirm().startswith(start), said
+    finally:
+        M.tool_prepare, M.send = orig
+        M._s["pending"] = None
+    import system_control as S
+    assert "whatsapp:" in S.APP_MAP["whatsapp"][0], "WhatsApp из Store — только по протоколу"
+
+
+@test
+def open_chat_of_who_sent_photo():
+    M = _fresh_messengers()
+    assert M.intent("Открой фотографию, что прислал папа.") == ("open", None, "папа", "фотографию")
+    assert M.intent("открой чат с папой в ватсапе")[:3] == ("open", "whatsapp", "папой")
+    assert M.intent("открой блокнот") is None and M.intent("открой фото") is None
+    ui = FakeTG(chats={"Папа": [("them", "фото")], "Мама ❤": [("them", "?")]})
+    out = M.handle("открой фото, что прислал папа в телеграме", ui=ui)
+    assert out == "Открыл чат «Папа» в Telegram. Последнее — внизу." and ui.open == "Папа", out
+
+
+
+@test
+def whatsapp_real_layout_by_structure():
+    """Раскладка настоящего WhatsApp 1936×1048 (снято probe 20.10): список ~400 px, заголовок с x=463.
+    По долям окна заголовок (x<572) выпадал — чат никогда не был «проверен», а реплики собеседника не читались."""
+    M = _fresh_messengers()
+
+    def el(t, x, y, w, h, kind="TextControl"):
+        return {"text": t, "x": x, "y": y, "w": w, "h": h, "uia": kind}
+    rect = (-8, -8, 1928, 1040)
+    rows = [("+996 700 000 000", 179, "(Вы)"), ("Папа", 248, None), ("Мама", 316, None), ("Алибек", 384, None),
+            ("Мама Данияра", 453, None)]
+    uia = [el("Изменить размер панели списка чатов", 399, 34, 23, 998, "ButtonControl"),
+           el("Поиск или новый чат", 121, 106, 128, 10)]
+    for name, y, extra in rows:
+        uia += [el(f"{name} 19:37 ? Закрепленный чат", 58, y, 332, 69, "DataItemControl"), el(name, 135, y + 13, 40, 19)]
+        if extra:
+            uia.append(el(extra, 255, y + 12, 31, 19))
+    uia += [el("Мама", 463, 44, 40, 19), el("был(а) недавно", 463, 65, 115, 15),
+            el("Поиск", 1819, 45, 37, 37, "ButtonControl"), el("Ты где?", 430, 600, 60, 16), el("щас", 1700, 650, 40, 16)]
+    assert M.learn_divider(77, uia, rect) == 410
+    rg = M._regions(rect, False, 77)
+    assert [ln["text"] for ln in M._header(uia, rg)][:2] == ["Мама", "был(а) недавно"], "заголовок теперь виден"
+    res = M._choose(uia, rg, M.stems("маме"), True)
+    assert res[0] == "click" and res[1]["text"] == "Мама" and res[1]["y"] == 329, res
+    assert M._choose(uia, rg, M.stems("Алибеку"), False)[1]["text"] == "Алибек"
+    selfrow = [ln for ln in uia if M._SELF_CHAT.search(ln["text"]) and M._cx(ln) < rg["list_x"]]
+    assert selfrow and selfrow[0]["y"] == 191
+    assert M._regions(rect, False, 999)["chat_x"] == 572, "без структуры окна — как раньше"
+    M._DIV.pop(77, None)
 
 
 def main():
