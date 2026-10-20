@@ -31,7 +31,8 @@ CLOUD_HINT = ("(Said on the phone; Atlas is answering from the cloud: calendar, 
               "a message, use open_on_phone. Only when the user mentions the computer, or it is about the "
               "computer itself — its volume, files, programs, screen, sending a file from it — use use_computer; if it says the "
               "computer is offline, tell the user briefly. "
-              "Reply in 1-2 short spoken sentences, plain text, no brackets or quotes.) ")
+              "Answer as fully as the question needs: one short sentence for a command, a clear 2-5 sentence spoken "
+              "explanation for a real question; plain text, no brackets or quotes.) ")
 # без этого облако бессмысленно — если не загрузились, лучше честно упасть с ошибкой в логе Space
 ESSENTIAL = ("ai_brain", "brain", "brain.state", "brain.prompt", "brain.providers", "brain.tools", "brain.features",
              "brain.planner", "brain.instant", "brain.pipeline", "tool_router", "core", "core.llm_gateway",

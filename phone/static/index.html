@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#050814">
+<meta name="theme-color" content="#040302">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Atlas">
@@ -11,192 +11,231 @@
 <link rel="apple-touch-icon" href="/icon-180.png">
 <link rel="icon" href="/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@400;500&family=Literata:opsz,wght@7..72,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>Atlas</title>
 <style>
   :root {
-    --night: #03050d;
-    --nebula: #1a1446;
-    --tide: #0b3b4a;
-    --line: rgba(170, 190, 255, .16);
-    --glass: rgba(150, 170, 255, .055);
-    --starlight: #e6f0ff;
-    --dim: #8b97c4;
-    --listen: #67e8f9;
-    --think: #ffb86b;
-    --speak: #b4a6ff;
-    --alert: #ff8a8a;
-    --glow: #7d8cff;
-    --display: "Unbounded", "Onest", system-ui, sans-serif;
-    --lvl: 0;
-    --tabbar: 64px;
+    --void: #040302;
+    --glass: rgba(20, 14, 10, .72);
+    --glass-2: rgba(28, 20, 14, .86);
+    --line: rgba(255, 210, 161, .14);
+    --line-2: rgba(255, 210, 161, .3);
+    --text: #F4EDE6;
+    --muted: #B3A595;
+    --faint: #7E7064;
+    --ion: #FFD2A1;
+    --ember: #FF9E5E;
+    --good: #9BD8A8;
+    --alert: #FF8A70;
+    --display: "Unbounded", "Manrope", system-ui, sans-serif;
+    --body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --heavy: cubic-bezier(.16, 1, .3, 1);
+    --nav-h: 66px;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; margin: 0; }
-  body {
-    background:
-      radial-gradient(70% 45% at 18% 12%, rgba(88, 62, 190, .38) 0%, transparent 70%),
-      radial-gradient(60% 40% at 92% 58%, rgba(11, 95, 120, .34) 0%, transparent 72%),
-      radial-gradient(90% 60% at 50% 34%, rgba(26, 20, 70, .9) 0%, transparent 75%),
-      var(--night);
-    color: var(--starlight);
-    font: 400 16px/1.5 "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
-    display: flex; flex-direction: column; overflow: hidden;
-    padding-top: env(safe-area-inset-top);
-  }
-  body::before {
-    content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .5;
-    background-image:
-      radial-gradient(1px 1px at 12% 18%, #fff 50%, transparent 51%),
-      radial-gradient(1px 1px at 78% 12%, #cfe0ff 50%, transparent 51%),
-      radial-gradient(1px 1px at 64% 72%, #fff 50%, transparent 51%),
-      radial-gradient(1.5px 1.5px at 22% 64%, #dfe8ff 50%, transparent 51%),
-      radial-gradient(1px 1px at 88% 48%, #fff 50%, transparent 51%),
-      radial-gradient(1px 1px at 40% 88%, #cfe0ff 50%, transparent 51%),
-      radial-gradient(1.5px 1.5px at 52% 6%, #fff 50%, transparent 51%);
-  }
-  button { font: inherit; color: inherit; }
-  button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--speak); outline-offset: 2px; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--void); color: var(--text); font: 500 15px/1.45 var(--body); overflow: hidden;
+    padding-top: env(safe-area-inset-top, 0px); }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; opacity: .45; }
+  :focus-visible { outline: 2px solid var(--ion); outline-offset: 2px; }
+  .i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  [hidden] { display: none !important; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
-  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px 4px; font-size: 14px; color: var(--dim); }
-  .mark { color: var(--starlight); font: 500 17px/1 var(--display); letter-spacing: .08em; }
-  .link { display: inline-flex; align-items: center; gap: 8px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
-  .link.on .dot { background: var(--listen); box-shadow: 0 0 8px var(--listen); }
+  /* фон: звёзды и тёплая дымка за всем приложением */
+  body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: radial-gradient(120% 60% at 50% 28%, rgba(120, 62, 22, .16), transparent 60%),
+                radial-gradient(1px 1px at 12% 18%, rgba(255,240,220,.55), transparent 60%),
+                radial-gradient(1px 1px at 78% 12%, rgba(255,240,220,.4), transparent 60%),
+                radial-gradient(1px 1px at 64% 66%, rgba(255,240,220,.35), transparent 60%),
+                radial-gradient(1px 1px at 24% 80%, rgba(255,240,220,.3), transparent 60%),
+                radial-gradient(1.4px 1.4px at 90% 44%, rgba(255,240,220,.5), transparent 60%),
+                var(--void); }
+
+  /* ----- шапка ----- */
+  header { height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+  .mark { font: 500 13px var(--display); letter-spacing: .42em; padding-left: .2em; }
+  .right { display: flex; align-items: center; gap: 10px; }
+  .link { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+  .link .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .link.on .dot { background: var(--good); box-shadow: 0 0 8px rgba(155,216,168,.7); }
   .link.off .dot { background: var(--alert); }
+  .gear { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: var(--glass);
+    display: grid; place-items: center; color: var(--muted); transition: color .3s, border-color .3s; }
+  .gear[aria-pressed="true"] { color: var(--text); border-color: var(--line-2); }
 
-  main { flex: 1; min-height: 0; position: relative; }
-  .view { position: absolute; inset: 0; display: none; flex-direction: column; padding: 0 20px; overflow-y: auto;
-          padding-bottom: calc(var(--tabbar) + env(safe-area-inset-bottom) + 12px); }
-  .view.on { display: flex; }
-  .wrap { width: 100%; max-width: 560px; margin: 0 auto; }
-  h2 { font: 500 22px/1.25 var(--display); letter-spacing: .01em; margin: 16px 0 6px; }
-  .sub { color: var(--dim); font-size: 15px; margin: 0 0 16px; }
+  /* ----- экраны ----- */
+  main { position: relative; height: calc(100% - 52px - var(--nav-h) - env(safe-area-inset-bottom, 0px)); }
+  .view { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; opacity: 0; pointer-events: none;
+    transform: translateY(10px); transition: opacity .45s ease, transform .6s var(--heavy); }
+  .view.on { opacity: 1; pointer-events: auto; transform: none; }
+  .wrap { padding: 8px 16px 28px; max-width: 640px; margin: 0 auto; }
+  h2 { font: 500 19px var(--display); letter-spacing: .04em; margin: 8px 0 4px; }
+  h3.sec { font: 600 11px var(--body); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 22px 0 8px; }
+  .sub { color: var(--muted); font-size: 13.5px; margin: 0 0 14px; }
+  .note { color: var(--muted); font-size: 13px; margin: 6px 0; }
 
-  /* ---------- Atlas: сфера частиц ---------- */
-  #v-atlas { align-items: center; overflow: hidden; }
-  .star { position: relative; flex: none; margin-top: 1vh; width: min(78vw, 40vh, 340px); aspect-ratio: 1;
-          border: 0; padding: 0; border-radius: 50%; background: transparent; cursor: pointer; }
-  .star canvas { position: absolute; inset: -12%; width: 124%; height: 124%; pointer-events: none; }
-  body[data-state="locked"] .star { cursor: default; }
-  .state { margin: 0; min-height: 1.4em; color: var(--dim); font-size: 13px; letter-spacing: .04em; }
-  body[data-state="listening"] .state { color: var(--listen); }
-  body[data-state="thinking"] .state { color: var(--think); }
-  body[data-state="speaking"] .state { color: var(--speak); }
+  /* ----- главный экран: чёрная дыра ----- */
+  #v-atlas { display: flex; flex-direction: column; }
+  .hero { position: relative; width: 100%; height: min(46vh, 420px); flex: none; border: 0; padding: 0; background: none;
+    display: block; touch-action: manipulation; }
+  .hero canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 82%, transparent);
+            mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 82%, transparent); }
+  .hero .fallback { position: absolute; inset: 0; background:
+      radial-gradient(closest-side, #000 34%, rgba(255,214,170,.9) 37%, rgba(255,140,60,.35) 46%, transparent 66%) center/62% 62% no-repeat; }
+  .hero .ring { position: absolute; left: 50%; top: 50%; width: 46%; aspect-ratio: 1; transform: translate(-50%,-50%) scale(1.08);
+    border-radius: 50%; border: 1px solid rgba(255,210,161,.0); pointer-events: none;
+    transition: transform 1.1s var(--heavy), border-color .8s ease; }
+  body[data-state="listening"] .hero .ring { transform: translate(-50%,-50%) scale(1); border-color: rgba(255,210,161,.38); }
+  .hero .wm { position: absolute; left: 50%; top: 45%; transform: translate(-50%,-50%); font: 500 13px var(--display);
+    letter-spacing: .5em; padding-left: .5em; color: rgba(251,244,236,.92); pointer-events: none;
+    text-shadow: 0 0 8px rgba(0,0,0,.9), 0 0 18px rgba(0,0,0,.6); transition: letter-spacing 1s var(--heavy), opacity .6s; }
+  body[data-state="listening"] .hero .wm, body[data-state="speaking"] .hero .wm { letter-spacing: .62em; }
+  body[data-state="locked"] .hero .wm { opacity: .4; }
+  .state { text-align: center; margin: -4px 0 0; min-height: 18px; font: 500 10.5px var(--display); letter-spacing: .5em;
+    padding-left: .5em; color: var(--muted); text-transform: lowercase; transition: color .6s; }
+  body[data-state="listening"] .state, body[data-state="speaking"] .state { color: var(--ion); }
+  body[data-state="thinking"] .state { color: var(--ember); }
+  .caption { text-align: center; margin: 10px 20px 0; min-height: 22px; font-size: 16px; line-height: 1.5; }
+  .caption .heard { display: block; color: var(--muted); font-size: 13.5px; margin-bottom: 4px; }
+  .caption .hint { color: var(--muted); font-size: 14px; }
+  .acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 16px 0; }
+  .act { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 18px; text-decoration: none;
+    color: var(--text); border: 1px solid var(--line-2); background: rgba(255,210,161,.08); font-size: 14px; }
+  .act svg { width: 14px; height: 14px; fill: none; stroke: var(--ion); stroke-width: 2; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 14px 16px 2px; scrollbar-width: none; flex: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--glass);
+    color: var(--muted); font-size: 13.5px; white-space: nowrap; transition: color .3s, border-color .3s, transform .4s var(--heavy); }
+  .chip:active { transform: scale(.96); }
+  .chip:not(:disabled):hover { color: var(--text); border-color: var(--line-2); }
+  .install { display: block; margin: 12px auto 0; height: 38px; padding: 0 16px; border-radius: 19px; border: 1px solid var(--line-2);
+    background: rgba(255,210,161,.1); color: var(--text); }
+  .brief { margin: 14px 16px 0; padding: 14px 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--glass);
+    animation: rise .7s var(--heavy) both; }
+  .brief .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .brief b { font: 600 11px var(--body); letter-spacing: .16em; text-transform: uppercase; color: var(--ion); }
+  .brief p { margin: 8px 0 0; font-size: 14.5px; color: var(--text); }
+  .brief .listen { height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid var(--line-2); background: none; color: var(--text); font-size: 13px; }
+  .history { padding: 6px 16px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .turn { margin: 0; max-width: 86%; padding: 9px 13px; border-radius: 16px; font-size: 14.5px; animation: rise .5s var(--heavy) both; }
+  .turn.you { align-self: flex-end; background: rgba(224,138,74,.16); border: 1px solid rgba(224,138,74,.3); border-bottom-right-radius: 5px; }
+  .turn.atlas { align-self: flex-start; background: var(--glass); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+  .ask { position: sticky; bottom: 0; margin-top: auto; display: flex; gap: 8px; padding: 10px 16px 12px;
+    background: linear-gradient(to top, var(--void) 60%, transparent); }
+  .ask input { flex: 1; min-width: 0; height: 46px; border-radius: 23px; border: 1px solid var(--line); background: var(--glass-2);
+    padding: 0 18px; outline: none; }
+  .ask input:focus { border-color: var(--line-2); }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-  .caption { margin: 2vh 0 0; max-width: 34ch; min-height: 2.9em; text-align: center; font-size: 19px; line-height: 1.45;
-             font-weight: 500; text-wrap: balance; }
-  .caption .heard { display: block; color: var(--dim); font-size: 15px; font-weight: 400; margin-bottom: 6px; }
-  .hint { color: var(--dim); font-size: 15px; font-weight: 400; }
-  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 14px 0 0; }
-  .chip { border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(10px);
-          border-radius: 999px; padding: 8px 15px; font-size: 15px; cursor: pointer; }
-  .chip:disabled { opacity: .4; }
-  .acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; max-width: 34ch; }
-  .acts:empty { display: none; }
-  .act { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 999px;
-         background: var(--starlight); color: var(--night); font-weight: 600; font-size: 15px; text-decoration: none;
-         max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .act svg { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
-  .install { margin-top: 12px; border: 1px solid color-mix(in srgb, var(--starlight) 35%, transparent);
-             background: transparent; border-radius: 999px; padding: 7px 16px; font-size: 15px; cursor: pointer; }
-  .install[hidden] { display: none; }
-  .history { flex: 1; min-height: 0; width: 100%; max-width: 560px; margin-top: 12px; overflow-y: auto; padding: 8px 2px 4px;
-             font-size: 15px; mask-image: linear-gradient(to bottom, transparent 0, #000 24px); }
-  .turn { margin: 0 0 12px; max-width: 82%; }
-  .turn.you { margin-left: auto; text-align: right; color: var(--dim); }
-  .ask { display: flex; gap: 10px; width: 100%; max-width: 560px; padding: 8px 0 4px; }
+  /* ----- общие элементы ----- */
+  .btn { height: 44px; padding: 0 18px; border-radius: 22px; border: 1px solid var(--line-2); background: rgba(255,210,161,.12);
+    color: var(--text); font-weight: 600; transition: background .3s, transform .4s var(--heavy); flex: none; }
+  .btn:active { transform: scale(.96); }
+  .btn.quiet { background: transparent; border-color: var(--line); color: var(--muted); font-weight: 500; }
+  .row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .row input, .row textarea, .field { flex: 1; min-width: 0; height: 46px; border-radius: 14px; border: 1px solid var(--line);
+    background: var(--glass-2); padding: 0 14px; outline: none; }
+  .row textarea { height: 96px; padding: 12px 14px; resize: vertical; }
+  .row input:focus, .row textarea:focus { border-color: var(--line-2); }
+  .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .list li { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: 14px; border: 1px solid var(--line);
+    background: var(--glass); animation: rise .45s var(--heavy) both; }
+  .list li.empty { color: var(--muted); justify-content: center; font-size: 14px; border-style: dashed; background: none; }
+  .list .what { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .list .when { color: var(--ion); font-size: 12.5px; white-space: nowrap; }
+  .list li.done .what { color: var(--faint); text-decoration: line-through; }
+  .check, .del { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: none; display: grid;
+    place-items: center; color: var(--muted); flex: none; }
+  .check svg { opacity: 0; } li.done .check svg { opacity: 1; }
+  .del { border: 0; }
+  .badge { position: absolute; top: 4px; right: calc(50% - 22px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+    background: var(--ion); color: #1a0f06; font: 700 10px var(--body); display: grid; place-items: center; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .seg button { height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 13px; }
+  .seg button[aria-pressed="true"] { color: #1a0f06; background: var(--ion); border-color: var(--ion); }
+  .msg { min-height: 20px; font-size: 13.5px; color: var(--muted); margin: 4px 2px 0; }
+  .msg.ok { color: var(--good); } .msg.bad { color: var(--alert); }
 
-  input, textarea {
-    flex: 1; min-width: 0; font: inherit; color: var(--starlight); background: var(--glass); backdrop-filter: blur(12px);
-    border: 1px solid var(--line); border-radius: 16px; padding: 11px 15px; }
-  textarea { resize: none; min-height: 84px; }
-  input::placeholder, textarea::placeholder { color: var(--dim); }
-  .btn { border: 0; border-radius: 14px; padding: 0 18px; min-height: 44px; font-weight: 600; background: var(--starlight);
-         color: var(--night); cursor: pointer; }
-  .btn:disabled { opacity: .4; }
-  .btn.quiet { background: transparent; color: var(--starlight); border: 1px solid var(--line); font-weight: 500; }
+  /* ----- компьютер ----- */
+  .pcstate { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13.5px; margin: 0 0 14px; }
+  .pcstate .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .pcstate.on .dot { background: var(--good); box-shadow: 0 0 8px rgba(155,216,168,.7); }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pad button { height: 64px; border-radius: 16px; border: 1px solid var(--line); background: var(--glass); color: var(--text);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11.5px;
+    transition: border-color .3s, background .3s, transform .4s var(--heavy); }
+  .pad button .i { color: var(--ion); width: 22px; height: 22px; }
+  .pad button:active { transform: scale(.95); background: rgba(255,210,161,.1); }
+  .pad button.busy { border-color: var(--line-2); }
+  .shot { margin-top: 12px; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); display: block; }
+  .shot img { display: block; width: 100%; height: auto; }
+  .file { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 14px; border: 1px solid var(--line);
+    background: var(--glass); text-decoration: none; color: var(--text); animation: rise .45s var(--heavy) both; }
+  .file .ext { flex: none; width: 42px; height: 42px; border-radius: 10px; display: grid; place-items: center;
+    background: rgba(255,210,161,.1); color: var(--ion); font: 700 10px var(--body); text-transform: uppercase; letter-spacing: .04em; }
+  .file .nm { font-weight: 600; overflow-wrap: anywhere; }
+  .file .meta { color: var(--muted); font-size: 12.5px; }
+  .file .snip { color: var(--faint); font-size: 12.5px; margin-top: 3px; }
+  .files { display: flex; flex-direction: column; gap: 8px; }
 
-  /* ---------- списки ---------- */
-  .row { display: flex; gap: 10px; margin-bottom: 14px; }
-  ul.list, #deckList { list-style: none; margin: 0; padding: 2px 16px; background: var(--glass); backdrop-filter: blur(14px);
-          border: 1px solid var(--line); border-radius: 20px; }
-  ul.list:empty, #deckList:empty { display: none; }
-  ul.list li { display: flex; align-items: flex-start; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--line); }
-  ul.list li:last-child, #deckList .deck:last-child { border-bottom: 0; }
-  .check { flex: none; width: 26px; height: 26px; margin-top: 1px; border-radius: 50%; border: 1.5px solid var(--dim);
-           background: transparent; cursor: pointer; display: grid; place-items: center; padding: 0; }
-  .check svg { opacity: 0; }
-  li.done .check { border-color: var(--listen); background: color-mix(in srgb, var(--listen) 20%, transparent); }
-  li.done .check svg { opacity: 1; }
-  li.done .what { color: var(--dim); text-decoration: line-through; }
-  .what { flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
-  .del { flex: none; border: 0; background: transparent; color: var(--dim); cursor: pointer; width: 32px; height: 32px;
-         border-radius: 8px; padding: 0; display: grid; place-items: center; }
-  .empty { color: var(--dim); padding: 18px 0; }
+  /* ----- учёба ----- */
+  .deck { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-radius: 14px;
+    border: 1px solid var(--line); background: var(--glass); margin-bottom: 8px; }
+  .deck .name { display: flex; flex-direction: column; font-weight: 600; }
+  .deck .meta { color: var(--muted); font-size: 12.5px; font-weight: 500; }
+  .streak { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; }
+  .empty { color: var(--muted); }
+  .progress { height: 3px; border-radius: 2px; background: rgba(255,210,161,.12); overflow: hidden; margin: 6px 0 14px; }
+  .progress i { display: block; height: 100%; width: 0; background: var(--ion); transition: width .6s var(--heavy); }
+  .card { padding: 26px 20px; border-radius: 20px; border: 1px solid var(--line-2); background: var(--glass); text-align: center; }
+  .card .deckname { color: var(--muted); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+  .card .front { font: 500 22px var(--display); margin-top: 10px; overflow-wrap: anywhere; }
+  .feedback { min-height: 22px; margin: 12px 2px; }
+  .feedback.ok { color: var(--good); } .feedback.miss { color: var(--ember); }
+  .answer-row { display: flex; gap: 8px; }
+  .answer-row input { flex: 1; min-width: 0; height: 46px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass-2); padding: 0 14px; outline: none; }
+  .mic { width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--line); background: var(--glass); display: grid; place-items: center; color: var(--ion); flex: none; }
+  .mic.rec { background: rgba(255,138,112,.18); border-color: var(--alert); color: var(--alert); }
+  .study-actions { display: flex; gap: 8px; margin-top: 10px; }
 
-  /* ---------- учёба ---------- */
-  .streak { color: var(--dim); font-size: 15px; margin: 0 0 14px; }
-  .deck { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
-  .deck .name { flex: 1; font-weight: 500; }
-  .deck .meta { color: var(--dim); font-size: 14px; font-weight: 400; display: block; }
-  .session[hidden], .decks[hidden] { display: none; }
-  .progress { height: 3px; background: var(--line); border-radius: 2px; margin: 6px 0 18px; overflow: hidden; }
-  .progress i { display: block; height: 100%; width: 0; background: var(--listen); transition: width .3s ease; }
-  .card { border: 1px solid var(--line); border-radius: 20px; padding: 28px 22px; min-height: 180px;
-          background: linear-gradient(180deg, color-mix(in srgb, var(--nebula) 90%, transparent), color-mix(in srgb, var(--night) 80%, transparent));
-          display: flex; flex-direction: column; justify-content: center; }
-  .card .deckname { color: var(--dim); font-size: 14px; margin-bottom: 10px; }
-  .card .front { font-family: "Literata", Georgia, serif; font-size: 30px; line-height: 1.25; font-weight: 500; overflow-wrap: anywhere; }
-  .feedback { min-height: 3em; margin: 16px 2px 0; font-size: 17px; }
-  .feedback.ok { color: var(--listen); }
-  .feedback.miss { color: var(--think); }
-  .answer-row { display: flex; gap: 10px; margin-top: 8px; }
-  .mic { flex: none; width: 48px; border-radius: 14px; border: 1px solid var(--line); background: transparent; cursor: pointer;
-         display: grid; place-items: center; }
-  .mic.rec { border-color: var(--listen); background: color-mix(in srgb, var(--listen) 18%, transparent); }
-  .study-actions { display: flex; gap: 10px; margin-top: 12px; }
+  /* ----- настройки ----- */
+  fieldset { border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; margin: 14px 0; background: var(--glass); }
+  legend { padding: 0 6px; font: 600 11px var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; }
+  .switch input[type=checkbox] { appearance: none; width: 46px; height: 28px; border-radius: 14px; background: rgba(255,210,161,.14);
+    position: relative; flex: none; transition: background .3s; }
+  .switch input[type=checkbox]::after { content: ""; position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--text); transition: transform .4s var(--heavy); }
+  .switch input[type=checkbox]:checked { background: var(--ion); }
+  .switch input[type=checkbox]:checked::after { transform: translateX(18px); background: #1a0f06; }
+  .switch input[type=time] { height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--glass-2); padding: 0 8px; }
+  .push-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .opt { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; }
+  .opt label { display: flex; align-items: center; gap: 10px; }
+  .opt input { accent-color: #FFD2A1; }
 
-  /* ---------- нижняя панель ---------- */
-  nav { position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--tabbar) + env(safe-area-inset-bottom));
-        padding-bottom: env(safe-area-inset-bottom); display: flex; justify-content: center;
-        background: color-mix(in srgb, var(--night) 88%, transparent); backdrop-filter: blur(12px);
-        border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
-  nav .tabs { display: flex; width: 100%; max-width: 560px; }
-  nav button { flex: 1; border: 0; background: transparent; color: var(--dim); display: flex; flex-direction: column;
-               align-items: center; justify-content: center; gap: 3px; font-size: 12px; cursor: pointer; position: relative; }
-  nav button[aria-current="page"] { color: var(--starlight); }
-  nav button[aria-current="page"] svg { stroke: var(--starlight); }
-  nav .badge { position: absolute; top: 9px; left: calc(50% + 8px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
-               background: var(--think); color: var(--night); font-size: 11px; font-weight: 600; line-height: 16px; }
-  nav .badge[hidden] { display: none; }
-  svg.i { width: 22px; height: 22px; fill: none; stroke: var(--dim); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-
-  /* ---------- настройки ---------- */
-  .gear { border: 0; background: transparent; width: 36px; height: 36px; margin-left: 6px; border-radius: 10px; cursor: pointer;
-          display: grid; place-items: center; padding: 0; }
-  .gear[aria-pressed="true"] svg { stroke: var(--starlight); }
-  .right { display: flex; align-items: center; }
-  fieldset { border: 0; margin: 0 0 22px; padding: 0; }
-  legend { font-weight: 600; font-size: 17px; margin-bottom: 6px; padding: 0; }
-  .opt { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
-  .opt label { flex: 1; display: flex; align-items: center; gap: 12px; cursor: pointer; }
-  .opt input[type=radio] { flex: none; width: 20px; height: 20px; accent-color: var(--listen); margin: 0; }
-  .opt .btn.quiet { min-height: 36px; padding: 0 12px; font-size: 14px; }
-  .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; margin-bottom: 18px; }
-  .switch input { width: 22px; height: 22px; accent-color: var(--listen); flex: none; }
-  .note { color: var(--dim); font-size: 15px; }
-  h3.sec { font-size: 15px; font-weight: 600; color: var(--dim); margin: 22px 0 4px; }
-  h3.sec[hidden], #remList[hidden] { display: none; }
-  .when { flex: none; color: var(--dim); font-size: 14px; font-variant-numeric: tabular-nums; }
-  .push-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  /* ----- нижние вкладки ----- */
+  nav { position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px); background: rgba(8, 6, 4, .86); border-top: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+  .tabs { display: grid; grid-template-columns: repeat(5, 1fr); height: var(--nav-h); max-width: 640px; margin: 0 auto; }
+  .tabs button { position: relative; border: 0; background: none; color: var(--faint); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px; font-size: 11px; transition: color .3s; }
+  .tabs button .i { width: 22px; height: 22px; }
+  .tabs button[aria-current="page"] { color: var(--text); }
+  .tabs button[aria-current="page"]::before { content: ""; position: absolute; top: 0; left: 30%; right: 30%; height: 2px;
+    background: var(--ion); border-radius: 0 0 2px 2px; }
+  @media (prefers-reduced-motion: reduce) { .view, .turn, .list li, .brief, .file { transition: none; animation: none; transform: none; } }
 </style>
 </head>
 <body data-state="locked">
 <header>
-  <span class="mark">atlas</span>
+  <span class="mark">ATLAS</span>
   <span class="right">
     <span class="link" id="link"><span class="dot"></span><span id="linkText">не сопряжено</span></span>
     <button class="gear" id="gear" aria-label="Настройки" aria-pressed="false">
@@ -207,8 +246,11 @@
 
 <main>
   <section class="view on" id="v-atlas" aria-label="Atlas">
-    <button class="star" id="star" aria-label="Говорить с Atlas" disabled>
+    <button class="hero" id="star" aria-label="Говорить с Atlas" disabled>
+      <div class="fallback" id="bhFallback" hidden></div>
       <canvas id="orb" aria-hidden="true"></canvas>
+      <span class="ring" aria-hidden="true"></span>
+      <span class="wm" aria-hidden="true">ATLAS</span>
     </button>
     <p class="state" id="stateText"></p>
     <p class="caption" id="caption" aria-live="polite"></p>
@@ -216,8 +258,14 @@
     <div class="chips" id="chips">
       <button class="chip" data-ask="Какая сейчас погода?" disabled>Погода</button>
       <button class="chip" data-ask="Что у меня на сегодня?" disabled>Что на сегодня</button>
+      <button class="chip" data-ask="Какие главные новости?" disabled>Новости</button>
+      <button class="chip" data-tab="pc" disabled>Компьютер</button>
       <button class="chip" data-tab="study" disabled>Повторить SAT</button>
     </div>
+    <section class="brief" id="brief" hidden aria-label="Сводка дня">
+      <div class="top"><b>Сегодня</b><button class="listen" id="briefSay" type="button">Озвучить</button></div>
+      <p id="briefText"></p>
+    </section>
     <button class="install" id="install" hidden>Установить на телефон</button>
     <section class="history" id="history" aria-label="История разговора"></section>
     <form class="ask" id="askForm" autocomplete="off">
@@ -235,8 +283,24 @@
         <button class="btn">Добавить</button>
       </form>
       <ul class="list" id="todoList"></ul>
+
+      <h3 class="sec">Напоминание</h3>
+      <form id="remForm" autocomplete="off">
+        <div class="row"><input id="remText" placeholder="О чём напомнить" aria-label="О чём напомнить"></div>
+        <div class="seg" id="remWhen" role="group" aria-label="Когда">
+          <button type="button" data-when="через 15 минут" aria-pressed="true">через 15 мин</button>
+          <button type="button" data-when="через 1 час" aria-pressed="false">через час</button>
+          <button type="button" data-when="20:00" aria-pressed="false">в 20:00</button>
+          <button type="button" data-when="tomorrow9" aria-pressed="false">завтра в 9</button>
+          <button type="button" data-when="custom" aria-pressed="false">своё время</button>
+        </div>
+        <div class="row" id="remCustom" hidden><input type="datetime-local" id="remAt" aria-label="Дата и время"></div>
+        <div class="row"><button class="btn">Напомнить</button></div>
+        <p class="msg" id="remMsg" aria-live="polite"></p>
+      </form>
       <h3 class="sec" id="remTitle" hidden>Напоминания</h3>
       <ul class="list" id="remList" hidden></ul>
+      <p class="note">Напоминание придёт уведомлением на телефон и прозвучит на компьютере. По месту («когда приду домой») веб-приложение напомнить не может: телефон не даёт ему следить за геопозицией в фоне.</p>
     </div>
   </section>
 
@@ -249,6 +313,40 @@
         <div class="row"><button class="btn">Сохранить заметку</button></div>
       </form>
       <ul class="list" id="noteList"></ul>
+    </div>
+  </section>
+
+  <section class="view" id="v-pc" aria-label="Компьютер">
+    <div class="wrap">
+      <h2>Компьютер</h2>
+      <p class="pcstate" id="pcState"><span class="dot"></span><span id="pcStateText">проверяю связь…</span></p>
+      <div class="pad" id="pad">
+        <button type="button" data-cmd="vol_down"><svg class="i" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 12h4"/></svg>Тише</button>
+        <button type="button" data-cmd="mute"><svg class="i" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l4 6M21 9l-4 6"/></svg>Без звука</button>
+        <button type="button" data-cmd="vol_up"><svg class="i" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 12h4M18.5 10v4"/></svg>Громче</button>
+        <button type="button" data-cmd="prev"><svg class="i" viewBox="0 0 24 24"><path d="M6 5v14M19 5l-10 7 10 7z"/></svg>Назад</button>
+        <button type="button" data-cmd="play"><svg class="i" viewBox="0 0 24 24"><path d="M6 5l7 7-7 7zM15 5v14M19 5v14"/></svg>Пауза</button>
+        <button type="button" data-cmd="next"><svg class="i" viewBox="0 0 24 24"><path d="M18 5v14M5 5l10 7-10 7z"/></svg>Дальше</button>
+        <button type="button" data-cmd="lock"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Заблокировать</button>
+        <button type="button" id="screenBtn"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Экран</button>
+        <button type="button" data-cmd="stop"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>Стоп</button>
+      </div>
+      <p class="msg" id="pcMsg" aria-live="polite"></p>
+      <a class="shot" id="shot" hidden target="_blank" rel="noopener"><img id="shotImg" alt="Снимок экрана компьютера"></a>
+
+      <h3 class="sec">Открыть на компьютере</h3>
+      <form class="row" id="openForm" autocomplete="off">
+        <input id="openText" placeholder="YouTube, Telegram, папку «Загрузки»…" aria-label="Что открыть на компьютере">
+        <button class="btn">Открыть</button>
+      </form>
+
+      <h3 class="sec">Файлы компьютера</h3>
+      <form class="row" id="fileForm" autocomplete="off">
+        <input id="fileText" placeholder="Например: эссе для UNIST, фото паспорта…" aria-label="Что найти на компьютере">
+        <button class="btn">Найти</button>
+      </form>
+      <p class="msg" id="fileMsg" aria-live="polite"></p>
+      <div class="files" id="fileList"></div>
     </div>
   </section>
 
@@ -278,6 +376,7 @@
       </div>
     </div>
   </section>
+
   <section class="view" id="v-settings" aria-label="Настройки">
     <div class="wrap">
       <h2>Настройки</h2>
@@ -294,9 +393,9 @@
       </fieldset>
       <fieldset id="briefBox" hidden>
         <legend>Утренняя сводка</legend>
-        <p class="note">Каждое утро: погода, календарь, напоминания, карточки к повторению и дела.</p>
+        <p class="note">Каждое утро уведомлением: погода, календарь, напоминания, карточки к повторению и дела.</p>
         <div class="switch"><label for="briefOn">Каждый день в</label>
-          <input type="time" id="briefTime" value="07:30" aria-label="Время сводки" style="flex:none;width:9em">
+          <input type="time" id="briefTime" value="07:30" aria-label="Время сводки" style="flex:none;width:7.5em">
           <input type="checkbox" id="briefOn"></div>
         <div class="push-row"><button class="btn quiet" type="button" id="briefNow">Прислать сейчас</button></div>
       </fieldset>
@@ -308,9 +407,11 @@
 <nav aria-label="Разделы">
   <div class="tabs">
     <button data-view="atlas" aria-current="page">
-      <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>Atlas</button>
+      <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><ellipse cx="12" cy="12" rx="10" ry="3.6"/></svg>Atlas</button>
     <button data-view="todos">
       <svg class="i" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5"/><circle cx="5" cy="18" r="1.3"/></svg>Дела<span class="badge" id="todoBadge" hidden></span></button>
+    <button data-view="pc">
+      <svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Компьютер</button>
     <button data-view="notes">
       <svg class="i" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/></svg>Заметки</button>
     <button data-view="study">
@@ -328,13 +429,13 @@
   let key = localStorage.getItem(KEY) || "";
   let busy = false, rec = null, paired = false, data = null;
 
-  const STATE_TEXT = { idle: "", listening: "Слушаю", thinking: "Думаю", speaking: "Говорю", locked: "" };
+  const STATE_TEXT = { idle: "", listening: "слушаю", thinking: "думаю", speaking: "говорю", locked: "" };
   const setState = (s) => { body.dataset.state = s; $("stateText").textContent = STATE_TEXT[s] ?? ""; };
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const say = (text, heard) => { caption.innerHTML = ""; if (heard) caption.append(el("span", "heard", heard)); caption.append(document.createTextNode(text || "")); };
   const hint = (text) => { caption.innerHTML = ""; caption.append(el("span", "hint", text)); };
-  const addTurn = (who, text) => { if (!text) return; historyEl.append(el("p", "turn " + who, text)); historyEl.scrollTop = historyEl.scrollHeight; };
-  let shown = [];                                  // реплики под звездой; в историю уходят, когда начинается следующая
+  const addTurn = (who, text) => { if (!text) return; historyEl.append(el("p", "turn " + who, text)); };
+  let shown = [];                                  // реплики под дырой; в историю уходят, когда начинается следующая
   const archive = () => { shown.forEach(([w, t]) => addTurn(w, t)); shown = []; };
   const plural = (n, one, few, many) => { const a = n % 10, b = n % 100;
     return `${n} ${a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many}`; };
@@ -344,6 +445,7 @@
     document.querySelectorAll("#star, #askText, #askSend, .chip").forEach((b) => (b.disabled = !on));
     setState(on ? "idle" : "locked");
   };
+  const msg = (id, text, kind) => { const m = $(id); m.textContent = text || ""; m.className = "msg" + (kind ? " " + kind : ""); };
 
   async function api(path, payload, raw) {
     const opts = { method: "POST", headers: { "X-Atlas-Key": key,
@@ -365,13 +467,16 @@
   function show(view) {
     $("gear").setAttribute("aria-pressed", view === "settings");
     if (view === "settings") { loadVoices(); pushState(); loadBrief(); }
+    if (view === "pc") pcInfo();
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("on", v.id === "v-" + view));
     document.querySelectorAll("nav button").forEach((b) => {
       if (b.dataset.view === view) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
+    window.atlasVisible = view === "atlas";
     if (view !== "atlas") refresh();
   }
   document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => show(b.dataset.view)));
+  window.atlasVisible = true;
 
   // ---------- сопряжение ----------
   async function pair() {
@@ -381,8 +486,8 @@
     try {
       await api("/api/pair");
       link(true, "на связи"); unlock(true);
-      hint(q ? "Готово. Нажми на сферу и говори." : "Нажми на сферу и говори.");
-      refresh();
+      hint(q ? "Готово. Коснись чёрной дыры и говори." : "Коснись чёрной дыры и говори.");
+      refresh(); loadBriefCard();
       subscribePush(false).catch(() => {});        // подписка уже разрешена — напоминаем серверу о ней
     } catch (e) {
       if (e.message !== "401") { link(false, "нет связи"); hint("Нет связи с Atlas. Облаку иногда нужна минута, чтобы проснуться, — попробуй ещё раз."); }
@@ -419,9 +524,9 @@
     const box = $("acts"); box.replaceChildren();
     (list || []).forEach((a, i) => {
       if (!/^(https:|tel:|sms:|mailto:|\/api\/file\/)/i.test(a.url || "")) return;
-      const link = el("a", "act"); link.href = a.url; link.innerHTML = ARROW; link.append(document.createTextNode(a.label));
-      if (/^(https:|\/api\/file\/)/i.test(a.url)) { link.target = "_blank"; link.rel = "noopener"; }
-      box.append(link);
+      const lk = el("a", "act"); lk.href = a.url; lk.innerHTML = ARROW; lk.append(document.createTextNode(a.label));
+      if (/^(https:|\/api\/file\/)/i.test(a.url)) { lk.target = "_blank"; lk.rel = "noopener"; }
+      box.append(lk);
       if (i === 0) {                                // браузер разрешает открыть сам только сразу после нажатия
         try { if (/^(https:|\/api\/file\/)/i.test(a.url)) window.open(a.url, "_blank", "noopener"); } catch (e) {}
       }
@@ -429,19 +534,19 @@
   }
   // ---------- разговор без кнопки ----------
   const END = /^(вс[её]|хватит|спасибо|пока|стоп|отбой|that'?s all|stop|thanks|thank you|bye)[\s.!,]*(атлас|atlas)?[\s.!]*$/i;
-  let convo = false;                                // идёт разговор без кнопки
+  let convo = false;
   const handsFree = () => localStorage.getItem("atlasHands") === "1";
-  function endConvo(msg) { if (!convo) return; convo = false; if (msg) hint(msg); }
+  function endConvo(m) { if (!convo) return; convo = false; if (m) hint(m); }
   async function listenTurn() {
     if (!paired || rec) return;
-    unlockAudio(); setState("listening"); if (!convo) say("Слушаю…"); else $("stateText").textContent = "Слушаю — говори";
+    unlockAudio(); setState("listening"); if (!convo) say("Слушаю…"); else $("stateText").textContent = "слушаю — говори";
     archive();
     rec = await record(level, (blob, why) => {
       rec = null;
       if (!blob) {
         setState("idle");
-        if (convo) endConvo("Разговор закончен. Нажми на сферу, чтобы продолжить.");
-        else hint(why + " Нажми на сферу и говори.");
+        if (convo) endConvo("Разговор закончен. Коснись чёрной дыры, чтобы продолжить.");
+        else hint(why + " Коснись чёрной дыры и говори.");
         return;
       }
       handle(api("/api/talk", undefined, blob), null, true);
@@ -453,15 +558,15 @@
     try {
       const res = await promise;
       if (res.heard === "") {
-        if (convo) return;                          // шум — слушаем дальше (снова начнёт finally)
-        hint("Не расслышал. Нажми на сферу и повтори."); return; }
+        if (convo) return;
+        hint("Не расслышал. Коснись чёрной дыры и повтори."); return; }
       if (voiceTurn && handsFree()) convo = !END.test((res.heard || "").trim());
       if (res.heard) shown.push(["you", res.heard]);
       say(res.text, res.heard || typed); shown.push(["atlas", res.text]);
       showActions(res.actions);
       await speak(res);
-      refresh();                                   // «добавь в дела…» голосом — списки уже свежие
-      if (convo && (res.actions || []).length) convo = false;   // ушли в другое приложение — не слушаем фоном
+      refresh();
+      if (convo && (res.actions || []).length) convo = false;
     } catch (e) {
       if (e.message !== "401") hint("Не получилось связаться с Atlas. Попробуй ещё раз.");
     } finally {
@@ -471,7 +576,7 @@
   }
   const ask = (t) => { unlockAudio(); handle(api("/api/ask", { text: t }), t); };
 
-  // запись голоса: тишина 1,2 с — конец фразы; onDone(запись или null, почему)
+  // запись голоса: тишина 1 с — конец фразы; onDone(запись или null, почему)
   const MIME = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"]
     .find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || "";
   async function record(onLevel, onDone) {
@@ -506,11 +611,12 @@
   const level = (v) => { window.atlasLevel = v; };
 
   star.addEventListener("click", async () => {
-    if (rec) return rec.stop();                     // второе нажатие — отправить сразу
-    if (busy) {                                     // нажал, пока говорит, — замолчать и закончить разговор
+    if (rec) return rec.stop();                     // второе касание — отправить сразу
+    if (busy) {                                     // коснулся, пока говорит, — замолчать
       player.pause(); if (window.speechSynthesis) speechSynthesis.cancel();
       convo = false; return;
     }
+    window.atlasWave = performance.now();           // гравитационная волна от касания
     listenTurn();
   });
   document.addEventListener("visibilitychange", () => { if (document.hidden) { convo = false; if (rec) rec.stop(); } });
@@ -520,15 +626,30 @@
   });
   document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => {
     if (c.dataset.tab === "study") { show("study"); startStudy(pickDeck("sat")); return; }
+    if (c.dataset.tab) { show(c.dataset.tab); return; }
     if (!busy) ask(c.dataset.ask);
   }));
+
+  // ---------- сводка дня на главном экране ----------
+  async function loadBriefCard() {
+    try {
+      const b = await api("/api/brief/text");
+      if (b.text) { $("briefText").textContent = b.text.replace(/^(Доброе утро|Добрый день|Добрый вечер|Доброй ночи)!\s*/, ""); $("brief").hidden = false; }
+    } catch (e) { $("brief").hidden = true; }
+  }
+  $("briefSay").addEventListener("click", async () => {
+    if (busy) return;
+    unlockAudio(); busy = true; $("briefSay").disabled = true;
+    try { const r = await api("/api/speak", { text: $("briefText").textContent }); await speak(r, true); }
+    catch (e) {} finally { busy = false; $("briefSay").disabled = false; if (paired) setState("idle"); }
+  });
 
   // ---------- данные экранов ----------
   async function refresh() {
     if (!paired) return;
     try { render(await api("/api/home")); } catch (e) {}
   }
-  const iconCheck = '<svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--listen)"><path d="M5 12l4 4 10-10"/></svg>';
+  const iconCheck = '<svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--ion)"><path d="M5 12l4 4 10-10"/></svg>';
   const iconDel = '<svg class="i" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   const send = (path, payload) => api(path, payload).then(render).catch(() => {});
 
@@ -560,7 +681,7 @@
 
     const nl = $("noteList"); nl.innerHTML = "";
     if (!d.notes.length) nl.append(el("li", "empty", "Заметок нет."));
-    d.notes.map((n, i) => [n, i]).reverse().forEach(([n, i]) => {      // свежие сверху
+    d.notes.map((n, i) => [n, i]).reverse().forEach(([n, i]) => {
       const li = el("li"); const x = el("button", "del"); x.innerHTML = iconDel; x.setAttribute("aria-label", "Удалить заметку");
       x.addEventListener("click", () => send("/api/note/delete", { i: i + 1 }));
       li.append(el("span", "what", n), x); nl.append(li);
@@ -580,7 +701,7 @@
       go.addEventListener("click", () => startStudy(k.deck));
       row.append(name, go); dl.append(row);
     });
-    if (d.study && $("session").hidden) showCard(d.study);          // тренировка уже идёт — продолжаем её
+    if (d.study && $("session").hidden) showCard(d.study);
   }
   const pickDeck = (name) => { const k = ((data && data.decks) || []).find((x) => x.deck.toLowerCase().includes(name)); return k ? k.deck : ""; };
 
@@ -593,6 +714,82 @@
     $("noteText").value = ""; send("/api/note/add", { text: t });
   });
 
+  // ---------- напоминания с экрана ----------
+  let remWhen = "через 15 минут";
+  document.querySelectorAll("#remWhen button").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll("#remWhen button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    remWhen = b.dataset.when; $("remCustom").hidden = remWhen !== "custom";
+    if (remWhen === "custom" && !$("remAt").value) {
+      const d = new Date(Date.now() + 3600e3); d.setMinutes(0, 0, 0);
+      $("remAt").value = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+    }
+  }));
+  const pad2 = (n) => String(n).padStart(2, "0");
+  function whenText() {
+    if (remWhen === "tomorrow9") { const d = new Date(Date.now() + 864e5);
+      return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} 09:00`; }
+    if (remWhen === "custom") return ($("remAt").value || "").replace("T", " ");
+    return remWhen;
+  }
+  $("remForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = $("remText").value.trim();
+    if (!text) { msg("remMsg", "О чём напомнить?", "bad"); return; }
+    try {
+      const r = await api("/api/reminder/add", { text, when: whenText() });
+      render(r); msg("remMsg", r.message, r.ok ? "ok" : "bad");
+      if (r.ok) $("remText").value = "";
+    } catch (e2) { if (e2.message !== "401") msg("remMsg", "Нет связи с Atlas.", "bad"); }
+  });
+
+  // ---------- компьютер ----------
+  async function pcInfo() {
+    if (!paired) return;
+    try {
+      const r = await api("/api/pc/info");
+      $("pcState").className = "pcstate" + (r.online ? " on" : "");
+      $("pcStateText").textContent = r.online ? (r.local ? "Компьютер на связи — напрямую" : "Компьютер на связи через облако")
+                                              : "Компьютер не на связи: включи его и запусти Atlas";
+    } catch (e) { $("pcStateText").textContent = "Нет связи с Atlas"; }
+  }
+  document.querySelectorAll("#pad button[data-cmd]").forEach((b) => b.addEventListener("click", async () => {
+    if (navigator.vibrate) navigator.vibrate(12);
+    b.classList.add("busy"); msg("pcMsg", "");
+    try { const r = await api("/api/pc/cmd", { cmd: b.dataset.cmd }); msg("pcMsg", r.text, r.ok ? "" : "bad"); }
+    catch (e) { if (e.message !== "401") msg("pcMsg", "Компьютер не ответил.", "bad"); }
+    finally { b.classList.remove("busy"); }
+  }));
+  $("screenBtn").addEventListener("click", async () => {
+    $("screenBtn").classList.add("busy"); msg("pcMsg", "Снимаю экран…");
+    try {
+      const r = await api("/api/pc/screen");
+      if (r.url) { $("shotImg").src = r.url; $("shot").href = r.url; $("shot").hidden = false; msg("pcMsg", ""); }
+      else msg("pcMsg", r.text, r.ok ? "" : "bad");
+    } catch (e) { if (e.message !== "401") msg("pcMsg", "Компьютер не ответил.", "bad"); }
+    finally { $("screenBtn").classList.remove("busy"); }
+  });
+  $("openForm").addEventListener("submit", async (e) => {
+    e.preventDefault(); const t = $("openText").value.trim(); if (!t) return;
+    msg("pcMsg", "Открываю…");
+    try { const r = await api("/api/pc/open", { what: t }); msg("pcMsg", r.text, r.ok ? "" : "bad"); $("openText").value = ""; }
+    catch (e2) { if (e2.message !== "401") msg("pcMsg", "Компьютер не ответил.", "bad"); }
+  });
+  const fsize = (n) => n > 1048576 ? (n / 1048576).toFixed(1).replace(".", ",") + " МБ" : n > 1024 ? Math.round(n / 1024) + " КБ" : n + " Б";
+  $("fileForm").addEventListener("submit", async (e) => {
+    e.preventDefault(); const q = $("fileText").value.trim(); if (!q) return;
+    msg("fileMsg", "Ищу на компьютере…"); $("fileList").replaceChildren();
+    try {
+      const r = await api("/api/files/search", { q });
+      msg("fileMsg", r.message || (r.files.length ? `Нашёл: ${r.files.length}. Нажми, чтобы открыть на телефоне.` : ""));
+      r.files.forEach((f) => {
+        const a = el("a", "file"); a.href = f.url; a.target = "_blank"; a.rel = "noopener";
+        const box = el("div"); box.append(el("div", "nm", f.name), el("div", "meta", [f.folder, f.date, fsize(f.size)].filter(Boolean).join(" · ")));
+        if (f.snippet) box.append(el("div", "snip", f.snippet));
+        a.append(el("span", "ext", (f.ext || "файл").slice(0, 4)), box); $("fileList").append(a);
+      });
+    } catch (e2) { if (e2.message !== "401") msg("fileMsg", "Поиск не ответил.", "bad"); }
+  });
+
   // ---------- тренировка ----------
   function showCard(c) {
     $("decks").hidden = true; $("session").hidden = false;
@@ -601,9 +798,9 @@
     $("cardDeck").textContent = c.deck; $("cardFront").textContent = c.front;
     $("answerText").value = "";
   }
-  function endStudy(msg) {
+  function endStudy(m) {
     $("session").hidden = true; $("decks").hidden = false;
-    refresh().then(() => { if (msg) $("streak").textContent = msg; });
+    refresh().then(() => { if (m) $("streak").textContent = m; });
   }
   function studyResult(r) {
     const fb = $("feedback"); fb.textContent = r.feedback || "";
@@ -705,21 +902,21 @@
   // ---------- уведомления ----------
   const b64 = (s) => { const p = "=".repeat((4 - (s.length % 4)) % 4); const r = atob((s + p).replace(/-/g, "+").replace(/_/g, "/"));
     return Uint8Array.from(r, (c) => c.charCodeAt(0)); };
-  const sameKey = (sub, key) => { try { const a = new Uint8Array(sub.options.applicationServerKey), b = b64(key);
+  const sameKey = (sub, k) => { try { const a = new Uint8Array(sub.options.applicationServerKey), b = b64(k);
     return a.length === b.length && a.every((v, i) => v === b[i]); } catch (e) { return true; } };
   const pushOk = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
   const pushNote = (t) => { $("pushNote").textContent = t; };
-  async function subscribePush(ask) {
+  async function subscribePush(askNow) {
     if (!paired || !pushOk()) return false;
     if (Notification.permission !== "granted") {
-      if (!ask || (await Notification.requestPermission()) !== "granted") return false;
+      if (!askNow || (await Notification.requestPermission()) !== "granted") return false;
     }
-    const { key, error } = await api("/api/push/key");
-    if (!key) { pushNote(error || "Сервер не дал ключ уведомлений."); return false; }
+    const { key: pk, error } = await api("/api/push/key");
+    if (!pk) { pushNote(error || "Сервер не дал ключ уведомлений."); return false; }
     const reg = await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
-    if (sub && !sameKey(sub, key)) { await sub.unsubscribe(); sub = null; }
-    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(key) });
+    if (sub && !sameKey(sub, pk)) { await sub.unsubscribe(); sub = null; }
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(pk) });
     const r = await api("/api/push/subscribe", { sub: sub.toJSON(), name: (navigator.userAgentData?.platform || navigator.platform || "телефон") });
     return !!r.ok;
   }
@@ -761,84 +958,140 @@
   if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone)
     setTimeout(() => addTurn("atlas", "Чтобы установить Atlas на iPhone: кнопка «Поделиться» внизу Safari → «На экран „Домой“»."), 1200);
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { refresh(); if (paired) loadBriefCard(); } });
 
-  orb();
+  blackHole();
   pair();
 })();
 
-// ---------- сфера Atlas: облако частиц, живёт вместе с разговором ----------
-function orb() {
-  const cv = document.getElementById("orb"), g = cv.getContext("2d");
+// ---------- чёрная дыра: тот же расчёт лучей, что на компьютере, облегчённый для телефона ----------
+function blackHole() {
+  const cv = document.getElementById("orb");
+  const gl = cv.getContext("webgl", { antialias: false, alpha: false, powerPreference: "high-performance" });
+  if (!gl) { cv.hidden = true; document.getElementById("bhFallback").hidden = false; return; }
   const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const N = (navigator.hardwareConcurrency || 4) <= 4 ? 620 : 900;
-  const P = [];
-  for (let i = 0; i < N; i++) {                       // ровно по сфере (спираль Фибоначчи) + лёгкий разброс
-    const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * 2.399963;
-    P.push({ x: Math.cos(th) * r, y, z: Math.sin(th) * r, j: 1 + (Math.random() - .5) * .06, ph: Math.random() * 6.28 });
+  const FRAG = `
+precision highp float;
+uniform vec2 uRes; uniform float uTime, uPhase, uDiskI, uRing, uHeat, uWave, uWaveAmp, uBg;
+float hash(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float vnoise(vec3 x){ vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(hash(i), hash(i + vec3(1,0,0)), f.x), mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x), mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z); }
+float fbm(vec3 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 3; i++) { s += a * vnoise(p); p = p * 2.07 + 0.31; a *= 0.5; } return s; }
+vec3 stars(vec3 d){
+  vec3 p = d * 60.0; vec3 c = floor(p); vec3 f = fract(p); float h = hash(c);
+  if (h < 0.92) return vec3(0.0);
+  vec3 j = vec3(hash(c + 1.37), hash(c + 2.71), hash(c + 5.13)) * 0.7 + 0.15; vec3 df = f - j;
+  return mix(vec3(1.0, 0.82, 0.66), vec3(0.85, 0.9, 1.0), hash(c + 7.7)) * exp(-dot(df, df) / 0.006) * (0.4 + 1.6 * pow(hash(c + 9.1), 6.0));
+}
+const float RIN = 2.6;
+float halfH(float r){ return 0.07 + 0.045 * r; }
+vec4 disk(vec3 q, vec3 v){
+  float r = length(q.xz);
+  if (r < RIN * 0.9 || r > 16.0) return vec4(0.0);
+  float ph = atan(q.z, q.x) + uPhase * pow(r, -1.5) * 3.0;
+  vec2 cs = vec2(cos(ph), sin(ph));
+  float warp = vnoise(vec3(r * 0.85, cs * 2.4) + 3.1);
+  float ph2 = ph + (warp - 0.5) * 1.3; vec2 c2 = vec2(cos(ph2), sin(ph2));
+  float fib = fbm(vec3(r * 2.3 + warp * 2.0, c2 * 1.05) + vec3(0.0, 0.0, uTime * 0.015));
+  float clump = fbm(vec3(r * 1.7, c2 * 7.5) + 7.0);
+  float dn = smoothstep(0.3, 0.95, fib * 0.5 + clump * 0.62) * smoothstep(RIN * 0.9, RIN * 1.15, r) * (1.0 - smoothstep(4.5, 16.0, r));
+  vec3 dq = normalize(v);
+  float L = min(2.0 * halfH(r) / max(abs(dq.y), 0.035), 3.6);
+  float alpha = clamp(1.0 - exp(-dn * (L * 1.15 + 0.45) * 1.8), 0.0, 0.975);
+  float prof = pow(RIN / r, 1.2);
+  vec3 vdir = normalize(vec3(q.z, 0.0, -q.x));
+  float beta = min(0.6, sqrt(0.5 / max(r - 1.0, 0.3)));
+  float D = 1.0 / (inversesqrt(1.0 - beta * beta) * (1.0 - beta * dot(vdir, -dq)));
+  float heat = prof * mix(1.0, pow(D, 2.4), 0.5) * sqrt(max(1.0 - 1.0 / r, 0.0)) * uHeat;
+  vec3 c = mix(vec3(0.24, 0.11, 0.05), vec3(0.86, 0.5, 0.27), smoothstep(0.0, 0.35, heat));
+  c = mix(c, vec3(1.0, 0.82, 0.63), smoothstep(0.3, 0.9, heat));
+  c = mix(c, vec3(1.0, 0.95, 0.9), smoothstep(0.85, 1.8, heat));
+  float I = heat * (0.5 + dn * 1.3) * 2.6 * uDiskI;
+  return vec4(c * I, alpha);
+}
+void main(){
+  vec2 uv = gl_FragCoord.xy / uRes; vec2 ndc = uv * 2.0 - 1.0;
+  float asp = uRes.x / uRes.y;
+  if (uWaveAmp > 0.001) {                               // гравитационная волна от касания
+    vec2 pa = vec2(ndc.x * asp, ndc.y); float d = length(pa); float x = (d - uWave) / 0.14;
+    ndc += (pa / max(d, 1e-3)) * exp(-x * x) * sin(x * 2.6) * uWaveAmp * 0.035 * vec2(1.0 / asp, 1.0);
   }
-  const RING = 140, ring = Array.from({ length: RING }, (_, i) => ({ a: i / RING * 6.283, j: Math.random() }));
-  const COL = { idle: [125, 140, 255], listening: [103, 232, 249], thinking: [255, 184, 107], speaking: [180, 166, 255],
-                locked: [70, 80, 130] };
-  const SPIN = { idle: .12, listening: .28, thinking: .9, speaking: .3, locked: .05 };
-  let sprite = null, col = [125, 140, 255], spin = .12, rot = 0, lvl = 0, voice = 0, ringA = 0, last = performance.now(), W = 0, H = 0;
+  // камера чуть над плоскостью диска, диск с лёгким креном — как на компьютере
+  float roll = -0.12, cr = cos(roll), sr = sin(roll);
+  vec3 cam = vec3(0.0, 1.9, 23.0);
+  vec3 fw = normalize(-cam), rt = normalize(cross(fw, vec3(0.0, 1.0, 0.0))), up = cross(rt, fw);
+  float tanH = 0.36;
+  vec3 rd = normalize(fw + ndc.x * tanH * asp * rt + ndc.y * tanH * up);
+  mat3 R = mat3(cr, sr, 0.0, -sr, cr, 0.0, 0.0, 0.0, 1.0);
+  vec3 pos = R * cam, vel = R * rd;
+  vec3 hh = cross(pos, vel); float h2 = dot(hh, hh);
+  vec3 col = vec3(0.0); float A = 0.0, minR = 1e5, crossN = 0.0; bool esc = false;
+  float r2 = dot(pos, pos); vec3 acc = -1.5 * h2 * pos / (r2 * r2 * sqrt(r2));
+  for (int i = 0; i < 170; i++) {
+    r2 = dot(pos, pos); float r = sqrt(r2); minR = min(minR, r);
+    if (r < 1.0) break;
+    if (r > 30.0 && dot(pos, vel) > 0.0) { esc = true; break; }
+    if (A > 0.98) break;
+    float dt = clamp(0.07 * r, 0.025, 4.0);
+    vec3 vh = vel + 0.5 * dt * acc; vec3 np = pos + dt * vh;
+    float nr2 = dot(np, np); vec3 nacc = -1.5 * h2 * np / (nr2 * nr2 * sqrt(nr2)); vec3 nv = vh + 0.5 * dt * nacc;
+    if (pos.y * np.y < 0.0) {
+      vec4 dk = disk(mix(pos, np, pos.y / (pos.y - np.y)), vh);
+      dk.a *= crossN < 1.5 ? 1.0 : 0.45; crossN += 1.0;
+      col += (1.0 - A) * dk.rgb * dk.a; A += (1.0 - A) * dk.a;
+    }
+    pos = np; vel = nv; acc = nacc;
+  }
+  if (esc && A < 0.98) col += (1.0 - A) * stars(normalize(vel)) * uBg;
+  col += vec3(1.0, 0.93, 0.84) * exp(-pow((minR - 1.53) / 0.07, 2.0)) * (esc ? 1.0 : 0.0) * uRing * (1.0 - A * 0.5);
+  col = clamp((col * (2.51 * col + 0.03)) / (col * (2.43 * col + 0.59) + 0.14), 0.0, 1.0);   // плёночная кривая
+  vec2 vg = uv - 0.5; col *= 1.0 - dot(vg, vg) * 0.9;                                         // виньетка
+  gl_FragColor = vec4(col, 1.0);
+}`;
+  const VERT = "attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }";
+  function sh(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+  let prog;
+  try {
+    prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FRAG));
+    gl.linkProgram(prog); if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  } catch (e) { console.log(e); cv.hidden = true; document.getElementById("bhFallback").hidden = false; return; }
+  gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const U = {}; ["uRes", "uTime", "uPhase", "uDiskI", "uRing", "uHeat", "uWave", "uWaveAmp", "uBg"].forEach((n) => (U[n] = gl.getUniformLocation(prog, n)));
+
+  let scale = Math.min(devicePixelRatio || 1, 2) * 0.62, W = 0, H = 0;
   function size() {
-    const d = Math.min(devicePixelRatio || 1, 2), b = cv.getBoundingClientRect();
-    W = cv.width = Math.round(b.width * d); H = cv.height = Math.round(b.height * d);
+    const b = cv.getBoundingClientRect();
+    W = cv.width = Math.max(2, Math.round(b.width * scale)); H = cv.height = Math.max(2, Math.round(b.height * scale));
+    gl.viewport(0, 0, W, H);
   }
   size(); addEventListener("resize", size);
+  // состояние: значения плавно догоняют цель (≈1 с) — движение тяжёлое, без рывков
+  const T = { idle: [0.8, 0.35, 1.0], listening: [1.0, 0.9, 1.0], thinking: [0.92, 0.5, 2.4], speaking: [1.05, 0.7, 1.3], locked: [0.45, 0.15, 0.5] };
+  let diskI = 0, ring = 0, spin = 1, phase = 0, lvl = 0, voice = 0, last = performance.now(), slow = 0, t0 = performance.now();
   function frame(now) {
-    const dt = Math.min(.05, (now - last) / 1000); last = now;
-    if (document.hidden) return requestAnimationFrame(frame);
-    const st = document.body.dataset.state || "idle", c = COL[st] || COL.idle, k = 1 - Math.exp(-dt * 4);
-    for (let i = 0; i < 3; i++) col[i] += (c[i] - col[i]) * k;
-    spin += ((SPIN[st] || .12) * (calm ? .4 : 1) - spin) * k;
-    rot += spin * dt;
-    lvl += (((st === "listening" && window.atlasLevel) || 0) - lvl) * Math.min(1, dt * 14);
-    voice += ((st === "speaking" ? .55 + .45 * Math.sin(now / 130) * Math.sin(now / 370) : 0) - voice) * Math.min(1, dt * 10);
-    g.clearRect(0, 0, W, H);
-    const cx = W / 2, cy = H / 2, R = Math.min(W, H) * .33 * (1 + lvl * .22), t = now / 1000;
-    const [r0, g0, b0] = col.map(Math.round);
-    // свет в глубине
-    const glow = g.createRadialGradient(cx, cy, 0, cx, cy, R * 1.5);
-    glow.addColorStop(0, `rgba(${r0},${g0},${b0},${.3 + lvl * .3 + voice * .15})`);
-    glow.addColorStop(.45, `rgba(${r0},${g0},${b0},.08)`); glow.addColorStop(1, "rgba(0,0,0,0)");
-    g.fillStyle = glow; g.fillRect(0, 0, W, H);
-    g.globalCompositeOperation = "lighter";
-    const ca = Math.cos(rot), sa = Math.sin(rot), tilt = .42, ct = Math.cos(tilt), stl = Math.sin(tilt);
-    const dot = Math.max(1, W / 260);
-    if (!sprite || Math.abs(sprite.c[0] - r0) + Math.abs(sprite.c[1] - g0) + Math.abs(sprite.c[2] - b0) > 6) {
-      const sc = document.createElement("canvas"); sc.width = sc.height = 32; const sg = sc.getContext("2d");
-      const gr = sg.createRadialGradient(16, 16, 0, 16, 16, 16);
-      gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(.18, `rgba(${r0},${g0},${b0},.95)`);
-      gr.addColorStop(.5, `rgba(${r0},${g0},${b0},.22)`); gr.addColorStop(1, "rgba(0,0,0,0)");
-      sg.fillStyle = gr; sg.fillRect(0, 0, 32, 32); sprite = { cv: sc, c: [r0, g0, b0] };
-    }
-    for (const p of P) {
-      let wob = 1;
-      if (!calm) {
-        wob += lvl * .28 * Math.sin(t * 9 + p.ph) + voice * .07 * Math.sin(t * 7 + p.y * 7 + p.ph * .3);
-        if (st === "thinking") wob += .04 * Math.sin(t * 3 + p.y * 10);
-      }
-      const x0 = p.x * ca - p.z * sa, z0 = p.x * sa + p.z * ca;          // вращение вокруг оси
-      const y1 = p.y * ct - z0 * stl, z1 = p.y * stl + z0 * ct;          // наклон
-      const s = R * p.j * wob, depth = (z1 + 1) / 2;                      // 0 — сзади, 1 — спереди
-      const persp = 1 / (1.9 - z1 * .45);
-      g.globalAlpha = .08 + depth * .85;
-      const sz = dot * (2.2 + depth * 3.6);                               // светящаяся точка, ближние — крупнее
-      g.drawImage(sprite.cv, cx + x0 * s * persp * 1.5 - sz / 2, cy + y1 * s * persp * 1.5 - sz / 2, sz, sz);
-    }
-    if (st === "thinking" || st === "listening") {                        // орбита: думает — бежит быстрее
-      ringA += dt * (st === "thinking" ? 2.4 : .6);
-      for (const q of ring) {
-        const a = q.a + ringA, rr = R * (1.22 + q.j * .06);
-        const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
-        const y = z * .32, front = (Math.sin(a) + 1) / 2;
-        g.globalAlpha = .1 + front * .6;
-        g.drawImage(sprite.cv, cx + x - dot * 1.6, cy + y - dot * 1.6, dot * 3.2, dot * 3.2);
-      }
-    }
-    g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (document.hidden || window.atlasVisible === false) return requestAnimationFrame(frame);
+    const st = document.body.dataset.state || "idle", tg = T[st] || T.idle, k = 1 - Math.pow(0.04, dt);
+    const intro = Math.min(1, (now - t0) / 2600), ease = 1 - Math.pow(1 - intro, 3);    // при открытии диск разгорается
+    lvl += (((st === "listening" && window.atlasLevel) || 0) - lvl) * Math.min(1, dt * 12);
+    voice += ((st === "speaking" ? .5 + .5 * Math.sin(now / 140) * Math.sin(now / 390) : 0) - voice) * Math.min(1, dt * 8);
+    diskI += (tg[0] + voice * 0.18 - diskI) * k; ring += (tg[1] + lvl * 0.8 + voice * 0.5 - ring) * k;
+    spin += (tg[2] - spin) * (1 - Math.pow(0.25, dt));
+    phase += dt * 0.5 * spin * (calm ? 0.3 : 1);
+    const wt = window.atlasWave ? (now - window.atlasWave) / 1700 : 2;
+    gl.uniform2f(U.uRes, W, H); gl.uniform1f(U.uTime, now / 1000); gl.uniform1f(U.uPhase, phase);
+    gl.uniform1f(U.uDiskI, diskI * ease); gl.uniform1f(U.uRing, ring * ease); gl.uniform1f(U.uHeat, 0.95 + voice * 0.1);
+    gl.uniform1f(U.uWave, 0.05 + wt * 1.9); gl.uniform1f(U.uWaveAmp, !calm && wt < 1 ? Math.pow(1 - wt, 1.6) * Math.min(1, wt * 6) : 0);
+    gl.uniform1f(U.uBg, 0.4 + ease * 0.6);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    // слабый телефон: если кадр дольше 45 мс несколько секунд подряд — считаем в меньшем разрешении
+    slow = dt > 0.045 ? slow + dt : Math.max(0, slow - dt * 0.5);
+    if (slow > 2 && scale > 0.35) { scale *= 0.8; slow = 0; size(); }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

@@ -13,6 +13,7 @@ ask_ai — путь вопроса через Atlas, по шагам и в од�
 """
 import re
 import threading
+import time
 
 from brain import instant, planner, state, tools
 from brain.state import TaskCancelled
@@ -35,6 +36,7 @@ def _routine_trigger(question: str):
 
 
 def ask_ai(question: str, speech=None) -> str:
+    state.turn["t_in"] = time.time()                   # секундомер подготовки: что съедает время до модели
     # 1. мгновенные команды
     if not _study_active() and not _routine_trigger(question):
         try:
@@ -107,6 +109,7 @@ def _with_lessons(question: str, speech) -> str:
     # 5. уроки
     from core import lessons
     state.turn["question"] = question
+    _tl = time.time()
     try:
         blk = lessons.lessons_block(question)
         state.turn["lesson_msg"] = {"role": "system", "content": blk} if blk else None
@@ -115,6 +118,7 @@ def _with_lessons(question: str, speech) -> str:
     except Exception as e:
         print(f"[уроки] {e}")
         state.turn["lesson_msg"] = None
+    state.turn["t_lessons"] = time.time() - _tl
     if lessons.is_correction(question):
         ctx = list(state.conversation_history[-10:])
         threading.Thread(target=lessons.learn_from_correction, args=(question, ctx), daemon=True).start()

@@ -82,8 +82,9 @@ def _emo():
 
 
 PHONE_QUIET = 30          # столько секунд после фразы с телефона компьютер не реагирует на «Атлас»
-PHONE_HINT = ("(Said on the phone: reply in 1-2 short spoken sentences; do only what was asked; apps, music and files "
-              "open on the computer — say so if it matters.) ")
+PHONE_HINT = ("(Said on the phone: answer as fully as the question needs — one short sentence for a command, "
+              "a clear spoken explanation of 2-5 sentences for a real question; think, use the tools and the conversation "
+              "so far instead of guessing; apps, music and files open on the computer — say so if it matters.) ")
 
 
 def _hint(text: str) -> str:
@@ -584,7 +585,7 @@ _TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=
 def _manifest() -> bytes:
     return json.dumps({
         "name": "Atlas", "short_name": "Atlas", "start_url": "/", "scope": "/", "display": "standalone",
-        "background_color": "#050814", "theme_color": "#050814", "orientation": "portrait",
+        "background_color": "#040302", "theme_color": "#040302", "orientation": "portrait",
         "description": "Голосовой ассистент Atlas — с компьютера на телефон",
         "icons": [{"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
                   {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}],
@@ -656,6 +657,22 @@ def _route(environ):
         if not text:
             raise HTTPError(400, "Пустой вопрос.")
         return _json(_answer(text, choice=_voice_choice(environ), mode=_audio_mode(environ)))
+    if path == "/api/speak":                       # озвучить готовый текст (сводка дня) — без мозга
+        _check_key(environ)
+        try:
+            data = json.loads(_body(environ, 16 * 1024) or b"{}")
+        except ValueError:
+            raise HTTPError(400, "Нужен JSON.")
+        text = str(data.get("text") or "").strip()[:1500]
+        if not text:
+            raise HTTPError(400, "Пустой текст.")
+        choice, mode = _voice_choice(environ), _audio_mode(environ)
+        out = {"text": text, "audio": None, "mime": None}
+        if mode == "stream":
+            out["say"] = _put_say(text, choice)
+        elif mode == "inline":
+            out["audio"], out["mime"] = synthesize(text, choice)
+        return _json(out)
     if path == "/api/transcribe":                   # ответ на карточку голосом — только текст, без мозга
         _check_key(environ)
         data = _body(environ, MAX_AUDIO)

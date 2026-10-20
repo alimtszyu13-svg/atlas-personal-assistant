@@ -1,5 +1,5 @@
 // Atlas: оболочка приложения работает и без сети (звезда, подсказка), разговор — только с сетью.
-const SHELL = "atlas-shell-v7";        // v7: файлы с компьютера
+const SHELL = "atlas-shell-v8";        // v8: интерфейс «чёрная дыра», новые иконки
 const FILES = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/icon-180.png"];
 
 self.addEventListener("install", (e) => {

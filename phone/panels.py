@@ -11,6 +11,13 @@
     POST /api/transcribe (аудио)         → {text} — ответ на карточку голосом, без мозга
     POST /api/reminder/delete {id}
     POST /api/push/key → {key}   /api/push/subscribe {sub, name}   /api/push/test → {sent}
+    POST /api/reminder/add {text, when}   — when: «через 20 минут», «18:30», «2026-10-21 09:00»
+    POST /api/brief/text                  → {text} — сводка дня для карточки на главном экране
+    POST /api/pc/info                     → {online, local} — компьютер на связи?
+    POST /api/pc/cmd {cmd}                — кнопки пульта: громкость, музыка, блокировка (список PC_CMDS)
+    POST /api/pc/open {what}              — «открой …» на компьютере
+    POST /api/pc/screen                   → {url} — снимок экрана компьютера
+    POST /api/files/search {q}            → {files: [{name, folder, ext, size, snippet, url}]} — файлы компьютера
 
 Номера i — с единицы, как в голосовых командах («отметь второе дело»).
 """
@@ -188,6 +195,129 @@ def brief_now(data=None) -> dict:
     return briefing.send_now(mark=False)
 
 
+# ---------------------------------------------------------------------------
+# Напоминания с экрана
+# ---------------------------------------------------------------------------
+def reminder_add(data) -> dict:
+    import reminders
+    text, when = _text(data, "text", 200), _text(data, "when", 40)
+    if not when:
+        return {"ok": False, "message": "Когда напомнить?", **home()}
+    msg = reminders.set_reminder(text or "Напоминание", when)
+    ok = msg.startswith("Reminder set")
+    if not ok:
+        msg = ("Не понял время. Например: «через 20 минут», «18:30» или «21.10 09:00»." if "understand" in msg
+               else "Это время уже прошло." if "passed" in msg else msg)
+    return {"ok": ok, "message": "Напомню." if ok else msg, **home()}
+
+
+def brief_text(data=None) -> dict:
+    from core import briefing
+    return {"text": briefing.build()}
+
+
+# ---------------------------------------------------------------------------
+# Пульт компьютера и его файлы
+# ---------------------------------------------------------------------------
+def _srv():
+    from phone import server
+    return server
+
+
+PC_CMDS = {
+    "vol_down": "сделай тише", "mute": "выключи звук", "vol_up": "сделай громче",
+    "prev": "предыдущий трек", "play": "пауза", "next": "следующий трек",
+    "lock": "заблокируй компьютер", "unmute": "включи звук", "stop": "стоп",
+}
+
+
+def pc_info(data=None) -> dict:
+    s = _srv()
+    if not s.PC_HUB:
+        return {"online": True, "local": True}
+    try:
+        from core import pc_link
+        return {"online": bool(pc_link.online()), "local": False}
+    except Exception:
+        return {"online": False, "local": False}
+
+
+def pc_cmd(data) -> dict:
+    cmd = _text(data, "cmd", 20)
+    if cmd not in PC_CMDS:
+        return {"ok": False, "text": "Такой кнопки нет."}
+    reply = _srv().handle_text(PC_CMDS[cmd], log=False)
+    return {"ok": True, "text": _clean(reply)}
+
+
+def pc_open(data) -> dict:
+    what = _text(data, "what", 200)
+    if not what:
+        return {"ok": False, "text": "Что открыть?"}
+    reply = _srv().handle_text(f"открой на компьютере {what}", log=False)
+    return {"ok": True, "text": _clean(reply)}
+
+
+def pc_screen(data=None) -> dict:
+    s = _srv()
+    if s.PC_HUB:                                   # облако: просим компьютер прислать снимок
+        reply = s.handle_text("Сделай снимок экрана компьютера и пришли его мне на телефон", log=False)
+        return {"ok": True, "text": _clean(reply)}
+    import os
+    import tempfile
+    import time
+    try:
+        from PIL import ImageGrab
+        img = ImageGrab.grab(all_screens=False)
+        img.thumbnail((1920, 1920))
+        path = os.path.join(tempfile.gettempdir(), f"atlas_screen_{int(time.time())}.jpg")
+        img.convert("RGB").save(path, "JPEG", quality=82)
+    except Exception as e:
+        return {"ok": False, "text": f"Не получилось снять экран: {e}"}
+    fid = s.share_file(path, name="Экран компьютера.jpg", temp=True)
+    return {"ok": True, "url": "/api/file/" + fid}
+
+
+def files_search(data) -> dict:
+    import os
+    import time
+    q = _text(data, "q", 200)
+    if not q:
+        return {"files": []}
+    s = _srv()
+    if s.PC_HUB:
+        return {"files": [], "message": "Поиск файлов работает, когда компьютер включён и телефон подключён к нему. "
+                                         "Или скажи Atlas: «пришли мне файл … на телефон»."}
+    try:
+        import file_search
+        hits = file_search._hybrid(q, k=8)
+    except Exception as e:
+        return {"files": [], "message": f"Поиск недоступен: {e}"}
+    out = []
+    for path, text in hits:
+        if not os.path.isfile(path):
+            continue
+        try:
+            st = os.stat(path)
+            size, mtime = st.st_size, st.st_mtime
+        except OSError:
+            size, mtime = 0, 0
+        folder = os.path.basename(os.path.dirname(path)) or os.path.dirname(path)
+        snippet = " ".join((text or "").split())[:140]
+        out.append({"name": os.path.basename(path), "folder": folder, "ext": os.path.splitext(path)[1].lower()[1:],
+                    "size": size, "date": time.strftime("%d.%m.%Y", time.localtime(mtime)) if mtime else "",
+                    "snippet": snippet, "url": "/api/file/" + s.share_file(path)})
+    return {"files": out, "message": "" if out else "Ничего не нашёл. Попробуй другими словами."}
+
+
+def _clean(reply) -> str:
+    try:
+        from core import emotions, filler
+        return emotions.strip(filler.clean(str(reply or "")))
+    except Exception:
+        return str(reply or "")
+
+
 ROUTES = {
     "/api/home": home,
     "/api/todo/add": todo_add, "/api/todo/done": todo_done, "/api/todo/delete": todo_delete,
@@ -196,4 +326,7 @@ ROUTES = {
     "/api/reminder/delete": reminder_delete,
     "/api/push/key": push_key, "/api/push/subscribe": push_subscribe, "/api/push/test": push_test,
     "/api/brief": brief_get, "/api/brief/set": brief_set, "/api/brief/now": brief_now,
+    "/api/reminder/add": reminder_add, "/api/brief/text": brief_text,
+    "/api/pc/info": pc_info, "/api/pc/cmd": pc_cmd, "/api/pc/open": pc_open, "/api/pc/screen": pc_screen,
+    "/api/files/search": files_search,
 }

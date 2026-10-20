@@ -266,7 +266,7 @@ _embedder = None
 _emb_lock = threading.Lock()
 
 
-def _embed(texts: list) -> np.ndarray:
+def _embed_raw(texts: list) -> np.ndarray:
     global _embedder
     with _emb_lock:
         if _embedder is None:
@@ -276,6 +276,46 @@ def _embed(texts: list) -> np.ndarray:
         vecs = np.array(list(_embedder.embed(texts, batch_size=32)), dtype=np.float32)
     norms = np.linalg.norm(vecs, axis=1, keepdims=True)
     return vecs / np.maximum(norms, 1e-9)
+
+
+# Один вопрос за ход считается по смыслу 3–6 раз (инструменты, уроки, память…) — кэшируем.
+# Вопрос пользователя важнее фоновой индексации: индексация отдаёт модель кусками и ждёт, пока вопрос посчитается.
+from collections import OrderedDict as _OD
+_q_cache = _OD()
+_Q_CACHE_MAX = 256
+_fg = {"waiting": 0}
+_fg_lock = threading.Lock()
+_BG_CHUNK = 16
+
+
+def _embed(texts: list) -> np.ndarray:
+    texts = list(texts)
+    if len(texts) == 1 and len(texts[0]) <= 500:              # короткий текст — это вопрос: быстро и с кэшем
+        key = texts[0]
+        with _fg_lock:
+            hit = _q_cache.get(key)
+            if hit is not None:
+                _q_cache.move_to_end(key)
+                return hit[None, :].copy()
+            _fg["waiting"] += 1
+        try:
+            vec = _embed_raw(texts)
+        finally:
+            with _fg_lock:
+                _fg["waiting"] -= 1
+        with _fg_lock:
+            _q_cache[key] = vec[0]
+            while len(_q_cache) > _Q_CACHE_MAX:
+                _q_cache.popitem(last=False)
+        return vec
+    out = []                                                   # фон: кусками, уступая вопросу
+    for i in range(0, len(texts), _BG_CHUNK):
+        for _ in range(300):                                   # не дольше 3 с ждём, пока вопрос посчитается
+            if _fg["waiting"] <= 0:
+                break
+            time.sleep(0.01)
+        out.append(_embed_raw(texts[i:i + _BG_CHUNK]))
+    return np.vstack(out) if out else np.zeros((0, 384), dtype=np.float32)
 
 # --- CLIP: поиск по содержимому картинки ---
 _clip_img = None

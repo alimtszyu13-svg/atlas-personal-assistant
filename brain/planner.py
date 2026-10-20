@@ -180,11 +180,13 @@ def _bare(question: str) -> str:
 _SIMPLE_MAX_WORDS = int(os.getenv("ATLAS_FAST_FIRST_WORDS") or 8)
 
 
-def _first_model(bare: str, names: set, mem_block) -> str:
+def _first_model(bare: str, names: set, mem_block, question: str = "") -> str:
     """Первый шаг обычно на тяжёлой модели (понять и спланировать). Но для явно простой короткой
     просьбы — сразу быстрая: первый токен раньше, качество одношаговых ответов не страдает.
     ATLAS_FAST_FIRST=off в .env — всегда тяжёлая, как раньше."""
     if (os.getenv("ATLAS_FAST_FIRST") or "on").strip().lower() in ("off", "0", "false", "no"):
+        return providers.MODEL_SMART
+    if "(Said on the phone" in (question or ""):             # с телефона чаще вопросы, чем команды — думаем
         return providers.MODEL_SMART
     q = bare.lower()
     if any(h in q for h in _COMPLEX_HINTS) or mem_block:          # сложная формулировка или нужна память — думаем
@@ -359,24 +361,34 @@ def _brain_ask(question: str, speech=None) -> str:
     words = bare.split()
     # контекст экрана/буфера, память и портрет пользователя — параллельно: не ждём их по очереди,
     # а пока они считаются, на этом же потоке собираем набор инструментов (это только процессор)
+    _tb = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as _ex:
         f_ctx = _ex.submit(_context_snapshot, question)
         f_mem = _ex.submit(memory.recall_block, question) if len(words) > 2 else None   # «да», «открой его» — память не нужна
         f_prof = _ex.submit(_user_profile)                 # прогреваем кэш портрета (цикл потом берёт готовое)
+        _ts = time.time()
         active_groups = tool_router.groups_for(bare)
         schema = tools._with_learned(tools._with_pairs(tool_router.smart_schema(bare, tools.TOOLS_SCHEMA, active_groups)))
         schema = tools._trim_schema(bare, schema)
         schema = tools._with_intent(bare, schema)          # «включи …» — музыка и кино всегда под рукой
         names = {t["function"]["name"] for t in schema}
+        t_sch = time.time() - _ts
+        _tw = time.time()
         context_msg = {"role": "system", "content": f_ctx.result()}
+        t_ctx = time.time() - _tw
+        _tw = time.time()
         mem_block = (f_mem.result() if f_mem else None)
+        t_mem = time.time() - _tw
         try:
             f_prof.result()
         except Exception:
             pass
     first_effort = _effort_for(bare, {"browser"} if "browser_open" in names else set())
-    first_model = _first_model(bare, names, mem_block)
+    first_model = _first_model(bare, names, mem_block, question)
     print(f"[мозг] инструментов: {len(schema)} | первая модель: {first_model.split('/')[-1]} | {sorted(names)}")
+    _pre = _tb - turn.get("t_in", _tb)
+    print(f"[разбор] до мозга {_pre:.2f}с (уроки {turn.get('t_lessons', 0):.2f}) · инструменты {t_sch:.2f} · "
+          f"ждал контекст {t_ctx:.2f} · ждал память {t_mem:.2f} · подготовка всего {time.time() - _tb:.2f}с")
 
     try:
         step = 0
