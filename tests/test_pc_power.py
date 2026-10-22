@@ -554,7 +554,7 @@ def _fresh_messengers():
     M.FILE = os.path.join(TMP, "messengers.json")
     if os.path.exists(M.FILE):
         os.remove(M.FILE)
-    M._s.update(pending=None, said=None)
+    M._s.update(pending=None, said=None, last_sent=None)
     return M
 
 
@@ -891,6 +891,40 @@ def whatsapp_real_layout_by_structure():
     assert selfrow and selfrow[0]["y"] == 191
     assert M._regions(rect, False, 999)["chat_x"] == 572, "без структуры окна — как раньше"
     M._DIV.pop(77, None)
+
+
+
+@test
+def no_double_send_after_confirm():
+    """Журнал 20.10 «Отправляй.»: модель вызвала confirm → send_message → confirm — второй раз то же сообщение."""
+    M = _fresh_messengers()
+    ui = FakeTG(chats={"Мама ❤": [("them", "?")]})
+    out = M.handle("напиши маме в телеграме «Привет»", ui=ui)
+    M.handle("да", last=out, ui=ui)
+    assert ui.sent == [("Мама ❤", "Привет")]
+    again = M.tool_send_message("telegram", "маме", "Привет", True)
+    assert again.startswith("ALREADY SENT") and ui.sent == [("Мама ❤", "Привет")], again
+    assert M.tool_confirm().startswith("NOT SENT"), "черновика нет — подтверждать нечего"
+    M._s["last_sent"]["t"] -= 120
+    orig = M.tool_prepare
+    M.tool_prepare = lambda *a: "Не нашёл чат."
+    try:
+        assert not M.tool_send_message("telegram", "маме", "Привет", True).startswith("ALREADY"), "через 2 минуты — можно"
+    finally:
+        M.tool_prepare = orig
+    M._s["pending"] = None
+
+
+
+@test
+def my_mom_with_possessive_and_open_app_first():
+    """19.10: «Открой WhatsApp и напиши моей маме…» — уходило в модель; «моей маме» не находило чат «Мама»."""
+    M = _fresh_messengers()
+    assert M.intent("Открой WhatsApp и напиши моей маме, что я скоро буду.")[:3] == ("reply", "whatsapp", "моей маме")
+    assert M.intent("Открой блокнот и напиши привет") is None, "блокнот — не мессенджер"
+    ui = FakeTG(chats={"Мама Данияра": [("them", "?")], "Мама": [("them", "Ты где?")]})
+    out = M.handle("открой телеграм и напиши моей маме «Скоро буду»", ui=ui)
+    assert out == "Пишу в Telegram, чат «Мама»: «Скоро буду». Отправить?", out
 
 
 def main():

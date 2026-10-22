@@ -14,6 +14,7 @@
 Переписка читается локально; модели уходит только видимый кусок этого чата, чтобы написать ответ.
 Где кто (мама → Telegram) запоминается в atlas_messengers.json, только на этом компьютере.
 """
+import difflib
 import json
 import os
 import re
@@ -57,6 +58,8 @@ def norm(text: str) -> str:
     return " ".join(re.findall(r"[\w@.+-]+", t))
 
 
+_POSS = {"моя", "мой", "моё", "мое", "мои", "моей", "моему", "моего", "моим", "моих", "мою", "моем", "моём",
+         "наша", "наш", "нашей", "нашему", "нашего", "нашим", "my", "our"}
 _END2 = ("ой", "ей", "ом", "ем", "ою", "ею", "ам", "ям", "ах", "ях", "ым", "им", "ого", "его", "ому", "ему")
 
 
@@ -65,6 +68,8 @@ def stems(contact: str) -> list:
     так что падеж не мешает."""
     out = []
     for w in norm(contact).split():
+        if w in _POSS:                                   # «моей маме» → как «маме» (раньше «мое» мешало найти «Мама»)
+            continue
         if w in ("в", "во", "на", "чат", "чате", "группу", "группе", "беседу", "беседе", "to", "the", "chat"):
             if w in ("группу", "группе"):
                 out.append("групп")
@@ -95,7 +100,7 @@ _NOISE_W = re.compile(r"^(?:моя|мой|мое|мои|любим\w*|родн\w
 
 def is_kin(contact: str) -> bool:
     """«маме», «папе», «брату» — родство без имени. «маме Данияра» — уже не просто родство."""
-    words = norm(contact).split()
+    words = [w for w in norm(contact).split() if w not in _POSS]
     return bool(words) and all(_KIN.match(w) for w in words)
 
 
@@ -836,9 +841,14 @@ _READ = re.compile(r"(?:что|чего)\s+(?:мне\s+)?(?:написал[аи�
                    r"(?:\s+(?:от|с|from|with))?\s*(.*)|what did (.+?) (?:write|send|say)", re.I)
 _THINGS = re.compile(r"^(?:письм\w*|письмецо|заметк\w*|сообщени\w*|текст\w*|пост\w*|коммент\w*|имейл\w*|емейл\w*|"
                      r"мейл\w*|эссе|сочинени\w*|файл\w*|код\b|note|letter|email|mail|post|comment|essay|file|code)\b", re.I)
-_KIN = re.compile(r"^(?:мам\w*|пап\w*|бат[яюе]\w*|отц\w*|отец|брат\w*|сестр\w*|сест[реу]\w*|жен[аеуы]\w*|муж\w*|сын\w*|"
-                  r"доч\w*|дядь?\w*|тёт\w*|тет\w*|баб\w*|дед\w*|друг\w*|подруг\w*|любим\w*|девушк\w*|парн\w*|"
-                  r"mom\w*|mum\w*|dad\w*|bro\b|sis\b|wife|husband|son|daughter|friend)$", re.I)
+_KIN = re.compile(   # точные формы слов-родства: раньше «баб\w*» и «мам\w*» ловили имена Бабур, Мамат, Мамед (живая проверка 22.10)
+    r"^(?:мам(?:а|ы|е|у|ой|очк\w*|ул\w*|уль\w*|к[аиеу]|кой|еньк\w*|ик)?|пап(?:а|ы|е|у|ой|очк\w*|ул\w*|к[аиеу]|кой|еньк\w*|ик)?|"
+    r"бат(?:я|ю|е|ей)|отц\w*|отец|брат(?:а|у|ом|е|ик\w*|ишк\w*|ан\w*|ец|цу|ца|ья|ьям)?|сестр\w*|сест[реу]\w*|"
+    r"жен(?:а|ы|е|у|ой|ушк\w*)|муж(?:а|у|ем|е|ик|енёк|енек)?|сын(?:а|у|ом|е|ок|ку|ка|ишк\w*|уль\w*)?|"
+    r"доч(?:ь|ери|ерью|к\w*|еньк\w*|урк\w*)|дяд(?:я|и|е|ю|ей|ечк\w*|ьк\w*)|т[её]т(?:я|и|е|ю|ей|ушк\w*|еньк\w*)|"
+    r"баб(?:а|ы|е|у|ой|ушк\w*|ул\w*|уль\w*|уленьк\w*)|дед(?:а|у|ом|е|ушк\w*|ул\w*|уль\w*)?|"
+    r"друг(?:а|у|ом|е|ан\w*)?|подруг\w*|любим\w*|девушк\w*|парн\w*|парень|"
+    r"mom\w*|mum\w*|dad\w*|bro\b|sis\b|wife|husband|son|daughter|friend)$", re.I)
 _MSG_ONLY = re.compile(r"^(?:в\s+|во\s+|на\s+|через\s+|in\s+|on\s+|via\s+)?(?:телеграм\w*|телег\w*|телег[еу]|ватсап\w*|"
                        r"вотсап\w*|whatsapp|инстаграм\w*|инст[ае]?\w*|instagram|дискорд\w*|discord)\s*\.?$", re.I)
 _INC = re.compile(r"^(?:атлас[,\s]+|atlas[,\s]+)?(?:скажи|ответь|напиши|передай|reply|tell)(?:\s+(?:ей|ему|им|her|him|them))?"
@@ -890,10 +900,18 @@ def _app_in(text: str):
     return None, None
 
 
+_OPEN_THEN = re.compile(r"^(?:атлас[,\s]+|atlas[,\s]+)?(?:открой|зайди\s+в|запусти|open)\s+(\S+)\s*"
+                        r"(?:,\s*(?:и\s+)?|\s+и\s+|\s+а\s+потом\s+|\s+and\s+)"
+                        r"((?:напиши|ответь|скажи|отправь|передай|write|text|tell|send)\b.*)$", re.I)
+
+
 def intent(text: str, last: str = None):
     t = " ".join((text or "").split()).strip()
     if not t:
         return None
+    m = _OPEN_THEN.match(t)                     # «открой WhatsApp и напиши маме…» → «напиши маме… в WhatsApp»
+    if m and _app_in(m.group(1))[0]:
+        t = f"{m.group(2).rstrip(' .!')} в {m.group(1)}"
     p = pending()
     if p and p.get("need_app") and (last is None or _same(last, _s.get("said"))) and len(t) < 40:
         if _MSG_ONLY.match(t):                          # «в телеграме» / «ватсап» — выбор мессенджера
@@ -1002,7 +1020,8 @@ def intent(text: str, last: str = None):
             words = rest2.split()
             if not words:
                 return None
-            contact, gist = words[0], " ".join(words[1:])
+            n = 2 if len(words) > 1 and norm(words[0]) in _POSS else 1     # «моей маме привет» — контакт из двух слов
+            contact, gist = " ".join(words[:n]), " ".join(words[n:])
         contact = contact.strip(" ,.")
         gist = re.sub(r"^(?:что|чтобы|that)\s+", "", gist.strip(" ,:"), flags=re.I)
     exact = None
@@ -1027,8 +1046,8 @@ def intent(text: str, last: str = None):
             return ("reply_here", None, gist, exact)
         app = known_app(contact)
         if not app:
-            first = (contact.split() or [""])[0]
-            person = bool(_KIN.match(contact) or (first[:1].isupper() and re.search(r"[A-Za-zА-Яа-яЁё]", first)))
+            first = ([w for w in contact.split() if norm(w) not in _POSS] or [""])[0]
+            person = bool(is_kin(contact) or (first[:1].isupper() and re.search(r"[A-Za-zА-Яа-яЁё]", first)))
             if not person or _THINGS.match(contact) or not stems(contact):
                 return None                            # «напиши письмо», «скажи что-нибудь» — не мессенджер
             return ("reply", None, contact, gist.strip(" .,"), exact)   # «напиши маме/Алиму» — мессенджер выберем сами
@@ -1231,10 +1250,10 @@ def _prepare_here(app: str, contact, gist: str, exact, ru: bool, ui, ask) -> str
 
 def send(ui=None) -> str:
     """Отправить черновик после «да»."""
-    ui = ui or _get_ui()
     p = pending()
     if not p:
         return "Нечего отправлять — черновик устарел или уже отправлен."
+    ui = ui or _get_ui()
     ru = p["ru"]
     _s["pending"] = None
     if not ui.activate(p["hwnd"]) and ui.foreground() != p["hwnd"]:
@@ -1269,7 +1288,9 @@ def send(ui=None) -> str:
     head = norm(p["text"])[:14]
     ok = any(w == "me" and head and head[:10] in norm(t) for w, t in conv[-4:])
     if p.get("verified") and p.get("contact") and p.get("chat") and p.get("learn", True):
-        _remember(p["contact"], p["app"], p["chat"])         # ты подтвердил — значит, это и есть «мама» в этом мессенджере
+        _remember(p["contact"], p["app"], p["chat"])
+    _s["last_sent"] = {"t": time.time(), "app": p["app"], "contact": p.get("contact") or "", "chat": p.get("chat") or "",
+                       "text": p["text"]}         # ты подтвердил — значит, это и есть «мама» в этом мессенджере
     if ok:
         return "Отправил." if ru else "Sent."
     return ("Вставил и нажал Enter — проверь, что ушло." if ru else "Pasted and pressed Enter — check it went through.")
@@ -1408,6 +1429,11 @@ def open_for_user(app, who: str, what: str = "", ru: bool = True, ui=None) -> st
 
 def tool_send_message(app: str, contact: str, message: str, exact: bool = False) -> str:
     """Для модели: черновик — явно «НЕ отправлено», ошибка — явно «не отправлено». Никаких «готово» без отправки."""
+    ls = _s.get("last_sent")
+    if ls and time.time() - ls["t"] < 60 and (not message or difflib.SequenceMatcher(
+            None, norm(message), norm(ls["text"])).ratio() > 0.6):
+        return (f"ALREADY SENT {int(time.time() - ls['t'])} s ago to “{ls['chat'] or ls['contact']}”: “{ls['text']}”. "
+                "Do NOT draft or send it again; just tell the user it was sent.")
     out = tool_prepare(app, contact, message, bool(exact))
     if pending() and re.search(r"(?:Отправить|Send)\?\s*$", out or ""):
         return ("DRAFT READY — NOT SENT YET. Say this to the user word for word and wait for their yes "

@@ -524,7 +524,10 @@ def _transcribe_audio(recording: np.ndarray) -> str:
             pass
 
 
-WAKE_CONF = 0.9                      # ниже — «атлас» из шума, не будим
+WAKE_CONF = float(os.getenv("WAKE_CONF") or 0.6)
+# ниже — «атлас» из шума, не будим. Было 0,9: по журналам 5–20.10 настоящие «Атлас» с уверенностью 0,60–0,87
+# отклонялись, и через 2–8 с приходилось звать ещё раз. Шум отсекает вторая проверка (core/wake_check — весь
+# словарь: «от вас», «выключись», «отлично» — не имя), поэтому первую ступень можно не душить.
 _wake_leftover = {"audio": None}     # команда, сказанная на одном дыхании с именем
 _last_audio = {"audio": None}        # звук последней команды — для проверки голоса
 
@@ -1026,11 +1029,29 @@ _speak_lock = threading.RLock()
 _speak_unlocked = speak
 
 
+STREAM_OVER = 55        # длиннее — говорим по кускам: первый кусок короткий, звук начинается почти сразу
+
+
 def speak(text: str, interruptible: bool = True, cache_as: str = None) -> None:
     """Одна реплика за раз. Раньше приветствие и проактивное сообщение могли зазвучать одновременно:
-    обе писали в temp_speech.wav, одна удаляла файл другой — и падал поток прослушивания."""
+    обе писали в temp_speech.wav, одна удаляла файл другой — и падал поток прослушивания.
+    Длинную фразу синтезируем кусками: раньше весь текст синтезировался целиком до первого звука
+    (по журналу: 86 символов — 4,3 с тишины), теперь первый кусок ~12–48 символов (~0,7–1,5 с)."""
     with _speak_lock:
+        if not cache_as and len(_emo.strip(text or "")) > STREAM_OVER:
+            try:
+                return _speak_piecewise(text, interruptible)
+            except Exception as e:
+                print(f"[голос] по кускам не вышло ({e}) — говорю целиком")
         return _speak_unlocked(text, interruptible=interruptible, cache_as=cache_as)
+
+
+def _speak_piecewise(text: str, interruptible: bool) -> None:
+    print(f"[Atlas]: {_emo.strip(text)}")
+    _maybe_play_ambient(text)
+    s = SpeechStream(interruptible=interruptible)
+    s.feed(text.strip() + " ")
+    s.finish()
 
 
 LISTEN_START_TIMEOUT = 8.0     # сколько ждать начала речи после нажатия / имени
@@ -1481,6 +1502,9 @@ _fish = None
 
 
 FISH_MODEL = os.getenv("FISH_MODEL", "s2.1-pro-free")   # бесплатная модель Fish Audio
+FISH_LATENCY = os.getenv("FISH_LATENCY", "balanced")
+# «balanced» — быстрый режим Fish. Замер на этом ПК 22.10 (tests/voice_bench.py): первые байты звука 0,67–0,78 с
+# вместо 1,1–3,7 с, длинная фраза целиком 3,6 с вместо 4,2 с. «normal» — как было (FISH_LATENCY=normal в .env).
 
 
 _fish_http = None
@@ -1510,7 +1534,8 @@ def _warm_fish() -> None:
 def _generate_speech_fish(text: str, filename: str, voice_id: str) -> None:
     """Fish Audio S2.1 Pro — бесплатная модель, русский и английский."""
     fmt = "mp3" if filename.endswith(".mp3") else "wav"
-    payload = {"text": _emo.for_fish(text, FISH_MODEL), "reference_id": voice_id, "format": fmt}
+    payload = {"text": _emo.for_fish(text, FISH_MODEL), "reference_id": voice_id, "format": fmt,
+               "latency": FISH_LATENCY}
     headers = {"Authorization": f"Bearer {FISH_API_KEY}", "Content-Type": "application/json", "model": FISH_MODEL}
     try:
         r = _fish_session().post("https://api.fish.audio/v1/tts", headers=headers, json=payload)
