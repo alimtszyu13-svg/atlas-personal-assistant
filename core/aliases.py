@@ -33,7 +33,9 @@ def parse_add(raw: str):
     """Фраза → (своё слово, что делать) или None."""
     t = re.sub(r"^(?:атлас|atlas)[,\s]+", "", (raw or "").strip(), flags=re.I).strip(" .!?")
     m = _RENAME.match(t)
-    if m:
+    # «назови три слова в русском языке…» — просьба, а не переименование (лог 23.10): новое имя короткое, старое — команда
+    if m and len(m.group("a").split()) <= 3 and (re.match(r"^(?:назови|переименуй)\s+команду\s", t, re.I)
+                                                 or _looks_like_command(m.group("b"))):
         return m.group("a"), m.group("b")
     m = _PREFIX.match(t)
     if m:

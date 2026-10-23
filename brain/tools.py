@@ -150,7 +150,8 @@ TOOLS_SCHEMA = [
     _s("kill_process", "Force-closes a process by its exact name", {"name": _S}, ["name"]),
     _s("empty_recycle_bin", "Empties the Recycle Bin"),
     _s("get_uptime", "Reports system uptime since last restart"),
-    _s("play_pause_media", "Toggles play/pause on the active media player"),
+    _s("play_pause_media", "Music only: system media key — pauses/resumes MUSIC (usually Spotify). NEVER use it for a "
+                          "movie, series or video in Atlas's browser — that is media_play_pause."),
     _s("next_track", "Skips to the next track"),
     _s("previous_track", "Goes to the previous track"),
     _s("run_git_command", "Runs a git command inside a project folder", {"command": _S, "project_path": _S}, ["command"]),
@@ -193,7 +194,8 @@ TOOLS_SCHEMA = [
     _s("browser_close", "Closes the controlled browser window"),
     _s("play_on_netflix", "Fast dedicated macro to search and play a title on Netflix directly — use this instead of the generic browser_open/browser_click loop whenever the user wants to watch something and Netflix is a reasonable choice. Requires an already-logged-in Netflix session.", {"title": _S}, ["title"]),
     _s("play_on_rezka", "Fast dedicated macro to search and play a title on Rezka directly — use this instead of the generic browser_open/browser_click loop whenever the user wants to watch something and Rezka is a reasonable choice.", {"title": _S}, ["title"]),
-    _s("media_play_pause", "Toggles play or pause for the currently playing video/movie."),
+    _s("media_play_pause", "Movie/series/video in Atlas's browser (Rezka, Netflix, YouTube): toggles play/pause. Use "
+                          "this for «выключи/останови/поставь на паузу фильм»; it does not touch the music."),
     _s("media_seek", "Seeks the video forward or backward.", {"direction": {"type": "string", "enum": ["forward", "backward"]}}, ["direction"]),
     _s("media_volume", "Adjusts the video volume. Use 'mute' to toggle sound on/off.", {"action": {"type": "string", "enum": ["up", "down", "mute"]}}, ["action"]),
     _s("media_player_fullscreen", "Toggles the web video player into fullscreen mode."),
@@ -253,7 +255,7 @@ def load_registry_skills() -> None:
 _TRACE_FAIL = re.compile(r"something went wrong|не найден|not found|has been closed|не смог|couldn'?t|"
                          r"failed|ошибк|error|отказываюсь|не удалось|не открыт|нет элемента|not open|"
                          r"no element|недоступ|unavailable|blocked|не уверен|похоже, не то|not sure|not sent|не отправ|"
-                         r"draft ready", re.I)
+                         r"draft ready|не знаю приложени|не знаю такого|unknown app", re.I)
 _trace_lock = threading.Lock()
 
 
@@ -356,8 +358,10 @@ def _repair_args(name: str, args: dict) -> dict:
     return out
 
 
+# правка текста — тоже просьба писать: «подправь текст по своим рекомендациям» (лог 23.10 — четыре отказа подряд)
 _TYPE_INTENT = re.compile(r"напиш|напис|запиш|запис|допиш|допис|впиш|впис|введи|напечат|вставь|заполни|набери|пиши|"
-                          r"type|write|enter|fill|paste|jot",
+                          r"подправ|поправ|исправ|перепиш|переписа|отредакт|редактир|дополни|законч|допол|"
+                          r"type|write|enter|fill|paste|jot|edit|rewrite|correct|fix",
                           re.I)
 
 

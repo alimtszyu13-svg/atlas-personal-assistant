@@ -36,7 +36,7 @@ APPS = {
                  "rx": r"ватсап\w*|вотсап\w*|вацап\w*|воцап\w*|whats ?app|ватс ап\w*"},
     "instagram": {"name": "Instagram", "exe": (), "web": ("instagram",),
                   "url": "https://www.instagram.com/direct/inbox/", "launch": "", "mode": "list",
-                  "rx": r"инст[аеуы]\w*|инстаграм\w*|instagram|\bдирект\w*|\bdirect\b|\binsta\b"},
+                  "rx": r"инст[аеуы]\w*|инстаграм\w*|instagram|\bдирект(?:е|а|у|ом)?\b|\bdirect\b|\binsta\b"},
     "discord": {"name": "Discord", "exe": ("discord",), "web": ("discord",),
                 "url": "https://discord.com/channels/@me", "launch": "discord://", "mode": "switcher",
                 "keys": "ctrl+k", "rx": r"дискорд\w*|discord"},
@@ -482,7 +482,15 @@ def _header(lines: list, rg: dict) -> list:
 def _choose(lines: list, rg: dict, st: list, kin: bool, title: str = None, query: str = ""):
     """Какую строку списка чатов нажать. → ("click", строка) | ("ambiguous", [названия]) | ("weak", [названия]) | None.
     Никогда не берём «верхний похожий» наугад: только точный, единственный или запомненный."""
-    cand = [ln for ln in lines if _cx(ln) < rg["list_x"] and ln["y"] > rg["top"] and norm(ln["text"]) != norm(query)]
+    cand = [ln for ln in lines if _cx(ln) < rg["list_x"] and ln["y"] > rg["top"]]
+    if query:
+        # Текст в строке поиска — не чат. Но в структуре окна поля поиска нет, а найденная строка «Назар» = запросу «Назар»:
+        # раньше она выбрасывалась вместе с полем, и точное имя не находилось никогда (лог 23.10: «Назар» → notfound).
+        same = [ln for ln in cand if norm(ln["text"]) == norm(query) and not ln.get("uia")]
+        box = [ln for ln in same if ln["y"] < rg["top"] + rg.get("H", 0) * 0.1]
+        if not box and len(same) > 1:
+            box = [min(same, key=lambda x: x["y"])]
+        cand = [ln for ln in cand if not any(ln is b for b in box)]
     if title:                                                         # знаем, как записан, — только он
         exact = [ln for ln in cand if norm(ln["text"]) == norm(title)]
         if exact:
@@ -499,7 +507,13 @@ def _choose(lines: list, rg: dict, st: list, kin: bool, title: str = None, query
     names = list(dict.fromkeys(ln["text"].strip() for ln in top))
     if best < 1:                                                      # «маме» → только «Мама Данияра»: это не она
         return "weak", list(dict.fromkeys(ln["text"].strip() for _, ln in scored))[:4]
-    if len({norm(n) for n in names}) > 1:                             # «Алим Сыдыков» и «Алим Касымов»
+    rows = []                                                         # «Назар» и «Назар 20:31» в одной строке списка — один чат
+    for ln in sorted(top, key=_cy):
+        if rows and abs(_cy(ln) - _cy(rows[-1][-1])) < 30:
+            rows[-1].append(ln)
+        else:
+            rows.append([ln])
+    if len(rows) > 1 and len({norm(n) for n in names}) > 1:          # «Алим Сыдыков» и «Алим Касымов»
         return "ambiguous", names[:4]
     return "click", min(top, key=lambda x: x["y"])
 
@@ -507,6 +521,15 @@ def _choose(lines: list, rg: dict, st: list, kin: bool, title: str = None, query
 def open_chat(app: str, contact: str, ui=None, title: str = None) -> dict:
     """Открыть чат → {"ok", "hwnd", "verified", "name", "why", "options"}."""
     ui = ui or _get_ui()
+    t0 = time.time()
+    r = _open_chat_logged(app, contact, ui, title)
+    print(f"[мессенджеры] {app}: «{contact}»{f' (как «{title}»)' if title else ''} → "
+          f"{'открыт «' + str(r.get('name')) + '»' if r.get('ok') else r.get('why')}"
+          f"{'' if r.get('verified', True) else ', не проверен'} за {time.time() - t0:.1f} с")
+    return r
+
+
+def _open_chat_logged(app: str, contact: str, ui, title: str = None) -> dict:
     remembered = None if title else known_title(contact, app)
     r = _open_chat(app, contact, ui, title or remembered)
     if not r.get("ok") and remembered and r.get("why") not in ("noapp",):   # запомненное имя устарело — ищем по слову
@@ -529,8 +552,19 @@ def _open_chat(app: str, contact: str, ui, title: str = None, avoid: str = "") -
         rect = ui.rect(hwnd)
         lines = ui.ocr(rect)
         if not web and hasattr(ui, "uia_lines"):
-            lines = dict(lines, uia=ui.uia_lines(hwnd))
+            uia = ui.uia_lines(hwnd)
+            if len(uia) < 25:                                          # окно ещё перерисовывается после поиска — ещё раз
+                ui.sleep(0.6)
+                uia = ui.uia_lines(hwnd) or uia
+            lines = dict(lines, uia=uia)
         return rect, _regions(rect, web, hwnd), lines
+
+    def seen(lines, rg):
+        """Что было в списке чатов — для лога, когда не нашлось (как в _open_self)."""
+        src = lines.get("uia") or _pick(lines, st)
+        names = [ln["text"].strip() for ln in src if _cx(ln) < rg["list_x"] and ln["y"] > rg["top"]
+                 and len(ln["text"].split()) <= 4]
+        return f"{len(src)} строк, в списке: {list(dict.fromkeys(names))[:10]}"
 
     def head_match(lines, rg):
         """Строка заголовка открытого чата, если это именно тот, кто нужен (не «Мама Данияра» вместо «Мамы»)."""
@@ -613,6 +647,7 @@ def _open_chat(app: str, contact: str, ui, title: str = None, avoid: str = "") -
                 ui.keys("esc")
             return r
     if saw_text:                                            # распознавание работает, а чат не нашёлся — не открываем наугад
+        print(f"[мессенджеры] {app}: искал «{query}», не нашёл — видел {seen(lines, rg)}")
         ui.keys("esc")
         return {"ok": False, "why": "notfound", "hwnd": hwnd}
     # OCR ничего не вернул (распознавание окна не работает) — открываем верхний результат поиска с клавиатуры.
@@ -642,7 +677,11 @@ def _open_self(app: str, ui, hwnd: int, web: bool) -> dict:
                 and (_cx(ln) < rg["list_x"] if where == "list" else _cx(ln) > rg["chat_x"] and ln["y"] < rg["head_y"])]
         return min(hits, key=lambda x: x["y"]) if hits else None
 
+    t0 = time.time()
     rg, every = look()
+    if not find(rg, every, "head") and not find(rg, every, "list"):    # окно только что вывели вперёд — дорисовывается
+        ui.sleep(0.8)
+        rg, every = look()
     h = find(rg, every, "head")
     if h is not None:
         return {"ok": True, "hwnd": hwnd, "verified": True, "web": web, "name": h["text"]}
@@ -657,6 +696,9 @@ def _open_self(app: str, ui, hwnd: int, web: bool) -> dict:
         rg, every = look()
         ln = find(rg, every, "list")
     if ln is None:
+        sample = [x["text"] for x in every if _cx(x) < rg["list_x"]][:8]
+        print(f"[мессенджеры] чат с собой не найден в {app}: элементов {len(every)}, граница {_DIV.get(hwnd)}, "
+              f"слева: {sample} ({time.time() - t0:.1f} с)")
         return {"ok": False, "why": "notfound", "hwnd": hwnd}
     ui.click(int(_cx(ln)), int(_cy(ln)))
     ui.sleep(0.9)
@@ -872,6 +914,36 @@ _EDIT = re.compile(r"короче|длиннее|подробнее|по-дру�
                    r"shorter|longer|rewrite|change|add|remove|polite|casual|emoji", re.I)
 
 
+NEED_CHAT_TTL = 90         # «как записан контакт?» ждём не дольше полутора минут
+
+
+def _answer_name(t: str):
+    """Ответ на «Как контакт записан?» → имя чата или None, если это другая команда.
+    «Мама» · «вы» · «он записан как Ана» · «записан в «вы»» · «не себе, а вы» · ««Кундуз»»."""
+    t = " ".join(t.split()).strip(" .!")
+    t = re.sub(r"^(?:атлас|atlas)[,\s]+", "", t, flags=re.I)
+    q = re.findall(r"[«\"“]([^»\"”]{1,40})[»\"”]", t)
+    m = re.search(r"(?:записан\w*|сохранен\w*|сохранён\w*|подписан\w*|называ\w+|saved as)[\s.,:;—–-]+(?:у меня\s+)?"
+                  r"(?:как|в|под именем|as)?\s*[«\"“]?([^»\"”,.]{1,40})", t, re.I)
+    if q:
+        return q[-1].strip()
+    if m:
+        return m.group(1).strip()
+    m = re.search(r"\bне\s+\S+[,\s]+а\s+([^,.]{1,30})", t, re.I)       # «не себе, а вы»
+    if m:
+        return m.group(1).strip()
+    words = t.split()
+    if not words or len(words) > 3 or any(re.search(r"\d{3}", w) for w in words):
+        return None
+    if _SEND.search(t) or _READ.search(t) or re.search(r"(?:^|\s)(?:погод\w*|выведи|покажи|открой|включи|"
+                                                       r"поставь|сделай|выключи|найди|что|как|где|когда)\b", t, re.I):
+        return None
+    if all(w[:1].isupper() or _KIN.match(norm(w)) or norm(w) in ("вы", "себе", "я") or norm(w) in _POSS
+           for w in words if norm(w)):
+        return t
+    return None
+
+
 def _same(last: str, said: str) -> bool:
     """Последний ответ в чате — наш вопрос «Отправить?» (смайлики и разметка могли сняться при показе)
     или его пересказ («Надо подтвердить отправку…» — когда черновик готовил мозг)."""
@@ -909,6 +981,10 @@ def intent(text: str, last: str = None):
     t = " ".join((text or "").split()).strip()
     if not t:
         return None
+    t2 = re.sub(r"^(?:(?:атлас|atlas)[,!\s]+)?(?:(?:тогда|ну|давай|а|и|так|теперь|ещё|еще|пожалуйста|слушай|"
+                r"можешь|ты можешь|можешь ли)[,\s]+)+", "", t, flags=re.I)
+    if t2 != t and (_SEND.search(t2) or _OPEN_THEN.match(t2)):  # «Атлас, тогда напиши Назару» — та же команда
+        t = t2
     m = _OPEN_THEN.match(t)                     # «открой WhatsApp и напиши маме…» → «напиши маме… в WhatsApp»
     if m and _app_in(m.group(1))[0]:
         t = f"{m.group(2).rstrip(' .!')} в {m.group(1)}"
@@ -920,7 +996,8 @@ def intent(text: str, last: str = None):
                 return ("pick_app", ak)
         if _NO.search(t.strip(" .!").lower()):
             return ("cancel",)
-    if p and p.get("need_chat") and (last is None or _same(last, _s.get("said"))) and len(t) < 60:
+    if p and p.get("need_chat") and time.time() - p["created"] < NEED_CHAT_TTL \
+            and (last is None or _same(last, _s.get("said"))) and len(t) < 90:
         bare = t.strip(" .!").lower()
         if _NO.search(bare):
             return ("cancel",)
@@ -929,7 +1006,13 @@ def intent(text: str, last: str = None):
             m2 = re.search(r"(?:^|[\s.,!])(?:пиши|напиши|пишите|отправь|отправляй|скажи|write|send)\b[\s,:]*(.*)$", t, re.I)
             more = (m2.group(1) if m2 else "").strip(" «»\"“”.!")
             return ("here", more)
-        opts = p.get("options") or []
+        if p.get("here_only"):                                     # два раза не нашли — ждём только «открыл» / «отмена»
+            opts = []
+        else:
+            opts = p.get("options") or []
+        name = None if p.get("here_only") else _answer_name(t)
+        if name and not opts:
+            return ("pick_chat", name)
         m = re.search(r"\b(перв|втор|трет|четв|[1-4])\w*", bare)
         if m and _ORD[m.group(1)] < len(opts):
             return ("pick_chat", opts[_ORD[m.group(1)]])
@@ -939,8 +1022,10 @@ def intent(text: str, last: str = None):
         hit = max(opts, key=lambda o: match_score(o, st2)) if opts and st2 else None
         if hit and match_score(hit, st2) >= 1:
             return ("pick_chat", hit)
-        if st2 and not _SEND.search(t):
-            return ("pick_chat", t.strip(" «»\"“”.!"))                # назвал, как записан, — ищем так
+        if name:
+            return ("pick_chat", name)
+        # не похоже на имя чата («погода», «напиши Назару», «выведи голограмму») — не наше: пусть идёт дальше
+        # (лог 23.10: ожидание имени глотало все фразы подряд и каждый раз искало чат «Погода»)
     if p and not p.get("need_app") and not p.get("need_chat") and (last is None or _same(last, _s.get("said"))) and len(t) < 120:
         bare = t.strip(" .!").lower()
         if _NO.search(bare):
@@ -1022,6 +1107,11 @@ def intent(text: str, last: str = None):
                 return None
             n = 2 if len(words) > 1 and norm(words[0]) in _POSS else 1     # «моей маме привет» — контакт из двух слов
             contact, gist = " ".join(words[:n]), " ".join(words[n:])
+            last_w = words[-1].strip(" .,!?")
+            if len(words) >= 2 and not words[0][:1].isupper() and not _KIN.match(norm(words[0])) \
+                    and not _THINGS.match(words[0]) \
+                    and (last_w[:1].isupper() or _KIN.match(norm(last_w))):
+                contact, gist = last_w, " ".join(words[:-1])          # «напиши привет Назару» — адресат в конце
         contact = contact.strip(" ,.")
         gist = re.sub(r"^(?:что|чтобы|that)\s+", "", gist.strip(" ,:"), flags=re.I)
     exact = None
@@ -1381,8 +1471,18 @@ def handle(text: str, last: str = None, ui=None, ask=None):
     if k == "pick_chat":
         np = _s.get("pending") or {}
         _s["pending"] = None
-        return prepare(np.get("app"), np.get("contact"), np.get("gist", ""), np.get("exact"),
-                       np.get("ru", ru), ui, ask, title=it[1])
+        out = prepare(np.get("app"), np.get("contact"), np.get("gist", ""), np.get("exact"),
+                      np.get("ru", ru), ui, ask, title=it[1])
+        again = _s.get("pending")
+        if again and again.get("need_chat"):                      # опять не нашли — второй раз не спрашиваем по кругу
+            again["tries"] = np.get("tries", 0) + 1
+            if again["tries"] >= 2:
+                again["here_only"] = True
+                out = (f"Не нашёл «{it[1]}» в {APPS[np.get('app') or 'telegram']['name']}. Открой чат сам и скажи "
+                       f"«открыл» — или «отмена»." if np.get("ru", ru) else
+                       f"Couldn't find “{it[1]}”. Open the chat yourself and say “opened”, or “cancel”.")
+                _s["said"] = out
+        return out
     if k == "open":
         return open_for_user(it[1], it[2], it[3], ru, ui)
     if k == "here":

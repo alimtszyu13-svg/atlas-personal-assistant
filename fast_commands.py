@@ -42,7 +42,9 @@ APP_ALIASES = {
     # офис
     "ворд": "ворд", "word": "ворд", "эксель": "эксель", "excel": "эксель",
     "powerpoint": "powerpoint", "пауэрпоинт": "powerpoint", "презентации": "powerpoint",
-    "outlook": "outlook", "аутлук": "outlook", "onenote": "onenote", "ванноут": "onenote",
+    "outlook": "outlook", "аутлук": "outlook",
+    "впс офис": "wps office", "впс-офис": "wps office", "впс": "wps office", "wps office": "wps office", "wps": "wps office",
+    "вэпээс": "wps office", "onenote": "onenote", "ванноут": "onenote",
     # разработка
     "вс код": "вс код", "вскод": "вс код", "vs code": "вс код", "vscode": "вс код", "visual studio code": "вс код",
     "код": "вс код", "pycharm": "pycharm", "пайчарм": "pycharm", "гит": "git", "github desktop": "github",
@@ -81,7 +83,7 @@ SERVICE_WORDS = {
 NOT_AN_APP = (
     "фильм", "кино", "сериал", "серия", "видео", "музык", "песн", "трек",
     "сайт", "страниц", "ссылк", "письм", "почт", "папк", "файл", "документ",
-    "заметк", "календар", "погод", "новост",
+    "заметк", "календар", "погод", "новост", "карт", "вкладк",
     "movie", "video", "music", "song", "site", "page", "link", "mail",
     "folder", "file", "note", "weather", "news",
 )
@@ -96,22 +98,47 @@ _MULTI = re.compile(r"\s(?:и|а потом|потом|затем|после э�
 
 
 _SPOTIFY_WORD = r"(?:(?:в|на)\s+(?:spotify|спотифа[йе]|спотике)\s+)?"
-_LOUDER = re.compile(r"(?:(?:сделай(?:те)?|сделаем|давай)\s+)?(?:(?:музыку|звук|громкость)\s+)?" + _SPOTIFY_WORD +
+_LOUDER = re.compile(r"(?:(?:сделай(?:те)?|сделаем|сделать|давай)\s+)?(?:(?:музыку|звук|громкость)\s+)?" + _SPOTIFY_WORD +
                      r"(?:(?:немного|чуть|чуть-чуть|ещё|еще)\s+)?(?:по)?громче(?:\s+(?:музыку|звук|пожалуйста))?")
-_QUIETER = re.compile(r"(?:(?:сделай(?:те)?|сделаем|давай)\s+)?(?:(?:музыку|звук|громкость)\s+)?" + _SPOTIFY_WORD +
+_QUIETER = re.compile(r"(?:(?:сделай(?:те)?|сделаем|сделать|давай)\s+)?(?:(?:музыку|звук|громкость)\s+)?" + _SPOTIFY_WORD +
                       r"(?:(?:немного|чуть|чуть-чуть|ещё|еще)\s+)?(?:по)?тише(?:\s+(?:музыку|звук|пожалуйста))?")
 _SEEK = re.compile(r"(?:перемотай|промотай|отмотай)(?:\s+(?:на\s+)?(?P<n1>\d+)\s*(?:секунд\w*|сек))?\s+"
                    r"(?P<dir>вперёд|вперед|назад)(?:\s+(?:на\s+)?(?P<n2>\d+)\s*(?:секунд\w*|сек))?")
 
 
+_SET_VOL = re.compile(r"(?:(?:поставь|сделай|установи|выставь|убавь|прибавь|set)\s+)?(?:громкость|звук|volume)\s+"
+                      r"(?:на\s+|в\s+|to\s+)?(\d{1,3})\s*(?:%|процент\w*|percent)?")
+_STOP_MUSIC = re.compile(r"(?:останови|выключи|остановить|стоп|поставь на паузу|приостанови|stop|pause)\s+"
+                         r"(?:музыку|музыка|песню|трек|spotify|спотифа[йе]|the music|music)"
+                         r"|(?:музыку|песню)\s+(?:останови|выключи|на паузу)")
+_STOP_VIDEO = re.compile(r"(?:выключи|останови|остановить|поставь на паузу|приостанови|стоп|пауза|паузу на|pause|stop)\s+"
+                         r"(?:(?:этот|мой)\s+)?(?:фильм|кино|сериал|серию|видео|мультик|ролик|movie|video|the movie|the video)"
+                         r"(?:\s+.{1,40})?|(?:фильм|видео|сериал)\s+(?:на паузу|останови|выключи)")
+_NEXT_TRACK = re.compile(r"(?:поменяй|смени|переключи)\s+(?:мне\s+)?(?:музыку|песню|трек)(?:\s+на\s+(?:другую|другой|следующую|следующий))?"
+                         r"|(?:(?:давай|включи|поставь)\s+(?:мне\s+)?)?(?:другую|следующую)\s+(?:песню|трек|музыку)"
+                         r"|(?:next|skip)(?:\s+(?:the\s+)?(?:song|track))?|(?:change|switch)\s+(?:the\s+)?(?:song|track|music)")
+
+
+def _ru_text(t: str) -> bool:
+    return bool(re.search(r"[а-яё]", t))
+
+
+_APP_FILLER = {"мне", "пожалуйста", "приложение", "программу", "программа", "app", "the", "please", "быстро",
+               "ещё", "еще", "снова", "заново", "atlas", "атлас"}
+
+
 def _match_app(target: str):
-    """Сначала точное совпадение, потом вхождение (длинные первыми — «гугл хром» не срежется до «хром»)."""
-    t = target.strip()
+    """Название приложения — это (почти) вся цель: «гугл хром», «мне спотифай пожалуйста».
+    Слово внутри просьбы — не команда: «новую вкладку в блокноте, нажми на плюсик» не открывает Блокнот заново (лог 23.10)."""
+    t = " ".join(re.sub(r"[.!?]+$", "", target.strip()).split())
     if t in APP_ALIASES:
         return APP_ALIASES[t]
     for alias in sorted(APP_ALIASES, key=len, reverse=True):
-        if alias in t:
-            return APP_ALIASES[alias]
+        m = re.search(r"(?<![\w-])" + re.escape(alias) + r"(?![\w-])", t)
+        if m:
+            rest = (t[:m.start()] + " " + t[m.end():]).split()
+            if all(w in _APP_FILLER for w in rest):
+                return APP_ALIASES[alias]
     return None
 
 
@@ -146,6 +173,8 @@ def _ok(result):
 def try_fast_command(text: str):
     t = text.lower().strip().strip('«»"\'“”„').rstrip(".!?").strip()
     t = re.sub(r"^(?:атлас|atlas)[,!\s]+", "", t).strip()     # «Атлас, включи музыку» — та же команда
+    t = re.sub(r"[,\s]+(?:атлас|atlas)$", "", t).strip()        # «давай на 70% атлас»
+    t = re.sub(r"^(?:(?:а|ну|так|и|можешь|пожалуйста)\s+)+(?=\S)", "", t)   # «а сделать чуть-чуть погромче»
     if not t:
         return None
     multi = bool(_MULTI.search(t))
@@ -270,6 +299,22 @@ def try_fast_command(text: str):
         from system_control import spotify_play_library
         return _ok(spotify_play_library(m.group(1).strip(" «»\"'")))
 
+    if _STOP_VIDEO.fullmatch(t) and not multi:     # «выключи фильм» — видео в браузере, музыку не трогаем (лог 23.10)
+        result = _ok(_browser_media("media_play_pause"))
+        if result:
+            return result
+        return ("speak", "Фильм у меня в браузере не открыт." if _ru_text(t) else "No movie is open in my browser.")
+    if _STOP_MUSIC.fullmatch(t) and not multi:     # «останови музыку»: пауза, только если правда играет
+        from system_control import spotify_is_playing, _media_play_pause_key
+        if spotify_is_playing():
+            _media_play_pause_key()
+            return ("speak", "Остановил." if _ru_text(t) else "Paused.")
+        return ("speak", "Музыка и так не играет." if _ru_text(t) else "Nothing is playing.")
+
+    if _NEXT_TRACK.fullmatch(t) and not multi:      # «поменяй музыку», «другую песню», «переключи трек»
+        from media_control import next_track
+        return _ok(next_track())
+
     # ---------- музыка: сразу в приложение ----------
     # «включи спокойную музыку» / «включи Linkin Park на спотифае» / «поставь джаз»
     m = re.match(r"^(?:включи|поставь|запусти|врубай|play|put on|turn on)\s+(?:мне\s+|us\s+|some\s+)?(.+?)"
@@ -296,10 +341,14 @@ def try_fast_command(text: str):
     # ---------- приложения ----------
     m = re.match(r"^(?:открой|запусти|включи приложение|open|launch|start)\s+(.+)$", t)
     if m and not multi:
-        target = m.group(1).strip()
-        if not any(w in target for w in NOT_AN_APP):
+        target = re.sub(r"^(?:мне|пожалуйста)\s+", "", m.group(1).strip())
+        # «открой мне ВПС-офис, хочу написать письмо» — после запятой причина, а не часть названия (лог 23.10)
+        target = re.split(r"\s*,\s*(?:хочу|чтобы|мне нужно|мне надо|надо|буду|я хочу|i want|to)\b", target)[0].strip()
+        app = _match_app(target)
+        # неизвестное короткое имя — open_app поищет ярлык сам; длинная просьба с запятой — это не название, а задача для модели
+        if not any(w in target for w in NOT_AN_APP) and (app or ("," not in target and len(target.split()) <= 3)):
             from system_control import open_app
-            return _ok(open_app(_match_app(target) or target))     # неизвестное — open_app поищет ярлык сам
+            return _ok(open_app(app or target))
     m = re.match(r"^(?:закрой|выключи приложение|close|quit)\s+(.+)$", t)
     if m and not multi:
         target = m.group(1).strip()
@@ -314,10 +363,10 @@ def try_fast_command(text: str):
     if m:
         from system_control import spotify_volume
         return _ok(spotify_volume("set", int(m.group(1))))
-    m = re.match(r"^(?:громкость|volume)\s+(?:на\s+)?(\d{1,3})\s*%?$", t)
-    if m:
+    m = _SET_VOL.fullmatch(t)
+    if m and not multi:                     # «поставь громкость 30» — раньше уходило в модель (журнал: 2–3 с)
         from system_advanced import set_volume
-        return _ok(set_volume(int(m.group(1))))
+        return _ok(set_volume(min(100, int(m.group(1)))))
     if t in ("громче", "сделай громче", "погромче", "louder", "volume up") or _LOUDER.fullmatch(t):
         result = _ok(_browser_media("media_volume", action="up"))
         if result:

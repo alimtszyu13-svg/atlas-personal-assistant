@@ -35,6 +35,10 @@ _s = {"labels": None, "texts": None, "mat": None, "embed": None, "dirty": True}
 _lock = threading.Lock()
 _SKIP = {"pending_disk", "pending_proofread", "pending_where", "call_secretary", "scenarios"}
 _NO_RESCUE = {"other", "instant"}          # «other» — отрицательные примеры: ближе к ним — фраза не наша
+# Действия с последствиями — только по явной команде, никогда «по смыслу»: лог 23.10 — «открой голограмму на весь
+# экран» переписалось в «запиши: …» и включилась ЗАПИСЬ ЭКРАНА со звуком.
+_NEVER_GUESS = {"meeting_notes", "disk_clean", "file_ops", "form_fill", "dictation", "game_mode", "updater",
+                "voice_notes", "screen_history", "watchers", "messengers"}
 
 
 def enabled() -> bool:
@@ -149,7 +153,7 @@ def rescue(text: str, ctx: dict = None, ask=None):
     if not g:
         return None
     label = g[0]
-    if intent_router.OWNER.get(label) not in ("pc_fast", "main"):
+    if label in _NEVER_GUESS or intent_router.OWNER.get(label) not in ("pc_fast", "main"):
         return None
     try:
         cmd = canonical(text, label, ask)
@@ -159,8 +163,9 @@ def rescue(text: str, ctx: dict = None, ask=None):
     if not cmd:
         return None
     r = intent_router.route(cmd, ctx)
-    if label not in r.claims:
-        print(f"[смысл] «{text}» → «{cmd}» — правила не узнали, не выполняю")
+    if r.label != label or any(c in _NEVER_GUESS for c in r.claims):
+        # выполнит тот, кто ПЕРВЫЙ по приоритету, — он и должен быть тем, кого проверяли
+        print(f"[смысл] «{text}» → «{cmd}» — выполнил бы {r.label}, а не {label}; не выполняю")
         return None
     print(f"[смысл] «{text}» → {label} ({g[1]:.2f}) → «{cmd}»")
     return cmd, label

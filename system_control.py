@@ -1,5 +1,6 @@
 import subprocess
 import os
+import re
 import difflib
 import webbrowser
 import urllib.parse
@@ -168,10 +169,40 @@ def list_apps(filter_text: str = "") -> str:
     return f"Доступно {len(names)}: " + ", ".join(shown) + tail + "."
 
 
+def _canon_app(name: str) -> str:
+    """«notepad», «notepad.exe», «C:\\Windows\\System32\\notepad.exe», «Блокнот» → ключ APP_MAP «блокнот».
+    Модель называет программы по-английски и именами файлов (лог 23.10: три раза «Не знаю приложения notepad»)."""
+    n = (name or "").lower().strip().strip("\"'«»")
+    if n in APP_MAP:
+        return n
+    try:
+        from fast_commands import APP_ALIASES
+    except Exception:
+        APP_ALIASES = {}
+    if n in APP_ALIASES:
+        return APP_ALIASES[n]
+    base = re.split(r"[\\/]", n)[-1]
+    stem = base[:-4] if base.endswith(".exe") else base
+    for key, (cmd, proc) in APP_MAP.items():
+        c = cmd.lower().replace("start ", "").strip()
+        if stem in (c, c.removesuffix(".exe"), proc.lower().removesuffix(".exe")):
+            return key
+    if stem in APP_ALIASES:
+        return APP_ALIASES[stem]
+    return n
+
+
 def open_app(app_name: str) -> str:
     """Открывает приложение: сначала по известным записям, потом поиском
     по ярлыкам в меню Пуск."""
-    app_name = (app_name or "").lower().strip()
+    raw = (app_name or "").strip().strip("\"'«»")
+    if raw.lower().endswith(".exe") and os.path.isabs(raw) and os.path.isfile(raw):
+        try:
+            os.startfile(raw)
+            return f"Открываю {os.path.basename(raw)}."
+        except Exception as e:
+            print(f"[Ошибка open_app/path]: {e}")
+    app_name = _canon_app(raw)
     if not app_name:
         return "Не понял, какое приложение открыть."
 
@@ -223,6 +254,7 @@ def close_app(app_name: str) -> str:
         return "Не понял, какое приложение закрыть."
 
     process_name = None
+    app_name = _canon_app(app_name)
     if app_name in APP_MAP:
         _, process_name = APP_MAP[app_name]
     else:

@@ -121,6 +121,21 @@ def semantic_rescues_paraphrase_safely():
             "стандартную команду правила не узнали — не выполняем"
         g = S.guess("включи музыку погромче")
         assert g is None, f"ближе к отрицательным примерам (other) — не наше: {g}"
+        # лог 23.10: «открой голограмму на весь экран» → «запиши: …» → включилась ЗАПИСЬ ЭКРАНА
+        orig_guess = S.guess
+        S.guess = lambda text: ("voice_notes", 0.75, ["запиши: купить молоко"])
+        try:
+            res = S.rescue("Atlas откройте голограмму на весь экран.", {},
+                           ask=lambda s, u: "запиши: Atlas откройте голограмму на весь экран")
+            assert res is None, f"по догадке — никаких записей/удалений: {res}"
+        finally:
+            S.guess = orig_guess
+        S.guess = lambda text: ("window_layout", 0.8, ["разверни телеграм"])
+        try:
+            res = S.rescue("растяни что-то", {}, ask=lambda s, u: "запиши экран")
+            assert res is None, "проверяли окна, а выполнилась бы запись — нельзя"
+        finally:
+            S.guess = orig_guess
     finally:
         S.set_embedder(None)
         S._s["embed"] = None

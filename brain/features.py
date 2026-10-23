@@ -189,9 +189,25 @@ def day_report(period: str = "today") -> str:
     return _dr.report_text(period)
 
 
+# слово из твоей фразы → подсказка к запросу картинки (русская к русскому запросу, английская к английскому)
+_HOLO_KIND = ((r"город\w*|столиц\w*|city", "город", "city"), (r"стран[аыуе]?|country", "страна", "country"),
+              (r"рек[аиуе]|river", "река", "river"), (r"озер[оау]|озёр\w*|lake", "озеро", "lake"),
+              (r"гор[аыуе]|mountain", "гора", "mountain"), (r"остров\w*|island", "остров", "island"))
+
+
+def holo_kind(query: str, question: str) -> str:
+    """«голограмму города Париж» → модель дала «Paris» → Википедия показала Пэрис Хилтон (лог 23.10).
+    Слово-подсказку из твоей фразы («город», «река»…) возвращаем в запрос."""
+    q, said = " ".join((query or "").split()), (question or "").lower()
+    for pat, ru, en in _HOLO_KIND:
+        if re.search(r"(?<!\w)(?:" + pat + r")(?!\w)", said) and not re.search(r"(?<!\w)(?:" + pat + r")(?!\w)", q.lower()):
+            return f"{q} {ru if re.search('[а-яё]', q.lower()) else en}"
+    return q
+
+
 def holo_show(query: str) -> str:
     from core import holo
-    return holo.show_image(query)["text"]
+    return holo.show_image(holo_kind(query, str(state.turn.get("question") or "")))["text"]
 
 
 def holo_weather(place: str) -> str:
@@ -491,7 +507,7 @@ def start() -> None:
 
     # --- голо-экран
     register("holo_show", holo_show, "Shows a picture on Atlas's holographic screen: a landmark, place, animal, object, vehicle, artwork or a famous person BY NAME ('покажи…', 'выведи…', 'show me…'). Speak only a short sentence — the picture is on screen.",
-             {"query": {"type": "string", "description": "what to show, e.g. 'Eiffel Tower'"}}, ["query"], group="holo")
+             {"query": {"type": "string", "description": "what to show, e.g. 'Eiffel Tower'. Keep the kind word the user said: 'город Париж' → 'Paris city', not just 'Paris'"}}, ["query"], group="holo")
     register("holo_weather", holo_weather, "Shows weather for a place on the holographic screen with a timeline a week back and a week ahead, and returns the current weather. Use when the user asks to show / display weather, or asks about weather in another place.", {"place": _S}, ["place"], group="holo")
     register("look", look, "Atlas looks through the webcam (source='camera') or at the screen (source='screen') and answers the question about what it sees ('посмотри', 'что у меня в руке', 'что ты видишь', 'what's on my screen'). The snapshot also appears on the holographic screen.",
              {"question": _S, "source": {"type": "string", "description": "'camera' or 'screen'"}}, group="holo")
