@@ -93,3 +93,10 @@ atlas_knowledge.db-wal
 atlas_knowledge.db-shm
 atlas_llm_cache.db
 atlas_update_state.json
+atlas_msg_watch.json
+
+# телефонная книга Atlas (номера) — только на этом ПК
+atlas_contacts.json
+token_contacts.json
+contacts.vcf
+*.vcf

@@ -581,6 +581,16 @@ def main() -> None:
     except Exception as e:
         print(f"[звонки] секретарь не запустился: {e}")
     try:
+        from core import msg_watch                # «Сэр, мама пишет в Telegram: …» → «скажи, что куплю»
+        msg_watch.start(_announce)
+    except Exception as e:
+        print(f"[сообщения] не запустилось: {e}")
+    try:
+        from core import contacts                 # номера для «напиши Назару» — чат открывается по номеру, без поиска
+        contacts.refresh_in_background()          # раз в сутки, тихо, только если вход в Google-контакты уже был
+    except Exception as e:
+        print(f"[контакты] не обновились: {e}")
+    try:
         from core import screen_history, voice_notes, wellbeing
         screen_history.start()                    # машина времени экрана — если её включали
         voice_notes.start(_quiet_announce)        # по воскресеньям — итоги недели по заметкам

@@ -197,6 +197,12 @@ class UI:
         webbrowser.open(a["url"])
 
     def open_url(self, url: str) -> None:
+        if not url.lower().startswith(("http://", "https://")):     # whatsapp://send?phone=…, tg://resolve?phone=…
+            try:
+                os.startfile(url)
+                return
+            except Exception as e:
+                print(f"[мессенджеры] ссылка {url.split('?')[0]} не открылась: {e}")
         import webbrowser
         webbrowser.open(url)
 
@@ -212,6 +218,22 @@ class UI:
     def foreground(self) -> int:
         from core import win_input
         return win_input.foreground()
+
+    def same_process(self, hwnd: int) -> bool:
+        """Впереди окно того же приложения (у WhatsApp/Telegram бывают всплывающие и дочерние окна)."""
+        from ctypes import wintypes as wt
+        try:
+            a, b = wt.DWORD(), wt.DWORD()
+            self.u.GetWindowThreadProcessId(self.foreground(), self.c.byref(a))
+            self.u.GetWindowThreadProcessId(hwnd, self.c.byref(b))
+            return bool(a.value) and a.value == b.value
+        except Exception:
+            return False
+
+    def who_is_front(self) -> str:
+        from core import win_input
+        h = self.foreground()
+        return f"«{win_input.title_of(h)[:40]}»{' (сам Atlas)' if win_input.is_atlas(h) else ''}"
 
     def rect(self, hwnd: int):
         from ctypes import wintypes as wt
@@ -475,8 +497,19 @@ def _cy(ln):
     return ln["y"] + ln["h"] / 2
 
 
+_HEAD_JUNK = re.compile(r"[\s,.]*(?:нажмите здесь|щелкните здесь|щёлкните здесь|click here|tap here)\b.*$", re.I)
+
+
 def _header(lines: list, rg: dict) -> list:
-    return [ln for ln in lines if _cx(ln) > rg["chat_x"] and ln["y"] < rg["head_y"]]
+    """Строки заголовка открытого чата. WhatsApp подписывает кнопку: «Назар нажмите здесь, чтобы посмотреть данные
+    контакта» — подпись срезаем (живой тест 28.10)."""
+    out = []
+    for ln in lines:
+        if _cx(ln) > rg["chat_x"] and ln["y"] < rg["head_y"]:
+            t = _HEAD_JUNK.sub("", ln["text"]).strip()
+            if t:
+                out.append(dict(ln, text=t) if t != ln["text"] else ln)
+    return out
 
 
 def _choose(lines: list, rg: dict, st: list, kin: bool, title: str = None, query: str = ""):
@@ -524,7 +557,7 @@ def open_chat(app: str, contact: str, ui=None, title: str = None) -> dict:
     t0 = time.time()
     r = _open_chat_logged(app, contact, ui, title)
     print(f"[мессенджеры] {app}: «{contact}»{f' (как «{title}»)' if title else ''} → "
-          f"{'открыт «' + str(r.get('name')) + '»' if r.get('ok') else r.get('why')}"
+          f"{'открыт «' + str(r.get('name')) + '»' + (' по номеру' if r.get('phone') else '') if r.get('ok') else r.get('why')}"
           f"{'' if r.get('verified', True) else ', не проверен'} за {time.time() - t0:.1f} с")
     return r
 
@@ -566,6 +599,48 @@ def _open_chat(app: str, contact: str, ui, title: str = None, avoid: str = "") -
                  and len(ln["text"].split()) <= 4]
         return f"{len(src)} строк, в списке: {list(dict.fromkeys(names))[:10]}"
 
+    def by_phone():
+        """Номер из телефонной книги → ссылка открывает именно этот чат. Поиск на экране не нужен (логи 23–24.10)."""
+        if web or app not in ("whatsapp", "telegram"):
+            return None
+        try:
+            from core import contacts
+            hit = contacts.lookup(title or contact)
+        except Exception as e:
+            print(f"[мессенджеры] телефонная книга: {e}")
+            return None
+        if not hit or hit[0] != "one":
+            if hit:
+                print(f"[мессенджеры] в контактах несколько похожих: {hit[1]} — ищу на экране")
+            return None
+        _, pname, phone = hit
+        pst, tail = stems(pname), phone[-9:]
+        def quick():                                      # структура окна — доли секунды; снимок+OCR — только без неё
+            rect = ui.rect(hwnd)
+            uia = ui.uia_lines(hwnd) if hasattr(ui, "uia_lines") else []
+            return rect, _regions(rect, web, hwnd), ({"uia": uia} if len(uia) >= 25 else dict(ui.ocr(rect), uia=uia))
+
+        rect, rg, lines = quick()
+        before = [norm(ln["text"]) for ln in _header(lines.get("uia") or [], rg) + _header(_pick(lines, pst), rg)]
+        ui.open_url(f"whatsapp://send?phone={phone}" if app == "whatsapp" else f"tg://resolve?phone={phone}")
+        head = []
+        for wait in (0.8, 1.0, 1.5, 2.0):
+            ui.sleep(wait)
+            ui.activate(hwnd)
+            rect, rg, lines = quick()
+            head = [ln for ln in _header(lines.get("uia") or [], rg) + _header(_pick(lines, pst), rg)
+                    if 1 < len(ln["text"]) < 60]
+            for ln in head:                               # имя из книги или номер в заголовке — точно тот чат
+                if match_score(ln["text"], pst) >= 1 or match_score(ln["text"], st, kin) >= 1 or \
+                        (tail and tail in re.sub(r"\D", "", ln["text"])):
+                    return {"ok": True, "hwnd": hwnd, "verified": True, "web": False, "name": ln["text"], "phone": phone}
+            if head and [norm(ln["text"]) for ln in head] != before:   # открылся другой заголовок: так он записан в телефоне
+                return {"ok": True, "hwnd": hwnd, "verified": True, "web": False, "name": head[0]["text"],
+                        "phone": phone}
+        print(f"[мессенджеры] {app}: открыл по номеру +{phone} ({pname}), но заголовок не сменился "
+              f"({[ln['text'] for ln in head][:3]}) — ищу на экране")
+        return None
+
     def head_match(lines, rg):
         """Строка заголовка открытого чата, если это именно тот, кто нужен (не «Мама Данияра» вместо «Мамы»)."""
         for ln in _header(lines.get("uia") or [], rg) + _header(_pick(lines, st), rg):
@@ -589,6 +664,9 @@ def _open_chat(app: str, contact: str, ui, title: str = None, avoid: str = "") -
     h = head_match(lines, rg)
     if h is not None:                                                  # нужный чат уже открыт
         return {"ok": True, "hwnd": hwnd, "verified": True, "web": web, "name": h["text"]}
+    r = by_phone()
+    if r is not None:
+        return r
 
     def try_list(lines, rg, query=""):
         query = query or avoid                                         # старый текст в строке поиска — не чат
@@ -977,10 +1055,24 @@ _OPEN_THEN = re.compile(r"^(?:атлас[,\s]+|atlas[,\s]+)?(?:открой|за
                         r"((?:напиши|ответь|скажи|отправь|передай|write|text|tell|send)\b.*)$", re.I)
 
 
+_SERVICES = re.compile(r"ютуб\w*|youtube|spotify|спотиф\w*|гугл\w*|google|браузер\w*|сайт\w*|кинопоиск\w*|netflix|"
+                       r"нетфликс\w*|твич\w*|twitch|вконтакте|\bвк\b|tiktok|тикток\w*|рутуб\w*|rutube", re.I)
+
+
 def intent(text: str, last: str = None):
     t = " ".join((text or "").split()).strip()
     if not t:
         return None
+    try:
+        from core import contacts                         # «запомни номер Назара 0707…», «обнови контакты»
+        if contacts.intent(t):
+            return ("contacts",)
+    except Exception:
+        pass
+    # «мне самому напиши привет» → «напиши мне самому привет» (лог 24.10: уходило в модель и печатало наугад)
+    t = re.sub(r"^((?:(?:атлас|atlas)[,!\s]+)?)(мне|себе)(\s+(?:самому|самой|сам|же|лично))?\s+"
+               r"(напиши|отправь|скинь|перешли)\b", lambda m: f"{m.group(1)}{m.group(4)} {m.group(2)}{m.group(3) or ''}",
+               t, flags=re.I)
     t2 = re.sub(r"^(?:(?:атлас|atlas)[,!\s]+)?(?:(?:тогда|ну|давай|а|и|так|теперь|ещё|еще|пожалуйста|слушай|"
                 r"можешь|ты можешь|можешь ли)[,\s]+)+", "", t, flags=re.I)
     if t2 != t and (_SEND.search(t2) or _OPEN_THEN.match(t2)):  # «Атлас, тогда напиши Назару» — та же команда
@@ -990,6 +1082,7 @@ def intent(text: str, last: str = None):
         t = f"{m.group(2).rstrip(' .!')} в {m.group(1)}"
     p = pending()
     if p and p.get("need_app") and (last is None or _same(last, _s.get("said"))) and len(t) < 40:
+        t = re.sub(r"^(?:я\s+)?(?:имею\s+в\s*виду|имел\s+в\s*виду|в смысле|то есть|конечно|ну)[,\s]+", "", t, flags=re.I)
         if _MSG_ONLY.match(t):                          # «в телеграме» / «ватсап» — выбор мессенджера
             ak, _ = _app_in(t)
             if ak:
@@ -1050,6 +1143,8 @@ def intent(text: str, last: str = None):
             exact = q.group(1) if q else (body if colon else None)
             return ("reply_incoming", "" if exact else body, exact)
     m = _OPEN.match(t.strip(" .!?"))
+    if m and _SERVICES.search(t) and not _app_in(t)[0]:   # «открой видео с Витей на YouTube» — это не чат (лог 24.10)
+        m = None
     if m:
         who = (m.group(2) or "").strip(" .,!?«»")
         ak, am2 = _app_in(who)
@@ -1089,6 +1184,11 @@ def intent(text: str, last: str = None):
     quote = re.search(r"[«\"“]([^»\"”]+)[»\"”]", rest)
     if quote:
         rest = " ".join((rest[:quote.start()] + " " + rest[quote.end():]).split()).strip(" ,:")
+    rest = re.sub(r"^(?:контакт[уа]?|человеку|пользователю|абоненту|номеру)(?:\s+|$)", "", rest, flags=re.I).strip()   # «напиши контакту X»
+    qtext = quote.group(1).strip() if quote else None
+    if not rest and qtext and len(qtext.split()) >= 2 and qtext[:1].isupper():
+        # «напиши контакту «Обэй привет»» — распознавание взяло в кавычки и имя, и текст
+        rest, qtext = qtext.split(" ", 1)
     cur = _CUR.match(rest)
     if cur:
         contact, gist = None, rest[cur.end():].strip(" ,:")
@@ -1115,8 +1215,8 @@ def intent(text: str, last: str = None):
         contact = contact.strip(" ,.")
         gist = re.sub(r"^(?:что|чтобы|that)\s+", "", gist.strip(" ,:"), flags=re.I)
     exact = None
-    if quote:
-        exact = quote.group(1).strip()
+    if qtext:
+        exact = qtext
     elif re.search(r":\s*\S", rest) and not cur:
         exact = rest.split(":", 1)[1].strip()
     if exact and not quote and contact and is_shop(contact):
@@ -1338,6 +1438,21 @@ def _prepare_here(app: str, contact, gist: str, exact, ru: bool, ui, ask) -> str
     return said
 
 
+def _hold(ui, hwnd, tries: int = 4) -> bool:
+    """Окно мессенджера впереди? Нет — возвращаем, несколько раз: интерфейс Atlas после ответа может
+    на миг забрать фокус (живой тест 28.10: дважды «окно ушло с экрана», хотя WhatsApp был открыт)."""
+    for i in range(tries):
+        if ui.foreground() == hwnd or (hasattr(ui, "same_process") and ui.same_process(hwnd)):
+            return True
+        ui.activate(hwnd)
+        ui.sleep(0.25 + 0.15 * i)
+    return ui.foreground() == hwnd or (hasattr(ui, "same_process") and ui.same_process(hwnd))
+
+
+def _front(ui) -> str:
+    return ui.who_is_front() if hasattr(ui, "who_is_front") else str(ui.foreground())
+
+
 def send(ui=None) -> str:
     """Отправить черновик после «да»."""
     p = pending()
@@ -1346,7 +1461,8 @@ def send(ui=None) -> str:
     ui = ui or _get_ui()
     ru = p["ru"]
     _s["pending"] = None
-    if not ui.activate(p["hwnd"]) and ui.foreground() != p["hwnd"]:
+    if not _hold(ui, p["hwnd"]):
+        print(f"[мессенджеры] не отдаёт фокус: впереди {_front(ui)}")
         return (f"Не получилось переключиться на {APPS[p['app']]['name']} — не отправил." if ru else
                 f"Couldn't switch to {APPS[p['app']]['name']} — not sent.")
     ui.sleep(0.25)
@@ -1355,7 +1471,8 @@ def send(ui=None) -> str:
         rg = _regions(rect, p.get("web", False), p["hwnd"])
         ui.click(int(rg["chat_x"] + (rect[2] - rg["chat_x"]) * 0.45), int(rect[3] - rg["H"] * 0.045))
         ui.sleep(0.2)
-    if ui.foreground() != p["hwnd"]:
+    if not _hold(ui, p["hwnd"]):
+        print(f"[мессенджеры] перед вставкой впереди {_front(ui)} — не отправил")
         return "Окно мессенджера ушло с экрана — не отправил." if ru else "The messenger window lost focus — not sent."
     if p.get("verified") and p.get("chat") and p.get("learn", True):   # пока ты думал, в окне могли открыть другой чат
         rect = ui.rect(p["hwnd"])
@@ -1372,6 +1489,10 @@ def send(ui=None) -> str:
                     f"A different chat is open now, not “{p['chat']}” — not sent.")
     ui.paste(p["text"])
     ui.sleep(0.25)
+    if not _hold(ui, p["hwnd"], 2):                       # Enter не должен уйти в чужое окно
+        print(f"[мессенджеры] перед Enter впереди {_front(ui)} — не нажал")
+        return ("Текст вставил, но окно ушло с экрана — Enter не нажал. Проверь и нажми сам." if ru else
+                "Pasted, but the window lost focus — didn't press Enter.")
     ui.keys("enter")
     ui.sleep(1.0)
     conv = read_chat(p["hwnd"], p.get("web", False), ui)
@@ -1443,6 +1564,9 @@ def handle(text: str, last: str = None, ui=None, ask=None):
     p = pending()
     ru = _ru(text) or bool(p and p["ru"] and not re.search(r"[a-z]", text, re.I))
     k = it[0]
+    if k == "contacts":
+        from core import contacts
+        return contacts.handle(text)
     if k == "cancel":
         cancel()
         return "Не отправляю." if ru else "Not sending."
