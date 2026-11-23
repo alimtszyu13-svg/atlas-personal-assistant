@@ -1,24 +1,21 @@
 # Atlas — a voice assistant for a Windows PC
 
-![Atlas UI](docs/atlas-ui.png)
+![Atlas desktop interface](docs/atlas-banner.png)
 
-Atlas is a Jarvis-style voice assistant I designed and built in Python with the help of AI coding tools. You say «ATLAS», give a command in Russian or English, and it acts on the computer.
+Atlas is a Jarvis-style voice assistant I designed and am building in Python, with the help of AI coding tools. You say «Атлас», give a command in Russian or English, and it acts on the computer.
 
 ## Highlights
 
-- **Hybrid routing:** modules claim simple commands first; 32 of 44 real phrases from my logs never need a language model.
-- **Fault-tolerant LLM gateway:** token accounting and failover across several providers, including an optional local model.
-- **Two-stage wake word:** local Vosk model plus a full-vocabulary check; false wakes are filtered with structural rules.
-- **Owner voice recognition:** 256-dim speaker embeddings, processed locally.
-- **Controlled self-extension:** Atlas can write new skills and propose fixes for its own errors; changes pass static analysis, isolated tests and my approval, and are reversible git commits.
-- **Honest actions:** every action is verified and reported as sent / not sent.
-- **457 automated tests**, each real bug becomes a regression test.
-
+- **Hybrid routing.** Modules claim simple commands first, so they never wait for an AI model: 32 of 44 real phrases from my logs need no language model at all.
+- **Fault-tolerant LLM gateway.** Token accounting and automatic failover between several providers (Cerebras, Groq, Gemini, GitHub Models, optional local Ollama) when one hits its limit.
+- **Controlled self-extension.** Atlas can write new skills and propose fixes for its own errors. Every change passes static analysis and isolated tests, needs my approval, and is a separate git commit that can be rolled back.
+- **Tests from real logs.** 457 automated tests; every bug found in real use becomes a regression test.
 
 The project is a work in progress. This page describes what exists and what was measured, including the parts that still don't work well.
 
 ## How a command flows
 
+```
 microphone ─► wake word «Атлас» ─► speech-to-text ─► router ─► action ─► speech
               (local, Vosk +       (Whisper via     │
                2nd check)           Groq)           ├─ module claims it   (messengers, windows, files, recordings…)
@@ -35,8 +32,10 @@ The idea behind this layout is that a simple command should never wait for an AI
 |---|---|---|
 | Wake word | Local Vosk model, then a second full-vocabulary check so similar words don't wake it | `voice.py`, `core/wake_check.py` |
 | Speech | Whisper (Groq) for recognition; Fish Audio / ElevenLabs / Silero for the voice. Replies are synthesized piece by piece, so speech starts before the whole answer is ready | `voice.py` |
-| Brain | Tool-calling LLM (gpt-oss-120b on Cerebras/Groq, Gemini as a fallback), planner, memory | `brain/`, `core/memory.py` |
-| Messengers | Writes and reads Telegram / WhatsApp / Discord by reading the window's accessibility tree (UI Automation), with OCR as a fallback. It drafts the message, asks «Отправить?», and only then sends | `core/messengers.py` |
+| Brain | Tool-calling LLM (gpt-oss-120b on Cerebras/Groq, Gemini and others as fallbacks), planner, token-budget gateway | `brain/`, `core/llm_gateway.py` |
+| Memory and learning | Conversation episodes summarized and recalled by meaning; lessons from corrections and errors; owner voice fingerprint | `core/memory.py`, `core/lessons.py`, `core/speaker_id.py` |
+| Self-extension | Writes new skills and proposes fixes for its own errors; static analysis, isolated tests, approval, reversible git commit | `core/skill_forge.py`, `core/healer.py` |
+| Messengers | Writes and reads Telegram / WhatsApp / Discord by reading the window's accessibility tree (UI Automation), with OCR as a fallback. Chats are opened by phone number from a local phonebook (Google Contacts or a vCard file). It drafts the message, asks «Отправить?», and only then sends | `core/messengers.py`, `core/contacts.py` |
 | Notifications | Reads the Windows notification database and announces important messages. Calls go to a "call secretary" | `core/msg_watch.py`, `core/call_secretary.py` |
 | Desktop UI | pywebview + Three.js: a ray-traced black hole scene (light bending, Doppler-shifted disk) | `atlas_ui.html`, `web_gui.py` |
 | Phone | Progressive web app over Tailscale: talk to Atlas, control the PC, search files | `phone/` |
@@ -44,7 +43,7 @@ The idea behind this layout is that a simple command should never wait for an AI
 ## Testing
 
 ```
-python tests/run_all.py          # 422 tests in 33 suites, ~100 s, no internet or Windows needed
+python tests/run_all.py          # 457 tests in 35 suites, no internet or Windows needed
 python tests/test_real_phrases.py   # 44 real phrases from my usage logs → where each one is routed
 python doctor.py                 # checks keys, models, services, microphone (on the real PC)
 python tests/live_check.py       # read-only check of the real messenger windows, file search, voice, Google
