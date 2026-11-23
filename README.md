@@ -1,12 +1,24 @@
 # Atlas — a voice assistant for a Windows PC
 
-Atlas is a Jarvis-style voice assistant I'm building in Python. You say «Атлас», give a command in Russian or English, and it acts on the computer: it writes in messengers, plays music, finds files, arranges windows, reads notifications aloud and answers questions. It also has a phone companion app.
+![Atlas UI](docs/atlas-ui.png)
+
+Atlas is a Jarvis-style voice assistant I designed and built in Python with the help of AI coding tools. You say «ATLAS», give a command in Russian or English, and it acts on the computer.
+
+## Highlights
+
+- **Hybrid routing:** modules claim simple commands first; 32 of 44 real phrases from my logs never need a language model.
+- **Fault-tolerant LLM gateway:** token accounting and failover across several providers, including an optional local model.
+- **Two-stage wake word:** local Vosk model plus a full-vocabulary check; false wakes are filtered with structural rules.
+- **Owner voice recognition:** 256-dim speaker embeddings, processed locally.
+- **Controlled self-extension:** Atlas can write new skills and propose fixes for its own errors; changes pass static analysis, isolated tests and my approval, and are reversible git commits.
+- **Honest actions:** every action is verified and reported as sent / not sent.
+- **457 automated tests**, each real bug becomes a regression test.
+
 
 The project is a work in progress. This page describes what exists and what was measured, including the parts that still don't work well.
 
 ## How a command flows
 
-```
 microphone ─► wake word «Атлас» ─► speech-to-text ─► router ─► action ─► speech
               (local, Vosk +       (Whisper via     │
                2nd check)           Groq)           ├─ module claims it   (messengers, windows, files, recordings…)
