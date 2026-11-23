@@ -100,3 +100,4 @@ atlas_contacts.json
 token_contacts.json
 contacts.vcf
 *.vcf
+atlas_log.txt
