@@ -202,7 +202,7 @@ class PhoneEnv:
 
 def _fresh_secretary():
     from core import call_secretary as C
-    C._s.update(ring=None, seen=set(), handled=set())
+    C._s.update(ring=None, seen=set(), handled=set(), hint=None, active=None, announced={})
     C.owner_name = lambda: "Алим"
     C._ru = lambda: True
     return C
@@ -215,13 +215,13 @@ def secretary_announces_and_repeats():
     C._s["seen"] = {1}
     assert C.tick(env, said.append) == "" and not said
     env.ring()
-    assert C.tick(env, said.append) == "Сэр, вам звонит Мама ❤ в Telegram." and "listen" in env.log
+    assert C.tick(env, said.append) == "Сэр, вам звонит мама в Telegram." and "listen" in env.log
     env.t += 3
     assert C.tick(env, said.append) == "", "не чаще раза в 9 секунд"
     for _ in range(5):
         env.t += 10
         C.tick(env, said.append)
-    assert said == ["Сэр, вам звонит Мама ❤ в Telegram.", "Сэр, всё ещё звонит Мама ❤.", "Сэр, всё ещё звонит Мама ❤."], said
+    assert said == ["Сэр, вам звонит мама в Telegram.", "Сэр, всё ещё звонит мама.", "Сэр, всё ещё звонит мама."], said
     env.wins = [w for w in env.wins if w["hwnd"] != 77]
     C.tick(env, said.append)
     assert C._s["ring"] is None, "окно звонка закрылось — звонок закончился"
@@ -239,13 +239,13 @@ def secretary_take_self_drop():
     C.tick(env, lambda s: None)
     assert C._s["ring"] is None, "сам взял — больше не объявляем этот звонок"
     env = PhoneEnv()
-    C._s.update(seen={1}, handled=set())
+    C._s.update(seen={1}, handled=set(), active=None)
     env.ring()
     C.tick(env, lambda s: None)
     assert C.handle("возьми трубку и поставь на громкую", env) == "Принял, на громкой."
     assert ("click", 1560, 650) in env.log and "louder" in env.log
     env = PhoneEnv(labels=False)
-    C._s.update(seen={1}, handled=set())
+    C._s.update(seen={1}, handled=set(), active=None)
     env.ring()
     C.tick(env, lambda s: None)
     assert C.handle("сбрось", env) == "Сбросил." and ("click", 1740, 655) in env.log, "без названий — по цвету"
@@ -255,7 +255,7 @@ def secretary_take_self_drop():
 def secretary_says_busy_or_texts_back():
     C = _fresh_secretary()
     env = PhoneEnv()
-    C._s.update(seen={1}, handled=set())
+    C._s.update(seen={1}, handled=set(), active=None)
     env.ring()
     C.tick(env, lambda s: None)
     out = C.handle("скажи, что я очень занят, перезвоню через 10 минут", env)
@@ -265,18 +265,18 @@ def secretary_says_busy_or_texts_back():
     assert clicks == [("click", 1560, 650), ("click", 1660, 650)], env.log
     from core import messengers
     env = PhoneEnv(headphones=True)
-    C._s.update(seen={1}, handled=set(), ring=None)
+    C._s.update(seen={1}, handled=set(), ring=None, active=None)
     env.ring()
     C.tick(env, lambda s: None)
     sent = []
     orig = messengers.open_chat, messengers.send
-    messengers.open_chat = lambda app, who, ui=None: {"ok": True, "verified": True, "hwnd": 1, "name": "Мама ❤"}
+    messengers.open_chat = lambda app, who, ui=None, title=None: {"ok": True, "verified": True, "hwnd": 1, "name": "Мама ❤"}
     messengers.send = lambda ui=None: sent.append(messengers._s["pending"]["text"]) or "Отправил."
     try:
         out = C.handle("скажи, что занят", env)
     finally:
         messengers.open_chat, messengers.send = orig
-    assert out == "Сбросил и написал Мама ❤: «Сейчас не могу говорить, перезвоню позже.»." and not env.said, out
+    assert out == "Сбросил и написал в чат «Мама ❤»: «Сейчас не могу говорить, перезвоню позже.»." and not env.said, out
     assert sent == ["Сейчас не могу говорить, перезвоню позже."]
     assert C.genitive("Алим") == "Алима" and C.genitive("Дана") == "Даны" and C.genitive("Ольга") == "Ольги"
 
@@ -295,6 +295,71 @@ def calls_wiring():
     assert "call_prompter" in REGISTRY
     for f in (".gitignore", ".dockerignore"):
         assert "atlas_prompter.json" in open(os.path.join(ROOT, f), encoding="utf-8").read()
+
+
+class ToastEnv(PhoneEnv):
+    """WhatsApp: звонок виден только уведомлением — окна звонка нет, есть главное окно мессенджера."""
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.wins = [{"hwnd": 5, "app": "WhatsApp", "title": "WhatsApp", "min": False}]
+
+    def ocr(self, rect):
+        return [{"text": "Чаты", "x": 0, "y": 0, "w": 10, "h": 12}]
+
+
+@test
+def toast_names_caller_and_rings_without_window():
+    C = _fresh_secretary()
+    env, said = ToastEnv(), []
+    C._s["seen"] = {5}
+    assert C.tick(env, said.append) == ""
+    C.hint("WhatsApp", "Мама ❤", now=env.t)
+    assert C.tick(env, said.append) == "Сэр, вам звонит мама в WhatsApp.", said
+    assert C.busy() and C.recently_announced("мама", now=env.t), "«мама» с экрана и «Мама ❤» — один человек"
+    env.t += 50
+    C.tick(env, said.append)
+    assert C._s["ring"] is None, "звонок из уведомления — сам заканчивается через 45 с"
+    C.hint("WhatsApp", "Мама ❤", now=env.t)
+    C.tick(env, said.append)
+    assert C.handle("сейчас возьму", env) == "Хорошо."
+    assert C._s["active"] is None and 5 not in C._s["handled"], "главное окно WhatsApp — не окно разговора"
+    env.t += 100
+    C.hint("WhatsApp", "Дана", now=env.t)
+    assert C.tick(env, said.append) == "Сэр, вам звонит Дана в WhatsApp.", "следующий звонок тоже слышим"
+    C._s["ring"] = None
+    C.hint("WhatsApp", "Алим", now=env.t)
+    env.t += 30
+    assert C.tick(env, said.append) == "", "уведомление старше 25 с — звонка уже нет"
+
+
+@test
+def toast_name_beats_ocr_guess():
+    C = _fresh_secretary()
+    env, said = PhoneEnv(), []
+    C._s["seen"] = {1}
+    C.tick(env, said.append)
+    C.hint("Telegram", "Алим Сыдыков 🏀", now=env.t)
+    env.ring()
+    assert C.tick(env, said.append) == "Сэр, вам звонит Алим Сыдыков в Telegram.", said
+
+
+@test
+def active_call_and_strict_answer():
+    C = _fresh_secretary()
+    env = PhoneEnv()
+    C._s["seen"] = {1}
+    env.ring()
+    C.tick(env, lambda s: None)
+    for msg in ("ответь: буду в 7", "ответь, что буду в 7", "ответь «скоро буду»"):
+        assert C.intent(msg) is None, msg
+    assert C.intent("ответь") == ("take", False) and C.intent("ответь на звонок") == ("take", False)
+    assert C.handle("возьми трубку", env) == "Принял."
+    assert C.busy() and C._s["active"] == 77, "идёт разговор"
+    env.t += 30
+    assert C.tick(env, lambda s: None) == "" and C.busy(), "разговор — не новый звонок"
+    env.wins = [w for w in env.wins if w["hwnd"] != 77]
+    C.tick(env, lambda s: None)
+    assert not C.busy(), "окно разговора закрылось — свободен"
 
 
 def main():

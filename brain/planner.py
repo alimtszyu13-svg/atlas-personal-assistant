@@ -45,13 +45,18 @@ def _note_action(name: str, args: dict, ok: bool) -> None:
         return
     state.situation["actions"].append(f"{name}({_short_args(args)}) {'ok' if ok else 'FAILED'}")
     del state.situation["actions"][:-8]
+    state.situation["t"] = time.time()
+
+
+SITUATION_FRESH_S = 90     # старая цель не тянется в новые просьбы (лог 23.10: 3 минуты пытался писать Назару)
 
 
 def _situation_msg():
     s, parts = state.situation, []
-    if s["goal"]:
-        parts.append(f"current goal: {s['goal']}")
-    if s["actions"]:
+    fresh = time.time() - s.get("t", 0) < SITUATION_FRESH_S
+    if s["goal"] and fresh:
+        parts.append(f"previous goal (continue it ONLY if the new message is about it): {s['goal']}")
+    if s["actions"] and fresh:
         parts.append("recent actions: " + "; ".join(s["actions"][-6:]))
     if s["reply"]:
         parts.append(f"your last reply: {s['reply'][:160]}")
@@ -98,6 +103,7 @@ def _exec_steps(steps: list, cancellable: bool = True):
 def execute_plan(goal: str, steps: list, done_message: str = "", background: bool = False) -> str:
     """Runs several actions in order, instantly, in one go."""
     state.situation["goal"] = str(goal)[:160]
+    state.situation["t"] = time.time()
     if background:
         def run():
             ok, lines = _exec_steps(steps, cancellable=False)

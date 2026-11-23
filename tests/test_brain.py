@@ -545,6 +545,21 @@ def fast_first_model_only_for_simple_short_asks():
         os.environ.pop("ATLAS_FAST_FIRST", None)
 
 
+
+@test
+def old_goal_does_not_leak_into_new_requests():
+    """Лог 23.10: через 3 минуты после «напиши Назару» ответ про память снова отправлял WhatsApp."""
+    import time as _t
+    fresh()
+    state.situation.update(goal="send a WhatsApp message to Nazar", actions=["send_message(app=whatsapp) FAILED"],
+                           reply="Уточните, кому", t=_t.time())
+    m = planner._situation_msg()["content"]
+    assert "Nazar" in m and "ONLY if the new message is about it" in m
+    state.situation["t"] = _t.time() - 200
+    m = planner._situation_msg()["content"]
+    assert "Nazar" not in m and "send_message" not in m and "Уточните" in m, m
+
+
 def main():
     ok = 0
     for t in TESTS:

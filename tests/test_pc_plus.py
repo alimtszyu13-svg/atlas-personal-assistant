@@ -843,7 +843,7 @@ def wake_word_is_double_checked():
     from core import wake_check as W
     for t in ("атлас", "атласа какая погода", "ат лас", "этлас", "atlas"):
         assert W.looks_like_name(t), t
-    for t in ("отлично", "в класс", "лас вегас", "алмаз", ""):
+    for t in ("отлично", "в класс", "лас вегас", "алмаз", "", "а так", "атака"):     # «а так» будило посреди урока (29.10)
         assert not W.looks_like_name(t), t
     ring = [(0, np.arange(0, 16000, dtype=np.int16)), (16000, np.arange(16000, 32000, dtype=np.int16))]
     c = W.clip(ring, 0.5, 1.0)

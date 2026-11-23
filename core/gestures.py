@@ -25,6 +25,7 @@ PREFS = os.path.join(ROOT, "gestures.json")
 BLOCK = 160                                   # 10 мс при 16 кГц
 _state = {"claps": True, "running": False}
 _last_action = {"t": 0.0}
+_last_by = {}                                 # действие → когда было: одна и та же «пауза» подряд — не жмём
 
 
 def _load() -> None:
@@ -62,6 +63,10 @@ def action(name: str) -> str:
     if now - _last_action["t"] < 0.6:            # двойное срабатывание одного жеста
         return "skip"
     _last_action["t"] = now
+    if name in ("pause", "stop") and now - _last_by.get(name, 0) < 6:
+        _last_by[name] = now                     # рука так и лежит в кадре — повтор не выполняем (живой тест 29.10)
+        return "skip"
+    _last_by[name] = now
     print(f"[жесты] → {name}")
     if name == "wake":
         if shared_state.get("state") in ("listening", "thinking"):

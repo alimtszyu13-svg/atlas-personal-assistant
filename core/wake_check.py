@@ -30,7 +30,10 @@ def looks_like_name(text: str, forms=FORMS) -> bool:
     """Есть ли в свободно распознанном тексте имя (или почти имя). Учитывает «ат лас» раздельно."""
     words = re.findall(r"[a-zа-яё]+", (text or "").lower().replace("ё", "е"))
     cands = words + [a + b for a, b in zip(words, words[1:])]
-    return any(_sim(w, f) >= SIMILAR for w in cands if len(w) >= 4 for f in forms if abs(len(w) - len(f)) <= 3)
+    # «тл» есть в любой форме имени; без него «атак» (из «а так») натягивалось на «атласик» — 0,73 (урок 29.10:
+    # Atlas проснулся посреди твоего урока по английскому)
+    return any(_sim(w, f) >= SIMILAR for w in cands if len(w) >= 4 and re.search(r"т[лъ]|tl", w)
+               for f in forms if abs(len(w) - len(f)) <= 3)
 
 
 def clip(ring, start_s: float, end_s: float, rate: int = 16000):

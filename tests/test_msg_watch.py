@@ -210,10 +210,12 @@ def reply_by_voice_right_after_announcement():
     assert M.intent("ответь: буду в 7") == ("reply_incoming", "", "буду в 7")
     assert M.intent("напиши Алиму, что буду в 7")[0] == "reply", "другой адресат — обычная команда"
     ui = FakeTG()
-    out = M.handle("скажи, что куплю", ui=ui, ask=lambda s, u, max_tokens=0: "Куплю!")
-    assert ui.open == "Мама ❤" and out == "Пишу в Telegram, чат «Мама ❤»: «Куплю!». Отправить?", (ui.open, out)
+    calls = []
+    out = M.handle("скажи, что куплю", ui=ui, ask=lambda s, u, max_tokens=0: calls.append(u) or "Куплю!")
+    assert ui.open == "Мама ❤" and out == "Пишу в Telegram, чат «Мама ❤»: «Куплю». Отправить?", (ui.open, out)
+    assert not calls, "короткий ответ — без модели, сразу"
     M.handle("да", last=out, ui=ui)
-    assert ui.sent == [("Мама ❤", "Куплю!")], ui.sent
+    assert ui.sent == [("Мама ❤", "Куплю")], ui.sent
     M._s["incoming"] = {"app": "telegram", "title": "Мама ❤", "ts": time.time() - 600}
     assert M.intent("скажи, что куплю") is None, "через 10 минут «скажи, что…» уже не про маму"
 
@@ -314,6 +316,18 @@ def who_wrote_me_from_notifications():
     assert W.recent_line("whatsapp", True).startswith("Писали: Алибек — «ок спасибо»")
     W._s["log"] = []
     assert W.handle("кто мне писал?") == "Никто не писал — новых уведомлений не было."
+
+
+
+@test
+def names_that_look_like_kin_are_not_family():
+    """Живая проверка 22.10: в WhatsApp контакт «Бабур» считался родственником («баб…» = бабушка)."""
+    W, M, db, src, env = fresh()
+    for name in ("Бабур", "Мамат", "Мамед", "Мамадали", "Женя", "Бабаев"):
+        assert not M.is_kin(name) and not W.important(name, "привет"), name
+    for name in ("Мама", "Папа 👨", "Бабушка", "Дедушка", "Брат", "Сестрёнка", "Мамуля ❤"):
+        assert W.important(name, "привет"), name
+    assert W.spoken_name("Бабур", True) == "Бабур", "имя не превращаем в «бабур»"
 
 
 def main():

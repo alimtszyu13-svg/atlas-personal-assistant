@@ -3370,7 +3370,7 @@
   const G_ICON = { palm: '✋', fist: '✊', thumbs: '👍', thumbs_down: '👎', victory: '✌️', point: '☝️', pinch: '🤏', ok: '👌',
                    rock: '🤘', call: '🤙', wave: '👋', two_palms: '🙌', left: '⬅️', right: '➡️', up: '⬆️', down: '⬇️', clap: '👏', tap: '👆' };
   // что делает удержание жеста; кулак держится чуть дольше — меньше случайных срабатываний
-  const HOLD = { palm: 700, thumbs: 600, thumbs_down: 600, victory: 700, fist: 800 };
+  const HOLD = { palm: 700, thumbs: 600, thumbs_down: 600, victory: 700, fist: 1300 };   // кулак — дольше: рука на мышке или у подбородка похожа на него
   const ACTION = { palm: 'stop', thumbs: 'yes', thumbs_down: 'no', victory: 'mirror', fist: 'pause' };
 
   function gPrefs() { return (typeof layout !== 'undefined' && layout._prefs) || {}; }
@@ -3520,7 +3520,7 @@
     GEST.lastG = g; GEST.states = info[main] ? info[main].st : null;
     helpLive(g);
     drawHands(hands, side, main, gs);
-    if (!L) { GEST.hist = []; GEST.votes = []; GEST.cand = null; GEST.pinch = null; cursorLost(now); setLabel(t('gs_show_hand'), 0); return; }
+    if (!L) { GEST.hist = []; GEST.votes = []; GEST.cand = null; GEST.pinch = null; GEST.fired = null; cursorLost(now); setLabel(t('gs_show_hand'), 0); return; }
     const pc = palmCenter(L);
     GEST.hist.push({ t: now, x: pc.x, y: pc.y, open: g === 'palm' || g === 'open' });
     while (GEST.hist.length && now - GEST.hist[0].t > 1500) GEST.hist.shift();
@@ -3627,6 +3627,10 @@
   }
 
   function staticGesture(g, now) {
+    // жест срабатывает ОДИН раз: повтор — только после смены жеста или если рука ушла из кадра
+    // (живой тест 29.10: рука в «кулаке» лежала в кадре — пауза жалась каждые 2 секунды)
+    if (GEST.fired && g !== GEST.fired) GEST.fired = null;
+    if (g && g === GEST.fired) { GEST.cand = null; setLabel(G_ICON[g] + ' ' + t('gs_g_' + g), 0); return; }
     const H = GEST.hist, k = Math.max(0, H.length - 8);
     const still = H.length > 3 && Math.hypot(H[H.length - 1].x - H[k].x, H[H.length - 1].y - H[k].y) < 0.05;
     if (!HOLD[g] || !still || now < GEST.cool) {
@@ -3638,7 +3642,7 @@
     const p = Math.min(1, (now - GEST.candSince) / HOLD[g]);
     setLabel(G_ICON[g] + ' ' + t('gs_g_' + g) + ' → ' + t('gs_a_' + ACTION[g]), p);
     if (p >= 1) {
-      GEST.cool = now + 1500; GEST.cand = null; flash(g);
+      GEST.cool = now + 1500; GEST.cand = null; GEST.fired = g; flash(g);
       if (ACTION[g] === 'mirror') { gSetPref('gestBig', !gPip.classList.contains('big')); gSetPref('gestPreview', true); syncGestures(); }
       else gAction(ACTION[g]);
     }

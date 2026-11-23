@@ -550,10 +550,13 @@ class FakeTG:
 
 
 def _fresh_messengers():
-    from core import messengers as M
+    from core import messengers as M, contacts as C
     M.FILE = os.path.join(TMP, "messengers.json")
-    if os.path.exists(M.FILE):
-        os.remove(M.FILE)
+    C.FILE = os.path.join(TMP, "contacts.json")                 # тесты не трогают настоящую телефонную книгу
+    C._cache.update(data=None, mtime=None)
+    for f in (M.FILE, C.FILE):
+        if os.path.exists(f):
+            os.remove(f)
     M._s.update(pending=None, said=None, last_sent=None)
     return M
 
@@ -589,7 +592,7 @@ def messengers_reply_confirm_send():
     def ask(system, user, max_tokens=0):
         asked.append(user)
         return "«Мам, опоздаю минут на 10»" if "Change it" not in user else "мам опоздаю на 10 мин"
-    said = M.handle("ответь маме в телеграме, что опоздаю на 10 минут", ui=ui, ask=ask)
+    said = M.handle("ответь маме в телеграме, что опоздаю на 10 минут из-за пробок", ui=ui, ask=ask)
     assert said == "Пишу в Telegram, чат «Мама ❤»: «Мам, опоздаю минут на 10». Отправить?", said
     assert ("click", 145, 130) in ui.log and ui.open == "Мама ❤", ui.log          # чат был виден в списке
     assert "Мама ❤: Ты где?" in asked[0] and "Я: щас буду" in asked[0] and "Мама ❤: Купи хлеб" in asked[0], asked[0]
@@ -925,6 +928,31 @@ def my_mom_with_possessive_and_open_app_first():
     ui = FakeTG(chats={"Мама Данияра": [("them", "?")], "Мама": [("them", "Ты где?")]})
     out = M.handle("открой телеграм и напиши моей маме «Скоро буду»", ui=ui)
     assert out == "Пишу в Telegram, чат «Мама»: «Скоро буду». Отправить?", out
+
+
+
+@test
+def waiting_for_chat_name_does_not_swallow_everything():
+    """Лог 23.10: после «Не нашёл чат «себе»» семь фраз подряд («Погода», «напиши Назару», «Выведи голограмму погоды»…)
+    принимались за имя чата — каждая искала чат 10–20 с и отвечала «Не нашёл чат»."""
+    M = _fresh_messengers()
+    ui = FakeTG(app="WhatsApp.Root", title="WhatsApp", chats={"Назар": [("them", "ок")], "Мама": [("them", "?")]})
+    said = M.handle("Атлас, открой WhatsApp и напиши мне же привет.", ui=ui)
+    assert said.startswith("Не нашёл чат") and M.pending().get("need_chat"), said
+    for phrase in ("Погода", "Выведи голограмму погоды мне на экран.", "Атлас, сделай музыку потише."):
+        it = M.intent(phrase, last=said)
+        assert it is None, (phrase, it)
+    assert M.intent("Атлас, тогда напиши Назару.", last=said)[:3] == ("reply", None, "Назару"), "новая команда — сама по себе"
+    assert M.intent("Он записан в «вы», то есть идёт мой номер и «вы».", last=said) == ("pick_chat", "вы")
+    assert M.intent("Записан как вы.", last=said) == ("pick_chat", "вы")
+    assert M.intent("Не себе, а вы. Идёт номер 707-05-08-09. И вы.", last=said) == ("pick_chat", "вы")
+    assert M.intent("Мама", last=said) == ("pick_chat", "Мама")
+    out = M.handle("Записан как вы.", last=said, ui=ui)              # такого чата и правда нет
+    out2 = M.handle("Записан как Вася.", last=out, ui=ui)
+    assert "Открой чат сам" in out2 and M.pending().get("here_only"), out2
+    assert M.intent("Записан как Петя.", last=out2) is None, "по кругу больше не спрашиваем"
+    assert M.intent("открыл", last=out2)[0] == "here"
+    M._s["pending"] = None
 
 
 def main():

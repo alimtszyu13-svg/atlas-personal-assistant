@@ -114,8 +114,8 @@ def snip_screen_text(action: str = "copy") -> str:
        description="Writes a chat message for the user in Telegram, WhatsApp, Instagram or Discord on this PC: opens "
                    "the chat, reads the visible conversation, drafts the message in the user's style and ASKS the user "
                    "to confirm (it is never sent without 'yes'; then call confirm_message_send). app: telegram | "
-                   "whatsapp | instagram | discord | current (the chat open on screen). contact: name as the user said "
-                   "it. message: what the user wants to say; exact=true if they dictated the exact text.",
+                   "whatsapp | instagram | discord | current (the chat open on screen). contact: name EXACTLY as the user "
+                   "said it, in the same alphabet (Назару stays Назару, never transliterate to Nazar). message: what the user wants to say; exact=true if they dictated the exact text.",
        params={"app": "telegram | whatsapp | instagram | discord | current", "contact": "who, in the user's words",
                "message": "what to say (gist) or the exact text", "exact": "true if the text is dictated word for word"})
 def send_message(app: str, contact: str = "", message: str = "", exact: bool = False) -> str:

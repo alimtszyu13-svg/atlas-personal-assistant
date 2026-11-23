@@ -66,7 +66,8 @@ def install():
          open_deep_link=_rec("open_deep_link"))
     _mod("system_control", open_app=_rec("open_app"), close_app=_rec("close_app"), spotify_seek=_rec("spotify_seek"), spotify_play_library=_rec("spotify_play_library"),
          spotify_is_playing=lambda: STATE.get("spotify_playing", False), spotify_volume=_rec("spotify_volume"),
-         play_on_spotify=_rec("play_on_spotify"), play_on_youtube_music=_rec("play_on_youtube_music"))
+         play_on_spotify=_rec("play_on_spotify"), play_on_youtube_music=_rec("play_on_youtube_music"),
+         _media_play_pause_key=_rec("pause_key"))
     _mod("system_advanced", **{n: _rec(n) for n in ("set_volume", "volume_up", "volume_down", "mute_volume",
                                                     "unmute_volume", "set_brightness", "lock_screen", "take_screenshot")})
     _mod("media_control", **{n: _rec(n) for n in ("play_pause_media", "next_track", "previous_track")})
@@ -251,6 +252,33 @@ def install_yourself_phrases():
                    ("поставь себя на планшет", "tablet"), ("установи себя на телевизор", "tv")):
         r, names, calls = fast(p)
         assert r == ("speak", "Открыл на экране QR-код.") and calls[0][:2] == ("install", (dev,)), (p, r, calls)
+
+
+@test
+def frequent_media_phrases_from_real_logs():
+    """Журналы 5–20.10: эти фразы уходили в модель (2–3 с и лишние круги) — теперь сразу."""
+    r, names, calls = fast("Поставь громкость 30.")
+    assert names == ["set_volume"] and calls[0][1] == (30,), calls
+    assert fast("звук на 40")[1] == ["set_volume"] and fast("сделай громкость 50 процентов")[1] == ["set_volume"]
+    STATE["spotify_playing"] = True
+    r, names, _ = fast("Останови музыку.")
+    assert names == ["pause_key"] and r == ("speak", "Остановил."), (r, names)
+    STATE["spotify_playing"] = False
+    r, names, _ = fast("останови музыку")
+    assert r == ("speak", "Музыка и так не играет.") and "pause_key" not in names, "не играет — не включаем случайно"
+    r, names, _ = fast("поставь на паузу музыку")
+    assert "play_on_spotify" not in names, "не искать в Spotify «на паузу»"
+    for p in ("Поменяй музыку.", "другую песню", "переключи трек", "давай следующую песню"):
+        assert fast(p)[1] == ["next_track"], p
+    r, names, _ = fast("останови музыку", browser=True)
+    assert "media_play_pause" not in names, "музыка не играет — фильм в браузере не трогаем"
+    r, names, _ = fast("выключи фильм «Железный человек 3»", browser=True)
+    assert names == ["media_play_pause"], "лог 23.10: фильм — пауза в браузере, а не системная клавиша (Spotify)"
+    assert fast("выключи фильм")[0] == ("speak", "Фильм у меня в браузере не открыт.")
+    r, names, calls = fast("Открой мне ВПС-офис, хочу написать письмо.")
+    assert names == ["open_app"] and calls[0][1] == ("wps office",), "лог 23.10: модель открывала Outlook"
+    for p in ("Поставь что-нибудь от Эминема.", "Давай что-нибудь другое."):
+        assert "next_track" not in fast(p)[1], p
 
 
 @test

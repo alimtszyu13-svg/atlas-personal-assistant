@@ -99,6 +99,25 @@ def _merge(found: list, source: str) -> int:
         return len(new)
 
 
+def self_phone() -> str:
+    """Твой номер — для «напиши мне / себе»: чат с собой открывается по нему, как любой другой."""
+    return _load().get("self") or ""
+
+
+def set_self(phone: str, quiet: bool = False) -> str:
+    num = normalize_phone(phone)
+    if not num:
+        return f"Не понял номер «{phone}»."
+    with _lock:
+        d = _load()
+        if d.get("self") == num:
+            return f"Твой номер уже знаю: +{num}."
+        _save(dict(d, self=num))
+    if not quiet:
+        print(f"[контакты] свой номер: +{num}")
+    return f"Запомнил твой номер: +{num}. «Напиши мне …» теперь открывает чат с собой по номеру."
+
+
 def add(name: str, phone: str) -> str:
     num = normalize_phone(phone)
     name = " ".join((name or "").split()).strip(" .,«»\"")
@@ -234,11 +253,38 @@ def refresh_in_background() -> None:
 
 
 # --- поиск ------------------------------------------------------------------------------------------
+_LAT = (("shch", "щ"), ("sch", "щ"), ("yo", "ё"), ("zh", "ж"), ("kh", "х"), ("ts", "ц"), ("ch", "ч"), ("sh", "ш"),
+        ("yu", "ю"), ("ya", "я"), ("ye", "е"), ("a", "а"), ("b", "б"), ("v", "в"), ("w", "в"), ("g", "г"), ("d", "д"),
+        ("e", "е"), ("z", "з"), ("i", "и"), ("j", "дж"), ("y", "й"), ("k", "к"), ("l", "л"), ("m", "м"), ("n", "н"),
+        ("o", "о"), ("p", "п"), ("r", "р"), ("s", "с"), ("t", "т"), ("u", "у"), ("f", "ф"), ("h", "х"), ("c", "к"),
+        ("q", "к"), ("x", "кс"))
+
+
+def to_cyrillic(text: str) -> str:
+    """«Nazar» → «назар», «Aizhan» → «аижан»: модель пишет имена латиницей, а в книге они кириллицей (живой тест 29.10)."""
+    t, out, i = (text or "").lower(), "", 0
+    while i < len(t):
+        for lat, cyr in _LAT:
+            if t.startswith(lat, i):
+                out, i = out + cyr, i + len(lat)
+                break
+        else:
+            out, i = out + t[i], i + 1
+    return out
+
+
 def lookup(contact: str):
     """«Назару», «маме», «моему брату Алиму» → ("one", имя, номер) | ("many", [имена]) | None.
     Совпадение — те же правила, что у поиска чатов (основа слова, слова родства)."""
     if not contact:
         return None
+    if re.search(r"[a-z]", contact, re.I) and not re.search(r"[а-яё]", contact, re.I):
+        hit = _lookup(contact)
+        return hit or _lookup(to_cyrillic(contact))
+    return _lookup(contact)
+
+
+def _lookup(contact: str):
     from core import messengers as M
     ppl = people()
     if not ppl:
@@ -282,10 +328,20 @@ def _nominative(who: str) -> str:
     return w
 
 
+_PHONE_IN = re.compile(r"(\+?\d[\d\s()-]{7,18}\d)")
+_SELF_NUM = re.compile(r"(?<!\w)(?:мой|моя|мне|себе|сам\w*|я)(?!\w).*?(?<!\w)(?:номер\w*|телефон\w*|контакт\w*)(?!\w)|"
+                       r"(?<!\w)(?:номер\w*|телефон\w*)\s+(?:мой|у меня)(?!\w)|\bmy (?:phone|number)\b", re.I)
+
+
 def intent(text: str):
     t = " ".join((text or "").split()).strip()
     if _SYNC.match(t):
         return ("sync",)
+    num = _PHONE_IN.search(t)
+    # «мой номер +996…», «когда я говорю напиши мне — я имею в виду контакт с номером +996…» (живой тест 29.10)
+    if num and _SELF_NUM.search(t[:num.start()]) and not re.search(r"(?<!\w)(?:его|её|ее|их|у него|у неё|у нее)(?!\w)",
+                                                                   t[:num.start()], re.I):
+        return ("self", num.group(1))
     m = _ADD.match(t) or _ADD2.match(t)
     if m:
         return ("add", _nominative(m.group("who").strip(" ,:")), m.group("num"))
@@ -298,4 +354,6 @@ def handle(text: str):
         return None
     if it[0] == "sync":
         return sync(interactive=True)
+    if it[0] == "self":
+        return set_self(it[1])
     return add(it[1], it[2])

@@ -26,36 +26,97 @@ def _get_available_drives() -> list[str]:
     return drives
 
 
-def find_file(name: str, search_whole_disk: bool = True) -> str | None:
-    name = os.path.basename(name.strip().rstrip("\\/"))
-    name = name.lower()
+INDEX_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "file_index2.db")
+HOME_BUDGET_S = 4.0      # твои папки (рабочий стол, документы, загрузки, весь профиль) — до 4 с
+DISK_BUDGET_S = 8.0      # остальные диски — до 8 с и только точное имя
+# Раньше поиск обходил ВСЕ диски целиком: «открой WhatsApp» искал 35 с (журнал 20.10) и открыл случайный файл,
+# в имени которого было «whatsapp». Теперь: индекс → твои папки → диски, с лимитом времени.
 
-    exact_match = None
-    partial_match = None
 
-    search_roots = list(SAFE_DIRS)
-    if search_whole_disk:
-        search_roots += _get_available_drives()
-
-    for root in search_roots:
-        if not os.path.exists(root):
+def _from_index(name: str):
+    """Готовый индекс файлов (file_index2.db) — мгновенно. → (точное, частичное)."""
+    import sqlite3
+    if not os.path.exists(INDEX_DB):
+        return None, None
+    try:
+        c = sqlite3.connect(f"file:{INDEX_DB}?mode=ro", uri=True, timeout=1.0)
+        try:
+            rows = c.execute("SELECT path FROM files WHERE lower(name) = ? OR lower(name) LIKE ? LIMIT 50",
+                             (name, f"%{name}%")).fetchall()
+        finally:
+            c.close()
+    except Exception:
+        return None, None
+    exact = partial = None
+    for (path,) in rows:
+        if not os.path.exists(path):
             continue
-        for dirpath, dirnames, filenames in os.walk(root, onerror=lambda e: None):
-            dirnames[:] = [d for d in dirnames if d.lower() not in SKIP_FOLDERS]
+        base = os.path.basename(path).lower()
+        if base == name or os.path.splitext(base)[0] == name:
+            exact = exact or path
+        elif partial is None:
+            partial = path
+    return exact, partial
 
-            for entry in dirnames + filenames:
-                entry_lower = entry.lower()
-                full_path = os.path.join(dirpath, entry)
 
-                if entry_lower == name and exact_match is None:
-                    exact_match = full_path
-                elif name in entry_lower and partial_match is None:
-                    partial_match = full_path
+def _walk(roots, name: str, deadline: float, want_partial: bool):
+    """Обход в ширину до deadline: сначала верхние уровни всех папок, потом глубже —
+    ~/atlas/requirements.txt находится сразу, а не после всех глубин «Рабочего стола». → (точное, частичное, успели ли)."""
+    import time as _t
+    from collections import deque
+    partial = None
+    queue = deque(r for r in roots if r and os.path.isdir(r))
+    seen = set()
+    while queue:
+        if _t.time() > deadline:
+            return None, partial, False
+        d = queue.popleft()
+        key = os.path.normcase(os.path.abspath(d))
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            with os.scandir(d) as it:
+                entries = list(it)
+        except OSError:
+            continue
+        for e in entries:
+            low = e.name.lower()
+            if low == name or os.path.splitext(low)[0] == name:
+                return e.path, partial, True
+            if want_partial and partial is None and name in low:
+                partial = e.path
+            try:
+                if e.is_dir(follow_symlinks=False) and low not in SKIP_FOLDERS and not e.name.startswith((".", "$")):
+                    queue.append(e.path)
+            except OSError:
+                pass
+    return None, partial, True
 
-            if exact_match:
-                return exact_match
 
-    return exact_match or partial_match
+def find_file(name: str, search_whole_disk: bool = True) -> str | None:
+    """Файл или папка по имени: индекс → твои папки (с частичным совпадением) → диски (только точное имя)."""
+    import time as _t
+    name = os.path.basename(name.strip().rstrip("\\/")).lower()
+    if not name:
+        return None
+    exact, partial = _from_index(name)
+    if exact:
+        return exact
+    home = os.path.expanduser("~")
+    t0 = _t.time()
+    ex2, part2, _done = _walk(SAFE_DIRS + [home], name, t0 + HOME_BUDGET_S, want_partial=True)
+    if ex2:
+        return ex2
+    partial = partial or part2
+    if partial or not search_whole_disk:
+        return partial
+    drives = [d for d in _get_available_drives() if not home.lower().startswith(d.lower())] + \
+             [d for d in _get_available_drives() if home.lower().startswith(d.lower())]
+    ex3, _p, done = _walk(drives, name, _t.time() + DISK_BUDGET_S, want_partial=False)
+    if not done and not ex3:
+        print(f"[файлы] «{name}» не нашёл за {HOME_BUDGET_S + DISK_BUDGET_S:.0f} с — диски целиком не обхожу")
+    return ex3
 
 
 def _resolve_location(location: str) -> str:

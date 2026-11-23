@@ -44,11 +44,14 @@ class FakeWA:
         pass
 
     def open_url(self, url):
+        from urllib.parse import urlparse, parse_qs
         self.urls.append(url)
         if self.links_work:
-            num = url.split("phone=")[1]
+            q = parse_qs(urlparse(url).query)
+            num = (q.get("phone") or [""])[0]
             if num in self.phones:
                 self.open, self.query = self.phones[num], None
+                self.typed = (q.get("text") or [""])[0]           # WhatsApp сам кладёт текст из ссылки в поле
 
     def activate(self, h):
         self.fg = h
@@ -175,6 +178,9 @@ def whatsapp_opens_by_number_when_search_is_broken():
     assert not any(k == ("keys", "ctrl+f") for k in ui.log), "поиск на экране не трогали"
     out = M.handle("да", last=said, ui=ui)
     assert ui.sent == [("Назар Т", "Привет!")] and out == "Отправил.", (ui.sent, out)
+    # живой тест 29.10: вставка через буфер ни разу не дошла до поля — текст теперь едет в самой ссылке
+    assert ui.urls[-1] == "whatsapp://send?phone=996707111222&text=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21", ui.urls
+    assert not any(e[0] == "paste" for e in ui.log), ui.log
 
 
 @test
@@ -235,6 +241,197 @@ def focus_stolen_once_still_sends_and_header_is_clean():
     ui.foreground = foreground
     out = M.handle("да", last=said, ui=ui)
     assert out == "Отправил." and ui.sent == [("Назар Т", "Привет!")], (out, ui.sent)
+
+
+# строки из настоящего снимка структуры окна WhatsApp (logs/whatsapp_probe.txt) + входящие без статуса
+_PROBE = """ButtonControl 463 45 1335 37 Назар нажмите здесь, чтобы посмотреть данные контакта
+TextControl 1134 129 41 14 суббота
+ButtonControl 1604 160 217 289 Открыть изображение
+ButtonControl 1772 432 45 14 13:12 Прочитано
+TextControl 1772 431 28 14 13:12
+TextControl 1340 459 151 16 Мотивационное письмо
+TextControl 1340 495 478 16 Максим горький - русский писатель
+ButtonControl 1773 593 45 14 14:22 Прочитано
+TextControl 1773 592 28 14 14:22
+TextControl 1127 640 56 14 Сегодня
+TextControl 480 680 120 16 Понял
+TextControl 610 682 28 14 22:16
+TextControl 480 720 200 16 Пересланное сообщение
+TextControl 480 740 220 16 https://youtube.com/shorts/x
+HyperlinkControl 480 740 220 16 https://youtube.com/shorts/x
+TextControl 710 742 28 14 22:20
+TextControl 1430 800 339 16 Теперь играю на игровом пк
+ButtonControl 1773 808 45 15 22:21 Доставлено
+TextControl 1773 808 28 14 22:21"""
+
+
+@test
+def chat_read_from_window_structure():
+    """Кто что написал — по статусу «Прочитано/Доставлено» у своих сообщений, текст — дословно, без OCR."""
+    from core import messengers as M
+    items = []
+    for row in _PROBE.splitlines():
+        typ, x, y, w, h, text = row.split(" ", 5)
+        items.append({"uia": typ, "x": int(x), "y": int(y), "w": int(w), "h": int(h), "text": text})
+    rect = (-8, -8, 1928, 1040)
+    M._DIV[4242] = 410
+    conv = M._uia_conv(items, M._regions(rect, False, 4242), rect)
+    assert conv == [("me", "[фото] Мотивационное письмо Максим горький - русский писатель"),
+                    ("them", "Понял https://youtube.com/shorts/x"),
+                    ("me", "Теперь играю на игровом пк")], conv
+
+
+@test
+def short_texts_go_without_model():
+    from core import messengers as M
+    assert M._plain("привет") == "Привет!" and M._plain("буду в 7") == "Буду в 7"
+    assert M._plain("тест АТЛАС 1 попытка 27") is None, "длинное — через модель"
+    for g in ("он молодец", "спроси когда сдавать", "что опоздаю", "поздравь с днём рождения", ""):
+        assert M._plain(g) is None, g
+    M2, C = _fresh()
+    C.add("Назар", "0707 111 222")
+    ui, calls = FakeWA(CHATS(), {"996707111222": "Назар Т"}), []
+    said = M2.handle("напиши Назару привет в ватсапе", ui=ui, ask=lambda s, u, max_tokens=0: calls.append(u) or "x")
+    assert said.endswith("«Привет!». Отправить?") and not calls, (said, calls)
+    said = M2.handle("сделай вежливее", last=said, ui=ui, ask=lambda s, u, max_tokens=0: calls.append(u) or "Здравствуй!")
+    assert said.endswith("«Здравствуй!». Отправить?") and calls, said
+
+
+@test
+def write_to_myself_by_own_number_2910():
+    """Живой тест 29.10: «напиши мне привет» → WhatsApp → «чат с собой не найден» (окно не прогрузилось).
+    Свой номер известен — чат с собой открывается по нему. И фраза с номером — не «своя команда»."""
+    M, C = _fresh()
+    from core import aliases as A
+    said_num = "когда я говорю напиши мне, я имею ввиду контакт с номером +996707050809, запомни"
+    assert A.parse_add(said_num) is None, "раньше записалось как команда «напиши мне» → мусор во всех «напиши мне…»"
+    assert M.intent(said_num) == ("contacts",)
+    assert "+996707050809" in M.handle(said_num) and C.self_phone() == "996707050809"
+    assert C.intent("его номер 0555 123 456") is None, "чужой номер без имени — не свой"
+    chats = dict(CHATS(), **{"+996 707 050 809 (Вы)": [("me", "заметка")]})
+    ui = FakeWA(chats, {"996707050809": "+996 707 050 809 (Вы)"}, search_works=False)
+    said = M.handle("напиши мне привет в ватсапе", ui=ui, ask=_ask)
+    assert ui.urls == ["whatsapp://send?phone=996707050809"] and said.endswith("«Привет!». Отправить?"), (said, ui.urls)
+
+
+@test
+def own_number_learned_from_window():
+    M, C = _fresh()
+    chats = dict(CHATS(), **{"+996 707 050 809 (Вы)": [("me", "заметка")]})
+    chats = {"+996 707 050 809 (Вы)": chats.pop("+996 707 050 809 (Вы)"), **chats}
+    ui = FakeWA(chats, {}, visible=6)
+    said = M.handle("напиши себе тест в ватсапе", ui=ui, ask=_ask)
+    assert said.endswith("Отправить?") and C.self_phone() == "996707050809", (said, C.self_phone())
+
+
+@test
+def lowercase_name_from_phonebook_and_whatsapp_by_default():
+    """«Напиши назару привет, это Атлас» уходило в модель, а та открывала Telegram, которого нет."""
+    M, C = _fresh()
+    C.add("Назар", "0707 111 222")
+    assert M.intent("Напиши назару привет, это Атлас") == ("reply", None, "назару", "привет, это Атлас", None)
+    assert M.intent("напиши бекзату привет") is None, "нет в книге и с маленькой — не угадываем"
+
+    class NoWindows:
+        def windows(self):
+            return []
+    assert M._resolve_app("назару", NoWindows()) == "whatsapp"
+    assert M._resolve_app("бекзату", NoWindows()) is None
+
+
+@test
+def waits_for_whatsapp_to_load_2910():
+    """«Пусть ждёт загрузки WhatsApp, а не отказывает сразу»: сначала в окне 14 элементов, потом список чатов."""
+    from core import messengers as M
+
+    class Loading:
+        def __init__(self):
+            self.calls, self.slept = 0, 0.0
+
+        def uia_lines(self, hwnd, budget=2.5):
+            self.calls += 1
+            if self.calls < 4:                                     # первые три взгляда — WhatsApp ещё пустой
+                return [{"text": "WhatsApp", "x": 40, "y": 9, "w": 50, "h": 14, "uia": "TextControl"}]
+            return [{"text": n, "x": 58, "y": 180 + i * 68, "w": 332, "h": 66, "uia": "DataItemControl"}
+                    for i, n in enumerate(("Папа", "Мама", "Назар", "Алибек"))]
+
+        def rect(self, h):
+            return (0, 0, 1900, 1040)
+
+        def activate(self, h):
+            return True
+
+        def sleep(self, s):
+            self.slept += s
+    ui = Loading()
+    M._READY.clear()
+    assert M._wait_ready("whatsapp", ui, {"hwnd": 31, "web": False}) is True and ui.calls == 4, ui.calls
+    assert M._wait_ready("whatsapp", ui, {"hwnd": 31, "web": False}) and ui.calls == 4, "только что был готов — не ждём"
+
+    class Never(Loading):
+        def uia_lines(self, hwnd, budget=2.5):
+            self.calls += 1
+            return []
+    ui2 = Never()
+    assert M._wait_ready("whatsapp", ui2, {"hwnd": 32, "web": False}) is False and ui2.calls <= 32
+
+
+@test
+def yes_after_didnt_catch_and_brain_cannot_switch_recipient_2910():
+    """Живой тест 29.10: черновик маме → «Didn't catch that» → «да отправляй» ушло в модель,
+    а модель отправила «Привет!» на номер из памяти (себе). Теперь «да отправляй» — это отправка маме."""
+    M, C = _fresh()
+    C.add("Мама", "0700 123 456")
+    ui = FakeWA(CHATS(), {"996700123456": "Мама"}, search_works=False)
+    said = M.handle("Напиши маме на WhatsApp привет.", ui=ui, ask=_ask)
+    assert said.endswith("«Привет!». Отправить?"), said
+    assert M.intent("да отправляй", last="Didn't catch that, try again.") == ("send",)
+    assert M.intent("да", last="Didn't catch that, try again.") == ("send",)
+    assert M.intent("да", last="Память занята на 90%") is None, "просто «да» после другого разговора — не наше"
+    out = M.tool_send_message("whatsapp", "+996707050809", "Привет!", True)
+    assert out.startswith("A DRAFT IS ALREADY WAITING for “Мама”") and not ui.sent, out
+    assert M.handle("да отправляй", last="Didn't catch that, try again.", ui=ui) == "Отправил."
+    assert ui.sent == [("Мама", "Привет!")], ui.sent
+
+
+@test
+def phone_number_as_contact_opens_by_number():
+    M, C = _fresh()
+    ui = FakeWA(CHATS(), {"996707111222": "Назар Т"}, search_works=False)
+    said = M.handle("напиши +996 707 111 222 привет в ватсапе", ui=ui, ask=_ask)
+    assert ui.urls == ["whatsapp://send?phone=996707111222"] and "Назар Т" in said, (said, ui.urls)
+
+
+@test
+def nazar_session_2910_evening():
+    """«Сообщение Назару. Привет…» ушло в модель; модель написала «Nazar» латиницей — поиск на экране нажал группу
+    «Гонконг» из-за строки «~Nazar также состоит в этой группе»; «WhatsApp» распознался как «What's up?»."""
+    M, C = _fresh()
+    C.add("Назар", "0707 111 222")
+    assert M.intent("Сообщение Назару. Привет, это Атлас, моё первое сообщение.")[1:4] == \
+        (None, "Назару", "Привет, это Атлас, моё первое сообщение")
+    it = M.intent("Атлас, мы не договорили. Отправь сообщение Назару. Привет. Это моё первое сообщение. Это Атлас по WhatsApp.")
+    assert it[1:3] == ("whatsapp", "Назару") and it[3].endswith("Это Атлас"), it
+    assert M.intent("напиши письмо маме") is None
+    assert C.to_cyrillic("Nazar") == "назар" and C.lookup("Nazar") == ("one", "Назар", "996707111222")
+    ui = FakeWA(CHATS(), {"996707111222": "Назар Т"}, search_works=False)
+    seen, real = [], M.prepare
+    M.prepare = lambda app, contact, *a, **k: seen.append(contact) or "Отправить?"
+    try:
+        M.tool_send_message("whatsapp", "Nazar", "Привет", True)
+    finally:
+        M.prepare = real
+    assert seen == ["Назар"], seen                       # модель сказала «Nazar» — ищем «Назар» из книги
+    said = M.prepare("whatsapp", "Назар", "", "Привет", True, ui, _ask)
+    assert ui.urls and ui.urls[0].startswith("whatsapp://send?phone=996707111222"), ui.urls
+    rg = {"list_x": 400, "top": 65, "chat_x": 404, "head_y": 160, "foot_y": 950, "W": 1900, "H": 1050}
+    group = [{"text": "Гонконг 2026-2027", "x": 135, "y": 520, "w": 200, "h": 20},
+             {"text": "~Nazar", "x": 135, "y": 545, "w": 50, "h": 18},
+             {"text": "~Nazar также состоит в этой группе", "x": 135, "y": 545, "w": 220, "h": 18}]
+    assert M._choose(group, rg, M.stems("Nazar"), False, None, "nazar") is None, "участник группы — не чат"
+    M._s["pending"] = {"need_app": True, "contact": "Назару", "gist": "привет", "exact": None, "created": 1e12, "ru": True}
+    M._s["said"] = "В каком мессенджере написать Назару?"
+    assert M.intent("What's up?") == ("pick_app", "whatsapp")
 
 
 def main():

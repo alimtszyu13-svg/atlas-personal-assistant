@@ -41,7 +41,7 @@ APPS = {
                 "url": "https://discord.com/channels/@me", "launch": "discord://", "mode": "switcher",
                 "keys": "ctrl+k", "rx": r"дискорд\w*|discord"},
 }
-_APP_RX = [(k, re.compile(r"(?:\s*\b(?:в|во|на|через|in|on|via)\s+)?(?:" + v["rx"] + r")", re.I)) for k, v in APPS.items()]
+_APP_RX = [(k, re.compile(r"(?:\s*\b(?:в|во|на|по|через|in|on|via)\s+)?(?:" + v["rx"] + r")", re.I)) for k, v in APPS.items()]
 _BROWSERS = ("chrome", "msedge", "browser", "firefox", "opera", "opera_gx", "brave", "vivaldi")
 _SEARCH_WORDS = re.compile(r"^(?:поиск|search|найти|search or start (?:a )?new chat|поиск или новый чат|"
                            r"искать|ищите|search messenger)\b", re.I)
@@ -431,12 +431,47 @@ def current_messenger(wins: list):
     return None
 
 
+LAUNCH_S = 30          # сколько ждать, пока окно мессенджера вообще появится
+READY_S = 25           # и сколько — пока в нём прогрузится список чатов
+_READY = {}            # hwnd → когда последний раз видели окно прогруженным
+
+
+def _wait_ready(app: str, ui, w) -> bool:
+    """Ждать, пока мессенджер прогрузится, а не отказывать сразу (живой тест 29.10: WhatsApp только открылся,
+    в окне 14 элементов — и «чат не найден»). Готово = в списке чатов видны строки чатов."""
+    hwnd = w["hwnd"]
+    if w.get("web") or not hasattr(ui, "uia_lines") or time.time() - _READY.get(hwnd, 0) < 60:
+        return True
+    t0, said, n = time.time(), False, 0
+    for _ in range(int(READY_S / 0.8)):                     # и по времени, и по числу попыток (в тестах sleep мгновенный)
+        if time.time() - t0 > READY_S:
+            break
+        items = ui.uia_lines(hwnd, budget=1.5)
+        n = len(items)
+        rect = ui.rect(hwnd)
+        rg = _regions(rect, False, hwnd)
+        rows = [ln for ln in items if ln.get("uia") in ("DataItemControl", "ListItemControl", "TreeItemControl")
+                and _cx(ln) < rg["list_x"]]
+        if len(rows) >= 3 or n >= 80:
+            _READY[hwnd] = time.time()
+            if said:
+                print(f"[мессенджеры] {APPS[app]['name']} прогрузился за {time.time() - t0:.1f} с")
+            return True
+        if not said:
+            print(f"[мессенджеры] {APPS[app]['name']} ещё загружается (элементов {n}) — жду до {READY_S} с")
+            said = True
+        ui.activate(hwnd)
+        ui.sleep(0.8)
+    print(f"[мессенджеры] {APPS[app]['name']} так и не прогрузился за {READY_S} с (элементов {n}) — пробую как есть")
+    return False
+
+
 def _ensure(app: str, ui):
     wins = ui.windows()
     w = find_window(app, wins)
     if not w:
         ui.launch(app)
-        for _ in range(20):
+        for _ in range(int(LAUNCH_S / 0.5)):
             ui.sleep(0.5)
             w = find_window(app, ui.windows())
             if w:
@@ -445,6 +480,7 @@ def _ensure(app: str, ui):
     if w:
         ui.activate(w["hwnd"])
         ui.sleep(0.35)
+        _wait_ready(app, ui, w)
     return w
 
 
@@ -512,10 +548,14 @@ def _header(lines: list, rg: dict) -> list:
     return out
 
 
+_MEMBER = re.compile(r"также состоит|тоже состоит|общие группы|also in this group|groups in common", re.I)
+
+
 def _choose(lines: list, rg: dict, st: list, kin: bool, title: str = None, query: str = ""):
     """Какую строку списка чатов нажать. → ("click", строка) | ("ambiguous", [названия]) | ("weak", [названия]) | None.
     Никогда не берём «верхний похожий» наугад: только точный, единственный или запомненный."""
-    cand = [ln for ln in lines if _cx(ln) < rg["list_x"] and ln["y"] > rg["top"]]
+    cand = [ln for ln in lines if _cx(ln) < rg["list_x"] and ln["y"] > rg["top"]
+            and not ln["text"].lstrip().startswith("~") and not _MEMBER.search(ln["text"])]
     if query:
         # Текст в строке поиска — не чат. Но в структуре окна поля поиска нет, а найденная строка «Назар» = запросу «Назар»:
         # раньше она выбрасывалась вместе с полем, и точное имя не находилось никогда (лог 23.10: «Назар» → notfound).
@@ -575,8 +615,7 @@ def _open_chat(app: str, contact: str, ui, title: str = None, avoid: str = "") -
     if not w:
         return {"ok": False, "why": "noapp"}
     hwnd, web = w["hwnd"], w.get("web", False)
-    if is_self(contact) and not title:
-        return _open_self(app, ui, hwnd, web)
+    self_chat = is_self(contact) and not title
     kin = is_kin(contact) and not title
     st = stems(title) if title else stems(contact)
     a = APPS[app]
@@ -601,11 +640,18 @@ def _open_chat(app: str, contact: str, ui, title: str = None, avoid: str = "") -
 
     def by_phone():
         """Номер из телефонной книги → ссылка открывает именно этот чат. Поиск на экране не нужен (логи 23–24.10)."""
-        if web or app not in ("whatsapp", "telegram"):
+        if web or app not in ("whatsapp", "telegram") or not hasattr(ui, "open_url"):
             return None
         try:
             from core import contacts
-            hit = contacts.lookup(title or contact)
+            raw_num = contacts.normalize_phone(contact) if re.fullmatch(r"\+?[\d\s()-]{9,20}", contact or "") else ""
+            if is_self(contact) and not title:
+                me = contacts.self_phone()
+                hit = ("one", "(вы)", me) if me else None
+            elif raw_num and not title:                       # «+996707050809» — сам номер, открываем по нему
+                hit = ("one", contact, raw_num)
+            else:
+                hit = contacts.lookup(title or contact)
         except Exception as e:
             print(f"[мессенджеры] телефонная книга: {e}")
             return None
@@ -632,6 +678,7 @@ def _open_chat(app: str, contact: str, ui, title: str = None, avoid: str = "") -
                     if 1 < len(ln["text"]) < 60]
             for ln in head:                               # имя из книги или номер в заголовке — точно тот чат
                 if match_score(ln["text"], pst) >= 1 or match_score(ln["text"], st, kin) >= 1 or \
+                        (is_self(contact) and _SELF_CHAT.search(ln["text"])) or \
                         (tail and tail in re.sub(r"\D", "", ln["text"])):
                     return {"ok": True, "hwnd": hwnd, "verified": True, "web": False, "name": ln["text"], "phone": phone}
             if head and [norm(ln["text"]) for ln in head] != before:   # открылся другой заголовок: так он записан в телефоне
@@ -660,6 +707,8 @@ def _open_chat(app: str, contact: str, ui, title: str = None, avoid: str = "") -
         return {"ok": True, "hwnd": hwnd, "verified": h is not None,
                 "name": h["text"] if h is not None else (clicked["text"] if clicked else contact), "web": web}
 
+    if self_chat:                                                      # по своему номеру; не знаем номер — ищем «(Вы)»
+        return by_phone() or _open_self(app, ui, hwnd, web)
     rect, rg, lines = look()
     h = head_match(lines, rg)
     if h is not None:                                                  # нужный чат уже открыт
@@ -760,6 +809,16 @@ def _open_self(app: str, ui, hwnd: int, web: bool) -> dict:
     if not find(rg, every, "head") and not find(rg, every, "list"):    # окно только что вывели вперёд — дорисовывается
         ui.sleep(0.8)
         rg, every = look()
+    for x in every:                                                    # «+996 707 050 809 (Вы)» — запомним свой номер
+        m = re.match(r"^\s*(\+?[\d\s()-]{9,20}\d)\s*\((?:вы|you)\)", x["text"], re.I)
+        if m:
+            try:
+                from core import contacts
+                if not contacts.self_phone():
+                    contacts.set_self(m.group(1), quiet=False)
+            except Exception:
+                pass
+            break
     h = find(rg, every, "head")
     if h is not None:
         return {"ok": True, "hwnd": hwnd, "verified": True, "web": web, "name": h["text"]}
@@ -783,10 +842,70 @@ def _open_self(app: str, ui, hwnd: int, web: bool) -> dict:
     return {"ok": True, "hwnd": hwnd, "verified": True, "web": web, "name": ln["text"]}
 
 
+_MSG_TIME = re.compile(r"^\d{1,2}:\d{2}$")
+_MSG_STATUS = re.compile(r"^\d{1,2}:\d{2}\s+(?:прочитано|доставлено|отправлено|ожидание|просмотрено|"
+                         r"read|delivered|sent|pending|seen)\b", re.I)
+_MSG_DAY = re.compile(r"^(?:сегодня|вчера|понедельник|вторник|среда|четверг|пятница|суббота|воскресенье|today|yesterday|"
+                      r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}\.\d{1,2}\.\d{2,4}|"
+                      r"\d{1,2} [а-яa-z]+(?: \d{4})?)$", re.I)
+_MSG_SKIP = re.compile(r"^(?:пересланное сообщение|forwarded|переслать медиафайлы|forward media|изменено|edited|"
+                       r"нажмите здесь.*|click here.*|непрочитанн\w+ сообщени\w+.*|\d+ unread messages?)$", re.I)
+_MSG_MEDIA = ((re.compile(r"^открыть изображение|^open image|^фото$|^photo$", re.I), "[фото]"),
+              (re.compile(r"голосов|voice message|воспроизвести|^play$", re.I), "[голосовое]"),
+              (re.compile(r"^открыть видео|^open video|^видео$|^video$", re.I), "[видео]"),
+              (re.compile(r"стикер|sticker", re.I), "[стикер]"))
+
+
+def _uia_conv(items: list, rg: dict, rect) -> list:
+    """Переписка из структуры окна (WhatsApp): тексты сообщений точные, а чьё сообщение — по статусу:
+    у своих рядом кнопка «17:36 Прочитано/Доставлено», у чужих только время. Без догадок «слева/справа»."""
+    pane = [ln for ln in items if _cx(ln) > rg["chat_x"] and rg["head_y"] < ln["y"] < rg["foot_y"]]
+    seen, rows = set(), []
+    for ln in sorted(pane, key=lambda x: (x["y"], x["x"])):
+        key = (ln["text"], ln["y"] // 4)
+        if key not in seen:                                    # ссылка = Hyperlink + Text с тем же текстом
+            seen.add(key)
+            rows.append(ln)
+    status_y = [ln["y"] for ln in rows if ln.get("uia") == "ButtonControl" and _MSG_STATUS.match(ln["text"])]
+    msgs, cur, last_close = [], [], None
+    for ln in rows:
+        t = ln["text"].strip()
+        is_time = _MSG_TIME.match(t) or (ln.get("uia") == "ButtonControl" and _MSG_STATUS.match(t))
+        if is_time:
+            if last_close is not None and abs(ln["y"] - last_close) < 8:
+                continue                                       # кнопка статуса и текст времени — одна метка
+            last_close = ln["y"]
+            if cur:
+                who = "me" if any(abs(y - ln["y"]) < 8 for y in status_y) else "them"
+                msgs.append((who, " ".join(cur)))
+                cur = []
+            continue
+        if _MSG_DAY.match(t) or _MSG_SKIP.match(t) or (ln.get("uia") == "ButtonControl" and not any(
+                rx.search(t) for rx, _ in _MSG_MEDIA)):
+            continue
+        media = next((tag for rx, tag in _MSG_MEDIA if rx.search(t)), None)
+        cur.append(media or t)
+    merged = []
+    for who, t in msgs:
+        if merged and merged[-1][0] == who:
+            merged[-1] = (who, merged[-1][1] + " " + t)
+        else:
+            merged.append((who, t))
+    return merged
+
+
 def read_chat(hwnd: int, web: bool = False, ui=None, rect=None, lines=None) -> list:
-    """Видимая переписка: [("me" | "them", текст)] сверху вниз (последние ~25)."""
+    """Видимая переписка: [("me" | "them", текст)] сверху вниз (последние ~25).
+    Сначала структура окна (точный текст, точно чьё), если её нет (Telegram, браузер) — снимок экрана и OCR."""
     ui = ui or _get_ui()
     rect = rect or ui.rect(hwnd)
+    if not web and hasattr(ui, "uia_lines"):
+        try:
+            conv = _uia_conv(ui.uia_lines(hwnd), _regions(rect, web, hwnd), rect)
+            if conv:
+                return conv[-25:]
+        except Exception as e:
+            print(f"[мессенджеры] переписка по структуре окна: {e}")
     if lines is None:
         lines = ui.ocr(rect)
     rg = _regions(rect, web, hwnd)
@@ -950,9 +1069,9 @@ def summarize(conv: list, name: str, ru: bool, ask=None) -> str:
 
 
 # --- фразы ----------------------------------------------------------------------------------------
-_SEND = re.compile(r"^(?:атлас[,\s]+|atlas[,\s]+)?(?:пожалуйста\s+)?(ответь|напиши|отправь|скинь|передай|скажи|пожелай|поздравь|"
+_SEND = re.compile(r"^(?:атлас[,\s]+|atlas[,\s]+)?(?:пожалуйста\s+)?(ответь|напиши|отправь|скинь|передай|скажи|пожелай|поздравь|сообщение|"
                    r"спроси|попроси|сообщи|предупреди|reply|text|message|write|tell|send|ask)\b\s*(.*)$", re.I)
-_SEP = re.compile(r"\s*(?:[,:;—–]|\s-\s|\bчто\b|\bчтобы\b|«|\"|\bпро\b|\bнасчет\b|\bнасчёт\b|\bо том\b|\bthat\b|\bsaying\b|"
+_SEP = re.compile(r"\s*(?:[,:;—–]|\.\s+(?=[А-ЯЁA-Z])|\s-\s|\bчто\b|\bчтобы\b|«|\"|\bпро\b|\bнасчет\b|\bнасчёт\b|\bо том\b|\bthat\b|\bsaying\b|"
                   r"\basking\b|\bабout\b)\s*", re.I)
 _CUR = re.compile(r"^(?:ему|ей|им|на (?:это|него|нее|неё|сообщение|последнее\w*)|в (?:этом|этот|текущ\w+) чат\w*|"
                   r"сюда|тут|здесь|him|her|them|to this|here)\b", re.I)
@@ -1022,9 +1141,15 @@ def _answer_name(t: str):
     return None
 
 
+_FILLER = re.compile(r"didn'?t catch|try again|не расслышал|не услышал|повтори(?:те)?,? пожалуйста|не понял, повтор", re.I)
+
+
 def _same(last: str, said: str) -> bool:
     """Последний ответ в чате — наш вопрос «Отправить?» (смайлики и разметка могли сняться при показе)
-    или его пересказ («Надо подтвердить отправку…» — когда черновик готовил мозг)."""
+    или его пересказ («Надо подтвердить отправку…» — когда черновик готовил мозг).
+    «Не расслышал, повтори» между черновиком и «да» — не разговор: черновик всё ещё ждёт (живой тест 29.10)."""
+    if last and _FILLER.search(last):
+        return True
     a, b = norm(last), norm(said)
     if bool(b) and (a == b or b[:40] in a or a[:40] in b):
         return True
@@ -1063,12 +1188,6 @@ def intent(text: str, last: str = None):
     t = " ".join((text or "").split()).strip()
     if not t:
         return None
-    try:
-        from core import contacts                         # «запомни номер Назара 0707…», «обнови контакты»
-        if contacts.intent(t):
-            return ("contacts",)
-    except Exception:
-        pass
     # «мне самому напиши привет» → «напиши мне самому привет» (лог 24.10: уходило в модель и печатало наугад)
     t = re.sub(r"^((?:(?:атлас|atlas)[,!\s]+)?)(мне|себе)(\s+(?:самому|самой|сам|же|лично))?\s+"
                r"(напиши|отправь|скинь|перешли)\b", lambda m: f"{m.group(1)}{m.group(4)} {m.group(2)}{m.group(3) or ''}",
@@ -1077,12 +1196,20 @@ def intent(text: str, last: str = None):
                 r"можешь|ты можешь|можешь ли)[,\s]+)+", "", t, flags=re.I)
     if t2 != t and (_SEND.search(t2) or _OPEN_THEN.match(t2)):  # «Атлас, тогда напиши Назару» — та же команда
         t = t2
+    if not _SEND.search(t) and not _OPEN_THEN.match(t):        # «Атлас, мы не договорили. Отправь сообщение Назару…»
+        for part in re.finditer(r"(?<=[.!?])\s+(?=\S)", t):
+            tail = t[part.end():]
+            if _SEND.search(tail) and len(t[:part.start()]) < 60:
+                t = tail
+                break
     m = _OPEN_THEN.match(t)                     # «открой WhatsApp и напиши маме…» → «напиши маме… в WhatsApp»
     if m and _app_in(m.group(1))[0]:
         t = f"{m.group(2).rstrip(' .!')} в {m.group(1)}"
     p = pending()
     if p and p.get("need_app") and (last is None or _same(last, _s.get("said"))) and len(t) < 40:
         t = re.sub(r"^(?:я\s+)?(?:имею\s+в\s*виду|имел\s+в\s*виду|в смысле|то есть|конечно|ну)[,\s]+", "", t, flags=re.I)
+        if re.fullmatch(r"(?:в\s+|на\s+|по\s+)?what'?s\s*up\??", t.strip(" .!"), re.I):
+            return ("pick_app", "whatsapp")              # Whisper слышит «WhatsApp» как «What's up?» (живой тест 29.10)
         if _MSG_ONLY.match(t):                          # «в телеграме» / «ватсап» — выбор мессенджера
             ak, _ = _app_in(t)
             if ak:
@@ -1127,6 +1254,12 @@ def intent(text: str, last: str = None):
             return ("send",)
         if _EDIT.search(bare):
             return ("edit", t)
+    try:
+        from core import contacts                         # «запомни номер Назара 0707…», «мой номер …», «обнови контакты»
+        if contacts.intent(t):                            # (после ожиданий: «не себе, а вы, номер 707…» — ответ на вопрос)
+            return ("contacts",)
+    except Exception:
+        pass
     try:
         from core import msg_watch                        # «сообщай о сообщениях от Алима», «что я пропустил?»
         if msg_watch.intent(t):
@@ -1184,7 +1317,8 @@ def intent(text: str, last: str = None):
     quote = re.search(r"[«\"“]([^»\"”]+)[»\"”]", rest)
     if quote:
         rest = " ".join((rest[:quote.start()] + " " + rest[quote.end():]).split()).strip(" ,:")
-    rest = re.sub(r"^(?:контакт[уа]?|человеку|пользователю|абоненту|номеру)(?:\s+|$)", "", rest, flags=re.I).strip()   # «напиши контакту X»
+    rest = re.sub(r"^(?:контакт[уа]?|человеку|пользователю|абоненту|номеру)(?:\s+|$)", "", rest, flags=re.I).strip()
+    rest = re.sub(r"^(?:сообщени[ея]|сообщеньк[уа]|смс|sms|message)\s+(?:для\s+)?(?=\S)", "", rest, flags=re.I)   # «напиши контакту X»
     qtext = quote.group(1).strip() if quote else None
     if not rest and qtext and len(qtext.split()) >= 2 and qtext[:1].isupper():
         # «напиши контакту «Обэй привет»» — распознавание взяло в кавычки и имя, и текст
@@ -1197,10 +1331,17 @@ def intent(text: str, last: str = None):
         rest2 = re.sub(r"^(?:в|во|to)\s+(?=чат|групп|бесед|chat|group)", "", rest, flags=re.I)
         rest2 = re.sub(r"^(?:у|в|во)\s+(?=магазин|продав|поддержк|салон|сервис|бутик)", "", rest2, flags=re.I)
         sp = _SEP.search(rest2)
-        if sp and sp.start() > 0:
+        num = re.match(r"^(\+?\d[\d\s()-]{7,18}\d)[\s,:]*(.*)$", rest2)
+        if num:                                               # «напиши +996 707 111 222 привет» — адресат-номер
+            contact, gist = num.group(1), num.group(2)
+        elif sp and sp.start() > 0:
             contact, gist = rest2[:sp.start()], rest2[sp.end():]
             if len(contact.split()) > 3:
                 contact, gist = contact.split()[0], " ".join(contact.split()[1:]) + " " + gist
+            cw = contact.split()
+            if len(cw) >= 2 and not cw[1][:1].isupper() and norm(cw[0]) not in _POSS and _in_phonebook(cw[0]) \
+                    and not _in_phonebook(contact):           # «назару привет, это Атлас» → «назару» + «привет, это Атлас»
+                contact, gist = cw[0], " ".join(cw[1:]) + ", " + gist
         else:
             words = rest2.split()
             if not words:
@@ -1237,11 +1378,12 @@ def intent(text: str, last: str = None):
         app = known_app(contact)
         if not app:
             first = ([w for w in contact.split() if norm(w) not in _POSS] or [""])[0]
-            person = bool(is_kin(contact) or (first[:1].isupper() and re.search(r"[A-Za-zА-Яа-яЁё]", first)))
+            person = bool(is_kin(contact) or (first[:1].isupper() and re.search(r"[A-Za-zА-Яа-яЁё]", first))
+                          or _in_phonebook(contact))
             if not person or _THINGS.match(contact) or not stems(contact):
                 return None                            # «напиши письмо», «скажи что-нибудь» — не мессенджер
             return ("reply", None, contact, gist.strip(" .,"), exact)   # «напиши маме/Алиму» — мессенджер выберем сами
-    if contact is not None and not stems(contact):
+    if contact is not None and not stems(contact) and not re.fullmatch(r"\+?[\d\s()-]{9,20}", contact):
         return None
     return ("reply", app, contact, gist.strip(" .,"), exact)
 
@@ -1305,8 +1447,21 @@ def _default_app():
     return next((k for k in APPS if k == d or re.search(APPS[k]["rx"], d, re.I)), None)
 
 
+def _in_phonebook(contact: str) -> bool:
+    """«назару» с маленькой буквы (так печатают и так иногда пишет распознавание) — человек, если есть в контактах."""
+    if not contact or _THINGS.match(contact) or len(contact.split()) > 3:
+        return False
+    try:
+        from core import contacts
+        hit = contacts.lookup(contact)
+        return bool(hit and hit[0] == "one")
+    except Exception:
+        return False
+
+
 def _resolve_app(contact, ui):
-    """«Напиши маме» без названия мессенджера: вспомнить / открытый / единственный открытый / по умолчанию."""
+    """«Напиши маме» без названия мессенджера: вспомнить / открытый / единственный открытый / по умолчанию /
+    есть в телефонной книге → WhatsApp (номер есть — чат откроется по нему)."""
     if contact and known_app(contact):
         return known_app(contact)
     wins = ui.windows()
@@ -1316,7 +1471,20 @@ def _resolve_app(contact, ui):
     open_apps = [k for k in APPS if find_window(k, wins)]
     if len(open_apps) == 1:                                           # открыт ровно один — он и есть
         return open_apps[0]
-    return _default_app()
+    d = _default_app()
+    if d:
+        return d
+    if contact and (_in_phonebook(contact) or (is_self(contact) and _self_known())):
+        return "whatsapp"
+    return None
+
+
+def _self_known() -> bool:
+    try:
+        from core import contacts
+        return bool(contacts.self_phone())
+    except Exception:
+        return False
 
 
 def prepare(app, contact, gist: str, exact: str = None, ru: bool = True, ui=None, ask=None, title: str = None,
@@ -1335,6 +1503,7 @@ def prepare(app, contact, gist: str, exact: str = None, ru: bool = True, ui=None
                  f"Which messenger should I use for {contact}? Telegram, WhatsApp, Instagram or Discord?")
             _s["said"] = q
             return q
+    direct = None
     if app is None:                                                   # «ответь ему» — в открытом чате
         found = current_messenger(ui.windows())
         if not found:
@@ -1357,18 +1526,20 @@ def prepare(app, contact, gist: str, exact: str = None, ru: bool = True, ui=None
             said = _no_chat(r, app, contact, ru)
             _s["said"] = said
             return said
-        conv = read_chat(r["hwnd"], r.get("web", False), ui)
+        direct = None if (exact or (contact and is_shop(contact))) else _plain(gist, ru)
+        conv = None if direct else read_chat(r["hwnd"], r.get("web", False), ui)   # прямой текст — читать чат незачем
         _remember(contact, app)
     chat = re.sub(r"\s+(?:онлайн|online|был\w*|печатает|typing|last seen).*$", "", r["name"], flags=re.I).strip()
     name = _nominal(chat)                                    # «маме» → «Мама» для ответа вслух (чат не распознан)
     try:
-        text = _exact_clean(exact, ru, ask) if exact else \
-            draft(gist, conv, name, app, ru, ask, shop=bool(contact and is_shop(contact)))
+        text = _exact_clean(exact, ru, ask) if exact else direct or \
+            draft(gist, conv or [], name, app, ru, ask, shop=bool(contact and is_shop(contact)))
     except Exception as e:
         return (f"Чат открыл, но текст не получился: {e}" if ru else f"Opened the chat, but couldn't write: {e}")[:220]
     if not text:
         return "Не получилось написать ответ." if ru else "Couldn't write a reply."
     p = {"app": app, "hwnd": r["hwnd"], "contact": contact, "name": name, "chat": chat, "text": text, "verified": r["verified"],
+         "phone": r.get("phone"),
          "created": time.time(), "gist": gist, "conv": conv, "ru": ru, "web": r.get("web", False),
          "shop": bool(contact and is_shop(contact))}
     _s["pending"] = p
@@ -1377,9 +1548,29 @@ def prepare(app, contact, gist: str, exact: str = None, ru: bool = True, ui=None
     return said
 
 
+_INSTR = re.compile(r"(?<!\w)(?:что|чтобы|спроси\w*|попроси\w*|поздравь|пожелай|предупреди|напомни|извинись|объясни|"
+                    r"придумай|вежлив\w*|красив\w*|подробн\w*|ответь|скажи|расскажи|узнай|уточни|про|насч[её]т|"
+                    r"он|она|оно|они|его|её|ее|ему|ей|им|их|него|неё|нее|ней|ними|"
+                    r"ask|tell|remind|apologi\w*|explain|nicely|politely|about|he|she|they|him|her|them)(?!\w)", re.I)
+_GREET = re.compile(r"^(?:привет|приветик|здравствуй(?:те)?|салам|салют|хай|спасибо|благодарю|пока|до встречи|"
+                    r"доброе утро|добрый (?:день|вечер)|спокойной ночи|hi|hello|hey|thanks|thank you|bye|"
+                    r"good (?:morning|night))$", re.I)
+
+
+def _plain(gist: str, ru: bool = True):
+    """Короткий текст, который можно отправить как есть: «привет», «буду в 7», «тест 2».
+    Модель тут не нужна: черновик + корректор — два запроса, 2–4 с (живой тест 28.10), и ещё «Назар, привет!»
+    вместо твоего «привет». Пересказ («что он молодец»), просьбы и «спроси…» — по-прежнему через модель."""
+    g = " ".join((gist or "").split()).strip(" .,")
+    if not g or len(g.split()) > 4 or len(g) > 40 or _INSTR.search(g):
+        return None
+    t = _tidy(g, ru)
+    return t + "!" if _GREET.match(g) else t
+
+
 def _exact_clean(text: str, ru: bool, ask=None) -> str:
     """Продиктованный дословно текст: слова те же — только запятые, буквы и опечатки распознавания речи."""
-    if ask is None:
+    if ask is None and len((text or "").split()) > 4:              # «привет», «тест 2» — корректор не нужен
         from core import quick_llm
         text = _polish(text, ru, quick_llm.ask)
     return _tidy(text, ru)
@@ -1389,6 +1580,11 @@ def redraft(change: str, ask=None) -> str:
     p = pending()
     if not p:
         return "Нечего переписывать." if _ru(change) else "Nothing to rewrite."
+    if p.get("conv") is None:                                         # черновик был без модели — переписку читаем сейчас
+        try:
+            p["conv"] = read_chat(p["hwnd"], p.get("web", False))
+        except Exception:
+            p["conv"] = []
     try:
         p["text"] = draft(p["gist"], p["conv"], p["name"], p["app"], p["ru"], ask, change=change, before=p["text"],
                           shop=p.get("shop", False))
@@ -1487,17 +1683,40 @@ def send(ui=None) -> str:
                             for ln in head if norm(ln["text"])):
             return (f"Сейчас открыт другой чат, не «{p['chat']}» — не отправил. Скажи ещё раз, кому написать." if ru else
                     f"A different chat is open now, not “{p['chat']}” — not sent.")
-    ui.paste(p["text"])
-    ui.sleep(0.25)
+    if p.get("phone") and p["app"] == "whatsapp" and not p.get("web") and hasattr(ui, "open_url"):
+        # Текст — прямо в ссылке: WhatsApp сам кладёт его в поле ввода нужного чата, остаётся Enter.
+        # Вставка через буфер на этом ПК ни разу не дошла до поля (логи 28–29.10: «Вставил и нажал Enter — проверь»).
+        from urllib.parse import quote
+        ui.open_url(f"whatsapp://send?phone={p['phone']}&text={quote(p['text'])}")
+        ui.sleep(1.5)
+        if not _hold(ui, p["hwnd"]):
+            print(f"[мессенджеры] после ссылки впереди {_front(ui)} — не отправил")
+            return ("Текст в чат положил, но окно WhatsApp ушло с экрана — Enter не нажал. Нажми сам." if ru else
+                    "The text is in the chat, but WhatsApp lost focus — press Enter yourself.")
+        rect = ui.rect(p["hwnd"])
+        rg = _regions(rect, False, p["hwnd"])
+        ui.click(int(rg["chat_x"] + (rect[2] - rg["chat_x"]) * 0.45), int(rect[3] - rg["H"] * 0.045))   # курсор — в поле
+        ui.sleep(0.2)
+        how = "ссылкой"
+    else:
+        ui.paste(p["text"])
+        ui.sleep(0.25)
+        how = "вставкой"
     if not _hold(ui, p["hwnd"], 2):                       # Enter не должен уйти в чужое окно
         print(f"[мессенджеры] перед Enter впереди {_front(ui)} — не нажал")
         return ("Текст вставил, но окно ушло с экрана — Enter не нажал. Проверь и нажми сам." if ru else
                 "Pasted, but the window lost focus — didn't press Enter.")
     ui.keys("enter")
-    ui.sleep(1.0)
-    conv = read_chat(p["hwnd"], p.get("web", False), ui)
     head = norm(p["text"])[:14]
-    ok = any(w == "me" and head and head[:10] in norm(t) for w, t in conv[-4:])
+    ok, conv = False, []
+    for wait in (1.0, 1.5):                               # своё сообщение появляется не мгновенно («Ожидание» → «Доставлено»)
+        ui.sleep(wait)
+        conv = read_chat(p["hwnd"], p.get("web", False), ui)
+        ok = any(w == "me" and head and head[:10] in norm(t) for w, t in conv[-4:])
+        if ok:
+            break
+    print(f"[мессенджеры] {p['app']}: текст {how}, Enter → {'в чате вижу своё сообщение' if ok else 'своего сообщения не вижу'}"
+          f" (последние: {[(w, t[:20]) for w, t in conv[-3:]]})")
     if p.get("verified") and p.get("contact") and p.get("chat") and p.get("learn", True):
         _remember(p["contact"], p["app"], p["chat"])
     _s["last_sent"] = {"t": time.time(), "app": p["app"], "contact": p.get("contact") or "", "chat": p.get("chat") or "",
@@ -1593,6 +1812,13 @@ def handle(text: str, last: str = None, ui=None, ask=None):
         return (f"Запомнил: {_nominal(it[2]).lower()}{where} — это «{it[3]}»." if ru else
                 f"Got it: {it[2]}{where} is saved as “{it[3]}”.")
     if k == "pick_chat":
+        try:
+            from core import contacts                     # «не себе, а вы, номер 707-05-08-09» — свой номер тоже запомним
+            ci = contacts.intent(text)
+            if ci and ci[0] == "self":
+                contacts.set_self(ci[1], quiet=True)
+        except Exception:
+            pass
         np = _s.get("pending") or {}
         _s["pending"] = None
         out = prepare(np.get("app"), np.get("contact"), np.get("gist", ""), np.get("exact"),
@@ -1658,6 +1884,14 @@ def tool_send_message(app: str, contact: str, message: str, exact: bool = False)
             None, norm(message), norm(ls["text"])).ratio() > 0.6):
         return (f"ALREADY SENT {int(time.time() - ls['t'])} s ago to “{ls['chat'] or ls['contact']}”: “{ls['text']}”. "
                 "Do NOT draft or send it again; just tell the user it was sent.")
+    p = pending()
+    if p and p.get("text") and not p.get("need_app") and not p.get("need_chat") \
+            and time.time() - p.get("created", 0) < 180 and (not message or difflib.SequenceMatcher(
+                None, norm(message), norm(p["text"])).ratio() > 0.6):
+        # живой тест 29.10: черновик маме ждал «да», а модель взяла номер из памяти и отправила «Привет!» себе
+        return (f"A DRAFT IS ALREADY WAITING for “{p.get('chat') or p.get('name')}” in {APPS[p['app']]['name']}: "
+                f"“{p['text']}”. Do NOT start a new message and do NOT change the recipient. If the user agreed "
+                "(да / отправляй / yes), call confirm_message_send now; otherwise ask them to confirm.")
     out = tool_prepare(app, contact, message, bool(exact))
     if pending() and re.search(r"(?:Отправить|Send)\?\s*$", out or ""):
         return ("DRAFT READY — NOT SENT YET. Say this to the user word for word and wait for their yes "
@@ -1675,7 +1909,15 @@ def tool_confirm() -> str:
 
 
 def tool_prepare(app: str, contact: str, message: str, exact: bool = False) -> str:
-    """Для модели."""
+    """Для модели. «Nazar» от модели → «Назар» из телефонной книги (живой тест 29.10: поиск «Nazar» на экране открыл группу)."""
+    if contact and re.search(r"[a-z]", contact, re.I) and not re.search(r"[а-яё]", contact, re.I):
+        try:
+            from core import contacts
+            hit = contacts.lookup(contact)
+            if hit and hit[0] == "one":
+                contact = hit[1]
+        except Exception:
+            pass
     a = (app or "").lower().strip()
     key = next((k for k, v in APPS.items() if a == k or re.search(v["rx"], a, re.I)), None) if a else None
     if a in ("", "current", "here", "this"):
@@ -1687,7 +1929,27 @@ def tool_prepare(app: str, contact: str, message: str, exact: bool = False) -> s
         contact = "себе"
     if key is None:
         return prepare(None, None, "" if exact else message, message if exact else None, ru)
+    if key == "telegram" and contact and not _installed("telegram") and (_in_phonebook(contact) or is_self(contact)):
+        # модель сама выбрала Telegram, а его на ПК нет (лог 29.10: «Telegram не запустился») — номер есть, пишем в WhatsApp
+        print(f"[мессенджеры] Telegram не установлен — «{contact}» пишу в WhatsApp")
+        key = "whatsapp"
     return prepare(key, contact, "" if exact else message, message if exact else None, ru)
+
+
+def _installed(app: str) -> bool:
+    """Есть ли мессенджер на ПК: открытое окно или ярлык в меню «Пуск». WhatsApp из Microsoft Store — считаем, что есть."""
+    if app == "whatsapp":
+        return True
+    try:
+        if find_window(app, _get_ui().windows()):
+            return True
+    except Exception:
+        pass
+    try:
+        import system_control
+        return bool(system_control._find_shortcut(APPS[app]["name"])[1])
+    except Exception:
+        return True                                    # не знаем — не мешаем
 
 
 if __name__ == "__main__":            # python -m core.messengers check telegram  — что Atlas видит в окне

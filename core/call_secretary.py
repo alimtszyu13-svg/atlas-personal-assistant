@@ -32,7 +32,10 @@ _DECLINE = re.compile(r"отклонить|сбросить|отказаться
 _HANGUP = re.compile(r"завершить|положить трубку|покинуть|end call|hang ?up|leave call|leave", re.I)
 REPEAT_S = 9
 MAX_ANNOUNCE = 3
-_s = {"ring": None, "seen": set(), "thread": None, "announce": None, "on": True, "handled": set()}
+_s = {"ring": None, "seen": set(), "thread": None, "announce": None, "on": True, "handled": set(),
+      "hint": None, "active": None, "announced": {}}
+HINT_S = 25               # уведомление «звонит мама» действительно столько секунд
+_MISSED = re.compile(r"пропущенн\w*\s+(?:аудио|видео)?(?:звон\w*|вызов\w*)|missed (?:voice |video )?call", re.I)
 _lock = threading.Lock()
 
 
@@ -42,6 +45,36 @@ def _ru() -> bool:
         return get_response_language() == "ru"
     except Exception:
         return True
+
+
+def hint(app: str, caller: str, now: float = None) -> None:
+    """Служба сообщений увидела уведомление «входящий звонок» — точное имя звонящего и мессенджер."""
+    _s["hint"] = {"app": app, "caller": (caller or "").strip(), "t": now if now is not None else time.time()}
+
+
+def busy() -> bool:
+    """Звонят или идёт разговор — сообщения и подсказки не объявляем."""
+    return bool(_s["ring"] or _s["active"])
+
+
+def recently_announced(caller: str, within: float = 120, now: float = None) -> bool:
+    """Об этом звонке уже сказали (чтобы «пропущенный звонок» не звучал вторым разом сразу после звонка)."""
+    t = _s["announced"].get(_key(caller))
+    return bool(t) and (now if now is not None else time.time()) - t < within
+
+
+def _key(caller: str) -> str:
+    """«Мама ❤» и «мама» с экрана — один и тот же человек."""
+    return re.sub(r"[^\w\s-]", "", spoken(caller or "")).strip().lower()
+
+
+def spoken(caller: str) -> str:
+    """«Мама ❤» → «мама», «Алим Сыдыков 🏀» → «Алим Сыдыков»."""
+    try:
+        from core import msg_watch
+        return msg_watch.spoken_name(caller, _ru())
+    except Exception:
+        return caller
 
 
 def owner_name() -> str:
@@ -269,6 +302,8 @@ def intent(text: str):
         return ("drop",)
     if _SELF.search(t):
         return ("self",)
+    if re.search(r":|\bчто\b|\bчтобы\b|\bthat\b|«", t) and not re.search(r"трубк|звон|call", t, re.I):
+        return None                                      # «ответь: буду в 7» — ответ на сообщение, не на звонок
     if _TAKE.search(t) and (len(t.split()) <= 6 or re.search(r"трубк|звон|call", t, re.I)):
         return ("take", bool(_LOUD.search(t)))
     return None
@@ -282,9 +317,12 @@ def handle(text: str, env=None):
     ring = _s["ring"]
     ru = bool(re.search(r"[а-яё]", text, re.I)) if re.search(r"[a-zа-яё]", text or "", re.I) else _ru()
     k = it[0]
-    _s["handled"].add(ring["hwnd"])
+    toast = bool(ring.get("toast"))                    # звонок только из уведомления: окно — главное окно мессенджера
+    if not toast:
+        _s["handled"].add(ring["hwnd"])
     if k == "self":
         _s["ring"] = None
+        _s["active"] = None if toast else ring["hwnd"]                     # берёшь сам — дальше разговор
         return "Хорошо." if ru else "OK."
     if k == "drop":
         ok = press("decline", ring, env)
@@ -296,6 +334,7 @@ def handle(text: str, env=None):
         _s["ring"] = None
         if not ok:
             return "Не нашёл кнопку «Принять» — возьми сам." if ru else "Couldn't find the Accept button."
+        _s["active"] = None if toast else ring["hwnd"]  # идёт разговор — сообщения не объявляем, пока окно не закроется
         if it[1]:
             env.louder()
             if env.headphones():
@@ -315,7 +354,8 @@ def handle(text: str, env=None):
     press("decline", ring, env)
     _s["ring"] = None
     sent = _text_back(ring, it[1], ru, env)
-    return (f"Сбросил и написал {ring['caller'] or 'ему'}: «{sent}»." if sent else
+    sent_to = _s.get("texted") or ring.get("caller") or ""
+    return (f"Сбросил и написал в чат «{sent_to}»: «{sent}»." if sent else
             "Сбросил. Написать не получилось — напиши сам.") if ru else \
         (f"Declined and texted: “{sent}”." if sent else "Declined; couldn't text them.")
 
@@ -331,12 +371,14 @@ def _text_back(ring: dict, said: str, ru: bool, env) -> str:
     try:
         from core import messengers
         env.sleep(1.0)
+        _s["texted"] = ""
         r = messengers.open_chat(app, ring["caller"])
         if not r.get("ok") or not r.get("verified"):
             return ""
         messengers._s["pending"] = {"app": app, "hwnd": r["hwnd"], "contact": ring["caller"], "name": r["name"],
-                                    "text": text, "verified": True, "created": time.time(), "gist": "", "conv": [],
-                                    "ru": ru, "web": r.get("web", False)}
+                                    "chat": r["name"], "text": text, "verified": True, "created": time.time(),
+                                    "gist": "", "conv": [], "ru": ru, "web": r.get("web", False)}
+        _s["texted"] = r["name"]
         out = messengers.send()
         return text if out in ("Отправил.", "Sent.") or "Enter" in out else ""
     except Exception as e:
@@ -350,7 +392,15 @@ def tick(env=None, announce=None) -> str:
     env = env or _get_env()
     wins = env.windows()
     alive = {w["hwnd"] for w in wins}
+    if _s["active"] and _s["active"] not in alive:              # окно разговора закрылось — разговор закончился
+        _s["active"] = None
+    h = _s["hint"]
+    if h and env.now() - h["t"] > HINT_S:
+        _s["hint"] = h = None
     ring = _s["ring"]
+    if ring and ring.get("toast") and env.now() - ring.get("start", ring["last"]) > 45:
+        print(f"[звонки] звонок {ring['caller']} (из уведомления) закончился")    # окна у такого звонка нет — по времени
+        _s["ring"] = ring = None
     if ring and ring["hwnd"] not in alive:                       # звонок закончился / приняли / сбросили
         print(f"[звонки] звонок {ring['caller']} закончился")
         _s["ring"] = None
@@ -361,11 +411,19 @@ def tick(env=None, announce=None) -> str:
             ring["n"] += 1
             ring["last"] = env.now()
             said = _line(ring, again=True)
-    else:
+    elif not _s["active"]:
         found = detect([w for w in wins if w["hwnd"] not in _s["handled"]], env)
+        if h and not found:                                    # WhatsApp: звонок только уведомлением, без окна
+            found = _from_hint(h, wins)
         if found:
-            found.update(n=1, last=env.now())
+            if h and (not found.get("caller") or h["app"] == found.get("app")) and h["caller"]:
+                found["caller"] = h["caller"]                  # имя из уведомления точнее, чем с экрана
+            _s["hint"] = None
+            found.update(n=1, last=env.now(), start=env.now())
             _s["ring"] = found
+            for k in [k for k, t in _s["announced"].items() if env.now() - t > 600]:
+                del _s["announced"][k]
+            _s["announced"][_key(found.get("caller"))] = env.now()
             said = _line(found)
     _s["seen"] = alive
     _s["handled"] &= alive
@@ -378,8 +436,18 @@ def tick(env=None, announce=None) -> str:
     return said
 
 
+def _from_hint(h: dict, wins: list):
+    """Звонок есть в уведомлении, а окна звонка нет — берём главное окно мессенджера (кнопки ищем в нём)."""
+    key = {"Telegram": "telegram", "WhatsApp": "whatsapp", "Discord": "discord"}.get(h["app"], h["app"])
+    w = next((w for w in wins if APPS.get(w["app"].lower()) == h["app"] or key in w["app"].lower()
+              or key in (w.get("title") or "").lower()), None)
+    if not w or w["hwnd"] in _s["handled"]:
+        return None
+    return {"hwnd": w["hwnd"], "app": h["app"], "caller": h["caller"], "rect": None, "toast": True}
+
+
 def _line(ring: dict, again: bool = False) -> str:
-    who = ring.get("caller") or ""
+    who = spoken(ring.get("caller") or "")
     if _ru():
         if again:
             return f"Сэр, всё ещё звонит {who}." if who else "Сэр, звонок всё ещё идёт."
